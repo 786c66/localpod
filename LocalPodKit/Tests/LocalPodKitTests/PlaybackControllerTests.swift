@@ -183,45 +183,29 @@ final class PlaybackControllerTests: XCTestCase {
         second.pause()
     }
 
-    func testAudioKeepsPlayingInBackgroundButVideoPausesAndResumes() async throws {
+    func testAudioKeepsPlayingWhenAppBackgrounds() async throws {
         controller.load(makeLongItem(), autoplay: true)
         try await waitUntil { self.controller.isPlaying }
         controller.handleSceneDidEnterBackground()
         XCTAssertTrue(controller.isPlaying)
         XCTAssertTrue(controller.phase == .playing || controller.phase == .buffering)
-
-        let videoURL = TestFixtures.videoURL
-        let video = PlaybackItem(
-            title: "视频",
-            subtitle: "M2 测试",
-            fileURL: videoURL,
-            kind: .video
-        )
-        controller.load(video, autoplay: true)
-        try await waitUntil { self.controller.isPlaying }
-        controller.handleSceneDidEnterBackground()
-        XCTAssertFalse(controller.isPlaying)
-        XCTAssertEqual(controller.phase, .paused)
-
-        controller.handleSceneWillEnterForeground()
-        XCTAssertTrue(controller.isPlaying)
-        XCTAssertEqual(controller.phase, .playing)
     }
 
-    func testPictureInPictureVideoKeepsPlayingWhenBackgrounded() async throws {
+    func testVideoFilePlaysAudioTrackWithoutVideoSurface() async throws {
         let videoURL = TestFixtures.videoURL
         controller.load(PlaybackItem(
             title: "视频",
-            subtitle: "PiP",
+            subtitle: "仅音频",
             fileURL: videoURL,
             kind: .video
         ), autoplay: true)
-        try await waitUntil { self.controller.isPlaying }
-
-        controller.setPictureInPictureActive(true)
+        try await waitUntil(timeout: 15, message: "video audio track never played") {
+            self.controller.isPlaying
+        }
+        XCTAssertNil(controller.errorMessage)
+        XCTAssertGreaterThan(controller.duration, 0)
         controller.handleSceneDidEnterBackground()
-        XCTAssertTrue(controller.isPlaying)
-        XCTAssertTrue(controller.phase == .playing || controller.phase == .buffering)
+        XCTAssertTrue(controller.isPlaying, "audio-only playback must continue in background")
     }
 
     func testNowPlayingMetadataAndRemoteCommands() async throws {

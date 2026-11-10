@@ -31,6 +31,10 @@ public typealias MediaItem = LocalPodSchemaV2.MediaItem
 public typealias MediaCollection = LocalPodSchemaV2.MediaCollection
 public typealias ImportSession = LocalPodSchemaV2.ImportSession
 public typealias PlaybackState = LocalPodSchemaV3.PlaybackState
+public typealias QueueEntry = LocalPodSchemaV4.QueueEntry
+public typealias QueueState = LocalPodSchemaV4.QueueState
+public typealias Playlist = LocalPodSchemaV4.Playlist
+public typealias PlaylistEntry = LocalPodSchemaV4.PlaylistEntry
 
 public extension LocalPodSchemaV2.MediaItem {
     var kind: MediaKind {

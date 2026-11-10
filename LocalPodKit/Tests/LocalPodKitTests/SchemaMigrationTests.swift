@@ -60,6 +60,78 @@ final class SchemaMigrationTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<PlaybackState>()), 1)
     }
 
+    func testV3StoreMigratesToV4AndKeepsPlaybackState() throws {
+        let root = try TemporaryDirectory()
+        let storeURL = root.url.appendingPathComponent("LocalPod.store")
+
+        try makeV3Store(at: storeURL)
+        let container = try openV4Store(at: storeURL)
+        let context = container.mainContext
+
+        let items = try context.fetch(FetchDescriptor<MediaItem>())
+        XCTAssertEqual(items.count, 1)
+        let item = try XCTUnwrap(items.first)
+        XCTAssertEqual(item.title, "M2 item")
+
+        let states = try context.fetch(FetchDescriptor<PlaybackState>())
+        XCTAssertEqual(states.count, 1)
+        XCTAssertEqual(states.first?.itemID, item.id)
+        XCTAssertEqual(states.first?.position ?? 0, 42, accuracy: 0.001)
+
+        context.insert(QueueEntry(itemID: item.id, position: 0))
+        context.insert(QueueState(currentItemID: item.id, repeatMode: .all))
+        let playlist = Playlist(name: "迁移列表")
+        context.insert(playlist)
+        context.insert(PlaylistEntry(
+            playlistID: playlist.id,
+            itemID: item.id,
+            position: 0
+        ))
+        try context.save()
+
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<QueueEntry>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<QueueState>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Playlist>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<PlaylistEntry>()), 1)
+    }
+
+    private func openV4Store(at url: URL) throws -> ModelContainer {
+        let schema = Schema(versionedSchema: LocalPodSchemaV4.self)
+        let configuration = ModelConfiguration(schema: schema, url: url)
+        return try ModelContainer(
+            for: schema,
+            migrationPlan: LocalPodMigrationPlan.self,
+            configurations: [configuration]
+        )
+    }
+
+    private func makeV3Store(at url: URL) throws {
+        let schema = Schema(versionedSchema: LocalPodSchemaV3.self)
+        let configuration = ModelConfiguration(schema: schema, url: url)
+        let container = try ModelContainer(
+            for: schema,
+            migrationPlan: nil,
+            configurations: [configuration]
+        )
+        let context = container.mainContext
+        let item = LocalPodSchemaV2.MediaItem(
+            title: "M2 item",
+            relativePath: "Media/m2.m4a",
+            kind: .audio,
+            fileExtension: "m4a",
+            byteSize: 999,
+            durationSeconds: 300
+        )
+        context.insert(item)
+        context.insert(LocalPodSchemaV3.PlaybackState(
+            itemID: item.id,
+            position: 42,
+            duration: 300,
+            playCount: 2
+        ))
+        try context.save()
+    }
+
     private func openV3Store(at url: URL) throws -> ModelContainer {
         let schema = Schema(versionedSchema: LocalPodSchemaV3.self)
         let configuration = ModelConfiguration(schema: schema, url: url)

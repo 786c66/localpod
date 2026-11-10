@@ -5,7 +5,7 @@ import LocalPodKit
 @main
 struct LocalPodApp: App {
     @State private var importCoordinator = ImportCoordinator()
-    @State private var playback = PlaybackController()
+    @State private var session = PlaybackSession()
     private let container: ModelContainer
 
     init() {
@@ -49,6 +49,7 @@ struct LocalPodApp: App {
         try? FileManager.default.removeItem(
             at: MediaStorage.live.cachesRoot.appendingPathComponent("Artwork", isDirectory: true)
         )
+        AppSettingsStore.clearStoredValues()
         _ = try? ImportInbox.live.ensureExists()
         if let pending = try? ImportInbox.live.pendingURLs() {
             for url in pending {
@@ -62,7 +63,11 @@ struct LocalPodApp: App {
         WindowGroup {
             RootView()
                 .environment(importCoordinator)
-                .environment(playback)
+                .environment(session)
+                .environment(session.playback)
+                .environment(session.queue)
+                .environment(session.settings)
+                .environment(session.sleepTimer)
         }
         .modelContainer(container)
     }

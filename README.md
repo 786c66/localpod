@@ -2,16 +2,24 @@
 
 本地播客式播放器（iPhone / iOS 17+）。核心区别：从文件 App 选择一个**文件夹**，递归导入其中所有音频/视频，之后像播客一样管理、播放。
 
-当前处于 **M2「播放核心」**阶段：文件夹递归导入、去重、资料库与播放核心已可用；队列、播放列表、睡眠定时按 M3 推进。
+当前处于 **M3「队列、播放列表、睡眠定时、设置」**阶段：文件夹递归导入、资料库、播放核心与播客式消费闭环已可用；仅播放音频，不渲染视频画面。
 
-## 已实现（M2）
+## 已实现（M3）
+
+- **播放队列**：播放替换队列、下一首播放插入当前项之后、加入队列追加到末尾；自动下一集可关；随机顺序持久化；单曲/列表循环；队列与当前项重启后恢复为暂停状态。
+- **播放列表**：新建/重命名/删除、加入/移除条目、拖拽及上移/下移排序、播放全部/随机播放；排序与内容持久化。
+- **睡眠定时**：1/5/15/30/45/60/90 分钟或“本集结束”；到点前 10 秒音量淡出后暂停；本集结束模式抑制自动下一集。
+- **继续播放**：资料库显示未播完条目，已播完条目不再出现在“继续播放”；播完阈值沿用 M2。
+- **设置**：默认倍速、快进/快退间隔、是否记住播放位置、是否自动下一集；立即生效并跨重启保留。
+
+## 播放核心（M2，保留）
 
 - **播放状态机**：`idle / preparing / ready / playing / paused / buffering / interrupted / ended / failed`；失败可重试，解码错误/媒体服务重置可恢复。
-- **后台音频**：AudioSession `.playback` + AirPlay，`.spokenAudio` / `.moviePlayback` 模式；锁屏/控制中心 Now Playing（标题、合集、时长、进度、倍速、真实封面或占位图）与播放/暂停/±15s/拖动命令。
-- **进度持久化**：独立 SwiftData V3 `PlaybackState` 表，每秒落盘并在暂停/拖动/切歌/后台时强制保存；重开恢复误差 ≤ 2 秒；播完（≥95%，或 >60s 且剩余 ≤30s）标记完成、不自动续播，手动重播从 0 开始。
+- **后台音频**：AudioSession `.playback` + AirPlay，`.spokenAudio` 模式；锁屏/控制中心 Now Playing（标题、合集、时长、进度、倍速、真实封面或占位图）与播放/暂停/±15s/拖动命令。
+- **仅音频**：视频文件可导入并播放其音轨，但不显示画面；已移除全屏视频、旋转、PiP 与视频后台暂停逻辑。
+- **进度持久化**：独立 SwiftData `PlaybackState` 表（V3 引入，随 V4 保留），每秒落盘并在暂停/拖动/切歌/后台时强制保存；重开恢复误差 ≤ 2 秒；播完（≥95%，或 >60s 且剩余 ≤30s）标记完成、不自动续播，手动重播从 0 开始。
 - **倍速**：0.5/1.0/1.5/2.0/3.0×（另有 0.8/1.2/1.8/2.5 策略预设），`audioTimePitchAlgorithm = .timeDomain` 保持人声音调。
-- **播放 UI**：封面/状态/进度条/剩余时间/±15s/播放暂停/倍速胶囊/错误重试；拖动只在松手时 seek 与保存。
-- **视频**：AVPlayerViewController 全屏、播放控件、PiP 委托、AirPlay 路由、关闭返回；后台默认暂停，回前台恢复，PiP 期间不暂停。
+- **播放 UI**：封面/状态/进度条/剩余时间/上一首/下一首/±间隔/播放暂停/倍速胶囊/错误重试；拖动只在松手时 seek 与保存。
 - **中断/路由**：来电/闹钟打断按 `shouldResume` 恢复；拔耳机/旧输出设备暂停；媒体服务重置后按原位置重建。
 
 ### M1 能力（保留）
@@ -19,25 +27,25 @@
 - **文件夹递归导入**：文件 App 选择文件夹；扫描过滤、深度/数量上限、自然排序；iCloud 未下载文件交给下载器处理。
 - **可靠导入流水线**：staging → 1 MB 分块复制 + SHA-256 → AVFoundation probe → 原子移动到 `Application Support/Media`；支持取消、失败分类、JSON 报告。
 - **去重与重链**：相同内容跳过；缺失条目重新导入同内容时恢复原记录。
-- **元数据**：时长、音频/视频类型、标题、视频 JPEG 缩略图、音频内嵌封面或占位图。
+- **元数据**：时长、音频/视频类型、标题、封面（视频文件取帧生成 JPEG，音频取内嵌封面或占位图）。
 - **资料库**：条目/合集视图、搜索、筛选、排序、条目详情、播放、删除；显示条目数、合集数、总大小、总时长。
-- **持久化**：SwiftData Schema V3（V1/V2 可 lightweight migration 到 V3）；启动/回前台对账清理 staging、孤儿媒体/封面，标记/恢复缺失。
+- **持久化**：SwiftData Schema V4（V1/V2/V3 可 lightweight migration 到 V4；新增队列/播放列表实体）；启动/回前台对账清理 staging、孤儿媒体/封面，标记/恢复缺失。
 - **导入报告**：分类结果（导入/重复/不支持/失败）、耗时、复制大小、完整 JSON 报告与导入会话记录。
 - **收件箱**：`Documents/Import` + 外部打开 + Finder 文件共享路径继续可用。
 
 ### M0 能力（保留）
 
 - SwiftUI + SwiftData + Swift 6 工程骨架，仅 iPhone，无 Share Extension、无 App Group。
-- AVPlayer 音频后台播放 / Now Playing / 远程命令；H.264/HEVC 视频全屏。
+- AVPlayer 音频后台播放 / Now Playing / 远程命令。
 - SwiftData 5k 基准；诊断页显示签名到期、数据量、路径与启动维护结果。
 
 ## 验证
 
-- `LocalPodKit`：**60 个单元/集成测试，0 失败**；5000 文件导入峰值内存增量 100.3 MB（阈值 200 MB）。
-- UI 测试：**M0 5 个 + M1 5 个 + M2 6 个，0 失败**（iOS 27.1 模拟器）。
-- M2 详细结果、截图与待真机项见 [docs/M2-REPORT.md](docs/M2-REPORT.md)。
+- `LocalPodKit`：**94 个单元/集成测试，0 失败**；5000 文件导入峰值内存增量 100.3 MB（阈值 200 MB）。
+- UI 测试：**M0 4 个 + M1 5 个 + M2 5 个 + M3 6 个，0 失败**（iOS 27.1 模拟器）。
+- M3 详细结果、截图与待真机项见 [docs/M3-REPORT.md](docs/M3-REPORT.md)；M2 见 [docs/M2-REPORT.md](docs/M2-REPORT.md)。
 - M1 结果见 [docs/M1-REPORT.md](docs/M1-REPORT.md)；M0 报告与免费账号签名步骤见 [docs/M0-REPORT.md](docs/M0-REPORT.md)、[docs/M0-SIGNING.md](docs/M0-SIGNING.md)。
-- **未计为通过**：锁屏/控制中心、来电打断、拔耳机、视频旋转/PiP/AirPlay、2 小时长播内存、真实文件夹选择器、真实 iCloud 下载/断网重试、最老真机性能；清单见 [docs/M0-DEVICE-CHECKLIST.md](docs/M0-DEVICE-CHECKLIST.md) 与 M1/M2 报告。
+- **未计为通过**：锁屏/控制中心、来电打断、拔耳机、AirPlay 音频、睡眠定时后台到点、拖拽手感、2 小时长播内存、真实文件夹选择器、真实 iCloud 下载/断网重试、最老真机性能；清单见 [docs/M0-DEVICE-CHECKLIST.md](docs/M0-DEVICE-CHECKLIST.md) 与 M1/M2/M3 报告。
 
 ## 打开工程
 
@@ -87,33 +95,36 @@ localpod/
   project.yml                   # XcodeGen 工程定义（源）
   LocalPod.xcodeproj            # 生成的 Xcode 工程
   LocalPod/                     # App 与 spike UI
-    App/                        # App、RootView、ImportCoordinator
-    Features/Library/           # M1 资料库 UI（条目/合集/详情/删除）
+    App/                        # App、RootView、ImportCoordinator、M3 调试种子
+    Features/Library/           # 资料库 UI（条目/合集/详情/删除/继续播放）
+    Features/Playlists/         # 播放列表列表、详情、排序
+    Features/Settings/          # 设置页
     Spikes/Import/              # 导入向导/进度/报告
-    Spikes/Playback/            # M2 播放器 UI、全屏视频/PiP
+    Spikes/Playback/            # 播放页：队列、睡眠定时、播放控件
     Spikes/Inbox/               # 收件箱
     Spikes/Benchmark/           # SwiftData 5k
     Spikes/Diagnostics/         # 签名/路径/数据/维护诊断
-    Resources/                  # 内置测试音频（20s/5min）与 H.264/HEVC 视频
+    Resources/                  # 内置测试音频（20s/5min）与视频容器（仅导入/音轨测试）
   LocalPodKit/                  # 可复用核心
     Sources/LocalPodKit/
-      Persistence/              # SwiftData V1/V2/V3 + migration
-      Playback/                 # 控制器/策略/进度存储
+      Persistence/              # SwiftData V1–V4 + migration
+      Playback/                 # 控制器/队列/会话/睡眠定时/设置/策略/进度
       Import/                   # 扫描/复制/下载/probe/引擎/报告
-      Library/                  # 资料库提交/删除/对账
+      Library/                  # 资料库提交/删除/对账、播放列表服务
       Media/                    # AVFoundation 元数据与缩略图
     Tests/LocalPodKitTests/
-  LocalPodUITests/              # M0/M1/M2 UI 测试
+  LocalPodUITests/              # M0/M1/M2/M3 UI 测试
   docs/
     M0-REPORT.md
     M0-SIGNING.md
     M0-DEVICE-CHECKLIST.md
     M1-REPORT.md
     M2-REPORT.md
+    M3-REPORT.md
     screenshots/
 ```
 
-## 调试启动参数（M0/M1/M2）
+## 调试启动参数（M0/M1/M2/M3）
 
 仅在 Debug 构建生效，用于模拟器/UI 测试：
 
@@ -129,8 +140,13 @@ localpod/
 | `--m2-auto-play-long-audio` | 启动后播放内置 5 分钟音频，使用固定进度 ID |
 | `--m2-no-autoplay` | 配合长音频：只加载不自动播放 |
 | `--m2-seek-to <秒>` | 配合长音频：加载后跳转到指定秒数 |
-| `--m0-auto-play-h264` | 启动后播放 H.264 视频 |
-| `--m0-auto-play-hevc` | 启动后播放 HEVC 视频 |
+| `--m3-seed-playable-library` | 插入 3 条可播放 M3 测试条目（A/B/C，B 已播完、C 播到一半） |
+| `--m3-seed-queue` | 建立 3 条队列并定位到 A |
+| `--m3-seed-single-queue` | 用 298 秒长音频建立单条队列，供一分钟睡眠定时测试 |
+| `--m3-arm-end-of-episode` | 自动播放前先启用“本集结束”睡眠模式 |
+| `--m3-no-auto-next` | 关闭“自动下一集”，使长时间队列 UI 测试不因 20 秒素材自动前进 |
+| `--m3-auto-play-first` | 打开播放页并播放队列当前项 |
+| `--m3-open-settings` | 启动后打开设置页 |
 | `--m0-auto-benchmark` | 打开 SwiftData 基准页 |
 | `--m0-auto-inbox` | 打开收件箱页 |
 | `--m0-seed-inbox` | 把内置音频复制到 `Documents/Import`，模拟 Finder 投递 |
@@ -148,5 +164,5 @@ xcrun simctl launch booted com.localpod.app --m0-reset-data --m1-auto-acceptance
 - 不做 Share Extension（免费 Apple ID 无 App Groups），导入走文件夹、文件选择、收件箱/Wi-Fi（P1）。
 - 不做 CarPlay、StoreKit/IAP、订阅。
 - 导入需保持 App 前台；iCloud 下载进度为不确定进度，真实 iCloud 行为待真机验证。
-- 锁屏/控制中心样式、来电打断、拔耳机、视频旋转/PiP/AirPlay、2 小时长播内存等真机项尚未确认，不计为通过。
-- 队列、播放列表、睡眠定时按 M3 推进。
+- 只播放音频，不显示视频画面；不支持旋转、PiP、全屏视频。视频文件仍可导入并读取音轨。
+- 锁屏/控制中心样式、来电打断、拔耳机、AirPlay 音频、睡眠定时后台到点、2 小时长播内存等真机项尚未确认，不计为通过。

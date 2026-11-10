@@ -4,6 +4,8 @@
 > 工程：`/Users/xlf/Dev/code/localpod`
 > 结论：**M0 代码与模拟器验证完成；真机免费账号签名、锁屏控制、真实文件夹选择待真机执行。**
 > 计划基线：`PLAN.md` v0.3（决策定稿版）
+>
+> **后续变更（2026-11-10）**：产品决策明确 LocalPod 仅播放音频、不显示视频画面。M0 期间的 AVPlayerViewController 全屏视频/PiP/旋转能力已在 M3 删除；本文相关条目与截图仅作历史记录，当前行为以 M3 代码为准。
 
 ## 1. 环境
 
@@ -24,7 +26,7 @@
 | Xcode 工程骨架：iOS 17、SwiftUI、SwiftData、`LocalPodKit` | 完成 | `LocalPod.xcodeproj`、`LocalPodKit/`；无 Share Extension、无 App Group |
 | Spike A：文件夹扫描 + 分块复制 + 进度 | 完成（模拟器） | 3 层 100 文件；进度 100/100、16.5 MB / 16.5 MB；见 `screenshots/M0-import-100-result.png` |
 | Spike B：音频后台/Now Playing/远程控制 | 部分完成 | 后台音频已验证：切到 Settings 再返回，播放时间 0:02 → 0:12；锁屏/远程控制待真机 |
-| Spike B：AVPlayerViewController 视频 | 完成（模拟器） | H.264 与 HEVC 均有画面、全屏；见 `screenshots/M0-video-h264.png`、`M0-video-hevc.png` |
+| Spike B：AVPlayerViewController 视频 | **历史（已移除）** | M0 时 H.264/HEVC 均有画面、全屏；M3 音频-only 决策后代码与测试已删除，截图仅存档 |
 | Spike C：ImportInbox + 外部打开/Finder | 完成（模拟器） | 收件箱投递自动导入 1 个；`file://` 外部打开导入 1 个；见 `screenshots/M0-inbox-imported-from-finder.png`、`M0-open-in-external.png` |
 | SwiftData 5k 插入/查询/列表 | 完成（模拟器） | 插入 5000 条 268 ms；列表可滚动；Mac 内存库 255 ms；见 `M0-benchmark-*.png` |
 | 签名验证：免费 Apple ID/7 天/重签保留数据 | 待真机 | 诊断页已能读取真机 `embedded.mobileprovision` 的到期时间；步骤见 `M0-SIGNING.md` |
@@ -36,7 +38,7 @@
 | --- | --- |
 | 真机最老支持机型选 3 层文件夹导入 100 文件，进度正确 | **模拟器等价路径完成**（内置 3 层 100 文件）；真实 `UIDocumentPickerViewController` 选文件夹 + 真机性能待执行 |
 | 锁屏后音频继续，锁屏/控制中心能播放/暂停/快进 | **后台音频已完成**；锁屏与远程控制待真机（本机模拟器为无 GUI 的 headless 运行，无法锁屏） |
-| 视频有画面、能全屏；H.264 与 HEVC 各一个 | **模拟器完成**；H.264/HEVC 截图见上；真机解码/全屏待执行 |
+| 视频有画面、能全屏；H.264 与 HEVC 各一个 | **已取消**（M3 音频-only 决策）：视频文件只播放音轨，不显示画面 |
 | “用 LocalPod 打开”/Finder 收件箱导入 1 个文件 | **模拟器完成**（收件箱 seed + `simctl openurl file://`） |
 | SwiftData 5k 插入 + 列表滚动可接受 | **模拟器完成**：268 ms 插入；只做批处理/索引/分页优化，不换框架 |
 | 免费账号安装/重签，重签后数据仍在；7 天过期行为确认 | **待真机执行**；诊断页可读出到期日与剩余天数 |
@@ -62,6 +64,8 @@ Executed 4 tests, with 0 failures in 64.391 seconds
 - testH264AndHEVCVideoLaunch
 - testInboxImportFromFinderPath
 ```
+
+> 当前 M0 UI 套件（音频-only 后）为 4 个用例：`testImport100Files`、`testAudioPlaybackFromLaunchArgument`、`testBenchmarkInsertAndList`、`testInboxImportFromFinderPath`；`testH264AndHEVCVideoLaunch` 已删除。
 
 ### 4.3 构建
 
@@ -104,8 +108,8 @@ xcodebuild ... -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
 | --- | --- |
 | `screenshots/M0-import-100-result.png` | 3 层 100 文件导入完成，100/100、16.5 MB / 16.5 MB |
 | `screenshots/M0-audio-now-playing.png` | 内置音频播放，0:03 / 0:17，播放中 |
-| `screenshots/M0-video-h264.png` | H.264 全屏画面 |
-| `screenshots/M0-video-hevc.png` | HEVC 全屏画面 |
+| `screenshots/M0-video-h264.png` | 历史：H.264 全屏画面（能力已移除） |
+| `screenshots/M0-video-hevc.png` | 历史：HEVC 全屏画面（能力已移除） |
 | `screenshots/M0-benchmark-insert-finished.png` | SwiftData 5000 条插入完成，268 ms |
 | `screenshots/M0-benchmark-5000-list.png` | 5000 条 SwiftUI List |
 | `screenshots/M0-inbox-imported-from-finder.png` | Documents/Import 收件箱自动导入 1 个，待处理 0 |
@@ -116,7 +120,7 @@ xcodebuild ... -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
 1. 用免费 Apple ID 安装主 App；记录 `Settings > General > VPN & Device Management` 中的描述文件到期时间。
 2. 在文件 App / iCloud Drive 建一个 3 层、100 个媒体文件的文件夹，用“选择文件夹”导入；确认进度、取消、结果。
 3. 播放音频后锁屏：确认继续播放、锁屏标题/封面/进度；控制中心播放/暂停、±15s、拖动。
-4. 用 H.264 与 HEVC 各测一个真实文件：画面、全屏、旋转；确认后台默认暂停视频。
+4. ~~用 H.264 与 HEVC 各测一个真实文件：画面、全屏、旋转~~（已取消；改为验证视频文件只播放音轨、无画面）。
 5. 文件 App 长按 → 共享 → LocalPod；Finder 文件共享拖入 Import；确认两条路径都能导入。
 6. 等 7 天描述文件过期，确认 App 无法启动；用同一 Bundle ID 重新运行，确认 App 数据仍在（诊断页条目数/导入文件）。
 7. 在最老支持机型上重跑 100 文件导入和 5k 列表，记录实际耗时/内存。

@@ -180,22 +180,6 @@ final class M2UITests: XCTestCase {
         )
     }
 
-    func testVideoFullScreenPresentAndDismiss() throws {
-        let app = XCUIApplication()
-        app.launchArguments = ["--m0-reset-data", "--m0-auto-play-h264"]
-        app.launch()
-
-        let close = app.descendants(matching: .any)["closeVideoButton"]
-        XCTAssertTrue(close.waitForExistence(timeout: 20))
-        attachScreenshot(app, name: "M2-video-fullscreen")
-
-        close.tap()
-        XCTAssertTrue(
-            close.waitForNonExistence(timeout: 10),
-            "video full-screen cover did not dismiss"
-        )
-    }
-
     func testAudioAdvancesWhileAppIsInBackground() throws {
         let app = XCUIApplication()
         app.launchArguments = [

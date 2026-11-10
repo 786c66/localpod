@@ -37,9 +37,10 @@ final class M1UITests: XCTestCase {
     }
 
     private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
-        for _ in 0..<4 {
-            if element.exists { return }
+        var attempts = 0
+        while !(element.exists && element.isHittable), attempts < 8 {
             app.swipeUp()
+            attempts += 1
         }
     }
 

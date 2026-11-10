@@ -270,13 +270,145 @@ public enum LocalPodSchemaV3: VersionedSchema {
     }
 }
 
+public enum QueueRepeatMode: String, CaseIterable, Codable, Sendable {
+    case off
+    case all
+    case one
+
+    public var displayName: String {
+        switch self {
+        case .off: "不循环"
+        case .all: "列表循环"
+        case .one: "单曲循环"
+        }
+    }
+
+    public var symbolName: String {
+        switch self {
+        case .off: "repeat"
+        case .all: "repeat"
+        case .one: "repeat.1"
+        }
+    }
+}
+
+/// M3 adds the ordered playback queue, its small singleton state row, and
+/// user-created playlists. All previous entities are reused unchanged.
+public enum LocalPodSchemaV4: VersionedSchema {
+    public static var versionIdentifier: Schema.Version { Schema.Version(4, 0, 0) }
+
+    public static var models: [any PersistentModel.Type] {
+        [
+            LocalPodSchemaV2.MediaItem.self,
+            LocalPodSchemaV2.MediaCollection.self,
+            LocalPodSchemaV2.ImportSession.self,
+            LocalPodSchemaV3.PlaybackState.self,
+            QueueEntry.self,
+            QueueState.self,
+            Playlist.self,
+            PlaylistEntry.self
+        ]
+    }
+
+    @Model
+    public final class QueueEntry {
+        @Attribute(.unique) public var id: UUID = UUID()
+        public var itemID: UUID = UUID()
+        public var position: Int = 0
+
+        public init(id: UUID = UUID(), itemID: UUID, position: Int) {
+            self.id = id
+            self.itemID = itemID
+            self.position = position
+        }
+    }
+
+    @Model
+    public final class QueueState {
+        @Attribute(.unique) public var key: String = "main"
+        public var currentItemID: UUID?
+        public var shuffleEnabled: Bool = false
+        /// Repeat mode raw value. Kept as a string so future modes can migrate
+        /// without changing the stored schema type.
+        public var repeatModeRaw: String = QueueRepeatMode.off.rawValue
+        /// Comma-separated UUIDs describing the current shuffle play order.
+        /// Empty when shuffle is off.
+        public var shuffleOrderRaw: String = ""
+        public var updatedAt: Date = Date()
+
+        public init(
+            key: String = "main",
+            currentItemID: UUID? = nil,
+            shuffleEnabled: Bool = false,
+            repeatMode: QueueRepeatMode = .off,
+            shuffleOrder: [UUID] = [],
+            updatedAt: Date = Date()
+        ) {
+            self.key = key
+            self.currentItemID = currentItemID
+            self.shuffleEnabled = shuffleEnabled
+            self.repeatModeRaw = repeatMode.rawValue
+            self.shuffleOrderRaw = shuffleOrder.map(\.uuidString).joined(separator: ",")
+            self.updatedAt = updatedAt
+        }
+    }
+
+    @Model
+    public final class Playlist {
+        @Attribute(.unique) public var id: UUID = UUID()
+        public var name: String = ""
+        public var createdAt: Date = Date()
+        public var updatedAt: Date = Date()
+        public var sortOrder: Int = 0
+
+        public init(
+            id: UUID = UUID(),
+            name: String,
+            createdAt: Date = Date(),
+            updatedAt: Date = Date(),
+            sortOrder: Int = 0
+        ) {
+            self.id = id
+            self.name = name
+            self.createdAt = createdAt
+            self.updatedAt = updatedAt
+            self.sortOrder = sortOrder
+        }
+    }
+
+    @Model
+    public final class PlaylistEntry {
+        @Attribute(.unique) public var id: UUID = UUID()
+        public var playlistID: UUID = UUID()
+        public var itemID: UUID = UUID()
+        public var position: Int = 0
+
+        public init(
+            id: UUID = UUID(),
+            playlistID: UUID,
+            itemID: UUID,
+            position: Int
+        ) {
+            self.id = id
+            self.playlistID = playlistID
+            self.itemID = itemID
+            self.position = position
+        }
+    }
+}
+
 public enum LocalPodMigrationPlan: SchemaMigrationPlan {
     public static var schemas: [any VersionedSchema.Type] {
-        [LocalPodSchemaV1.self, LocalPodSchemaV2.self, LocalPodSchemaV3.self]
+        [
+            LocalPodSchemaV1.self,
+            LocalPodSchemaV2.self,
+            LocalPodSchemaV3.self,
+            LocalPodSchemaV4.self
+        ]
     }
 
     public static var stages: [MigrationStage] {
-        [migrateV1toV2, migrateV2toV3]
+        [migrateV1toV2, migrateV2toV3, migrateV3toV4]
     }
 
     public static let migrateV1toV2 = MigrationStage.lightweight(
@@ -287,6 +419,11 @@ public enum LocalPodMigrationPlan: SchemaMigrationPlan {
     public static let migrateV2toV3 = MigrationStage.lightweight(
         fromVersion: LocalPodSchemaV2.self,
         toVersion: LocalPodSchemaV3.self
+    )
+
+    public static let migrateV3toV4 = MigrationStage.lightweight(
+        fromVersion: LocalPodSchemaV3.self,
+        toVersion: LocalPodSchemaV4.self
     )
 }
 
@@ -305,7 +442,7 @@ public enum LocalPodStore {
     }
 
     public static func makeContainer(inMemory: Bool = false) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: LocalPodSchemaV3.self)
+        let schema = Schema(versionedSchema: LocalPodSchemaV4.self)
         let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: inMemory

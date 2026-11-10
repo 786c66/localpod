@@ -14,7 +14,7 @@
 
 **一句话定位**：把用户自己合法持有的本地音视频文件，变成一个无需账号、播客式管理的私人媒体库。
 
-**MVP 完成定义（一句话）**：用户把一个课程文件夹（含子目录）从 Files、Finder 或“用 LocalPod 打开”导入 iPhone，文件夹自动变成一个“节目/合集”；通勤时锁屏连续听，第二天从上次位置继续；视频点开有画面、可全屏，不是只有声音。
+**MVP 完成定义（一句话）**：用户把一个课程文件夹（含子目录）从 Files、Finder 或“用 LocalPod 打开”导入 iPhone，文件夹自动变成一个“节目/合集”；通勤时锁屏连续听，第二天从上次位置继续。**LocalPod 只做音频消费**：视频文件可以导入并播放其音轨，但不显示画面、不做全屏/旋转/PiP。
 
 **已定决策（不再讨论）**
 
@@ -26,6 +26,7 @@
 - **当前不做 Share Extension**（1A）：免费账号无 App Groups；用 Files/打开方式/Finder 替代，Wi-Fi 放 P1。
 - **Wi-Fi 网页上传放 P1**（2）：不进 MVP。
 - **只支持 AVFoundation 可播格式**（4）：不引入 VLCKit，不做 MKV/AVI/OGG 解码。
+- **只播放音频，不显示视频画面**（M2 后明确）：视频文件保留导入与音轨播放；视频画面、全屏、旋转、PiP 和视频渲染全部不做，相关入口、后台模式和测试已从代码中移除。
 
 **必须赢的三件事**
 
@@ -36,11 +37,11 @@
 **推荐技术决策**
 
 - 导入采用“**复制入库**”，不做长期外部引用；security-scoped bookmark 只用于 P1 的“链接文件夹/增量重扫”。
-- 播放统一用 **AVPlayer**；视频用 **AVPlayerViewController** 包装，音频用自定义 SwiftUI 播放器；不用 AVAudioPlayer 作为主引擎。
+- 播放统一用 **AVPlayer**，只输出音频；音频用自定义 SwiftUI 播放器，不使用 `AVPlayerViewController`/视频渲染层；不用 AVAudioPlayer 作为主引擎。
 - 持久化固定用 **SwiftData**；M0 用 5k 条数据做基准，只做批处理/索引/分页优化，不再讨论更换持久化框架。
 - 当前侧载版**不建 Share Extension target**；用 Files 选择器、“用 LocalPod 打开”、AirDrop 到 Files、Finder 覆盖导入（Wi-Fi 放 P1）。代码保留 `ImportInbox` 抽象，未来上架/付费账号可加扩展，主架构不变。
 
-**最大风险**：文件夹权限与 bookmark 失效、大文件导入的进度/内存/前台限制、iCloud 未下载文件、视频“只出声不出画”、**免费账号 7 天签名过期/无 TestFlight/设备配额**。
+**最大风险**：文件夹权限与 bookmark 失效、大文件导入的进度/内存/前台限制、iCloud 未下载文件、视频容器音轨兼容性、**免费账号 7 天签名过期/无 TestFlight/设备配额**。
 
 **剩余待确认：无。** 四项范围决策已关闭：Share Extension 不做（A）、Wi-Fi 放 P1、仅 iPhone、不引入 VLCKit。可直接进入 M0。
 
@@ -60,7 +61,7 @@
 |---|---|---|
 | 通勤/健身人群 | 把课程、有声书、下载好的音频文件夹当播客听 | 锁屏播放、进度记忆、倍速、睡眠定时 |
 | 语言学习者 | 一个课程一个文件夹，子目录是单元 | 递归导入、保留层级、按合集管理 |
-| 个人视频用户 | 手机拍摄、公开课、会议录像 | 视频有画面、全屏、PiP、AirPlay |
+| 课程录音用户 | 公开课、会议录像、手机拍摄的视频文件 | 能导入视频容器并只播音轨；后台连续听，不需要画面 |
 | 隐私敏感用户 | 不想上传网盘、不想要账号 | 纯本地、无追踪、无订阅 |
 | 播客重度用户 | 已有大量 MP3/MP4 存量文件 | 批量导入、Up Next、播客式播放 |
 
@@ -78,7 +79,7 @@
 | 倍速 + 音调修正 | 有 | 有 | 有 | **有** |
 | 睡眠定时 | 有 | 有 | 有 | **有** |
 | 后台/锁屏/控制中心 | 有 | 有 | 有 | **有** |
-| 本地视频 | 有限 | 强 | 强 | **有，强调画面正确** |
+| 本地视频文件 | 有限 | 强调画面 | 强调画面 | **可导入并仅播音轨（明确不渲染画面）** |
 | 导入渠道完整度 | 弱 | 中 | 中 | **强** |
 | 账号/订阅 | 需要 | 无 | 部分 | **无** |
 
@@ -89,7 +90,7 @@
 3. **播客级播放，而不是文件级播放。** Up Next 持久化、自动下一集、继续播放、已播完阈值、倍速、睡眠定时、锁屏控制。
 4. **导入渠道够全。** Files、iCloud Drive、AirDrop/打开方式、Finder 文件共享；Wi-Fi 网页上传放 P1；分享扩展当前因免费账号限制不启用，未来可加。
 5. **完全免费、本地优先。** 无账号、无内购、无订阅、无追踪；默认不上传任何文件。
-6. **音视频统一库。** 同一套资料库、队列、进度、播放列表同时管理音频和视频；视频用系统播放器保证画面/全屏/PiP/AirPlay。
+6. **音频优先的统一库。** 同一套资料库、队列、进度、播放列表管理音频与视频文件的音轨；视频只作为导入容器，不渲染画面、不做全屏/旋转/PiP。
 
 ### 1.5 产品边界与合规
 
@@ -118,11 +119,11 @@
 | 资料库 | 合集（顶层文件夹） | 文件夹导入后自动生成合集；可重命名 |
 | 资料库 | 条目详情、删除、存储占用 | 删除同时删除文件；存储数字更新 |
 | 资料库 | 缺失文件检测 | 启动时对账，标记缺失，可重新导入重链 |
-| 播放 | 音频/视频播放 | 音频锁屏可播；视频有画面 |
+| 播放 | 音频播放（视频仅音轨） | 音频锁屏可播；视频文件不显示画面 |
 | 播放 | 进度记忆/继续播放 | 强退后恢复误差 ≤ 2 秒；已播完不自动续播 |
 | 播放 | 0.5–3.0x 倍速 + 音调修正 | 人声不变调；切换后状态保持 |
 | 播放 | 后台、锁屏、控制中心 | 播放/暂停/进度/±15s/下一集可用 |
-| 播放 | AirPlay、视频全屏、PiP | 系统能力可用；后台视频默认暂停（PiP 例外） |
+| 播放 | AirPlay（音频） | 系统路由可用；不做视频全屏/PiP |
 | 队列 | Up Next 持久化、下一首/加入队列、排序、清空 | 重启 App 后队列保留；自动下一集 |
 | 播放列表 | 创建/重命名/删除/排序/播放 | 拖拽排序持久化；播放列表可整单入队 |
 | 睡眠定时 | 5–90 分钟 + 本集结束 + 淡出 | 到点淡出暂停；后台仍生效 |
@@ -179,7 +180,7 @@
 3. 在资料库看到“课程名”合集和所有单集，元数据/时长正确；
 4. 锁屏播放，锁屏和控制中心能暂停/继续/快进；
 5. 第二天打开 App，从上次位置继续；
-6. 点开一个视频，有画面、能全屏、能 AirPlay。
+6. 点开一个视频文件，只播放音轨，App 不显示视频画面（按产品决策，不提供全屏/PiP）。
 
 ---
 
@@ -192,7 +193,7 @@
 | 语言 | Swift 6 | 严格并发；核心逻辑用结构化并发 |
 | UI | SwiftUI + Observation | iOS 17+ 用 `@Observable`；列表用 Lazy 容器 |
 | 持久化 | **SwiftData（固定）** | iOS 17+；M0 基准只用于优化批处理/索引/分页，不更换框架 |
-| 媒体 | AVFoundation + AVKit | 播放、探测、缩略图、AirPlay、PiP |
+| 媒体 | AVFoundation | 音轨播放、探测、缩略图、AirPlay；不引入 AVKit 视频渲染 |
 | 系统集成 | MediaPlayer | Now Playing、远程控制 |
 | 文件类型 | UniformTypeIdentifiers | 文件夹/音频/视频筛选 |
 | 哈希 | CryptoKit | SHA-256 指纹，导入时流式计算 |
@@ -214,7 +215,7 @@ localpod/
 │   ├── App/                        # 入口、AppEnvironment、路由
 │   ├── Features/
 │   │   ├── Library/                # 资料库、合集、条目详情
-│   │   ├── Player/                 # 音频播放器、视频播放器、迷你播放器
+│   │   ├── Player/                 # 音频播放器、队列、迷你播放器（无视频画面）
 │   │   ├── Queue/                  # Up Next
 │   │   ├── Playlists/
 │   │   ├── Import/                 # 导入向导、进度、报告
@@ -556,16 +557,14 @@ Files / iCloud / AirDrop / Open in / Finder / Wi-Fi
 | **AVPlayer** | 支持 | 支持 | 支持 `rate` + `audioTimePitchAlgorithm` | 需自己接 AudioSession/Now Playing，但成熟 | **主引擎** |
 | AVAudioPlayer | 支持 | 不支持 | `enableRate`/`rate` 范围有限 | 需自己接 | 不用：无视频、格式/能力受限 |
 | AVAudioEngine | 支持 | 不支持 | 需自己实现 | 需自己接 | 不用：复杂度高，无收益 |
-| AVPlayerLayer | — | 支持 | 随 AVPlayer | 需自己接 | 自定义视频 UI 时用；注意 frame/retain |
-| SwiftUI `VideoPlayer` | — | 支持 | 随 AVPlayer | 系统控制 | 快速预览可用；正式播放器控制力不足 |
-| **AVPlayerViewController** | — | 支持 | 随 AVPlayer | 系统控制/PiP/AirPlay/全屏/字幕 | **视频首选**，包装进 SwiftUI |
+> 视频渲染方案（AVPlayerLayer / SwiftUI `VideoPlayer` / `AVPlayerViewController`）已在 M2 后按产品决策排除；表格保留仅为历史选型记录。
 
 推荐组合：
 
-- **一个 `PlaybackController` 持有 AVPlayer**，音频/视频共用播放状态、队列、进度、Now Playing。
-- **音频**：自定义 SwiftUI 播放器（大封面、进度条、倍速、睡眠定时、队列）。
-- **视频**：`UIViewControllerRepresentable` 包装 `AVPlayerViewController`，获得系统控制、全屏、PiP、AirPlay、字幕；设置 `updatesNowPlayingInfoCenter = false`（如果 Now Playing 由我们统一管理），避免双写。
-- 不要用 AVAudioPlayer 播视频；不要用 `VideoPlayer` 放在高度为 0 的容器里。
+- **一个 `PlaybackController` 持有 AVPlayer**，音频与视频文件的音轨共用播放状态、队列、进度、Now Playing。
+- **音频/视频音轨**：自定义 SwiftUI 播放器（大封面、进度条、倍速、睡眠定时、队列）；不创建任何视频渲染层。
+- 不使用 `AVPlayerViewController`、`AVPlayerLayer`、SwiftUI `VideoPlayer`；不声明横屏/PiP。
+- 不要用 AVAudioPlayer 播视频文件；AVPlayer 只负责输出音轨。
 
 #### 3.7.2 播放状态机
 
@@ -616,7 +615,7 @@ idle → preparing → ready → playing ⇄ paused
 - Info.plist：`UIBackgroundModes = ["audio"]`。
 - `AVAudioSession`：
   - category `.playback`，options 包含 `.allowAirPlay`；
-  - mode：音频 `.spokenAudio`（播客/有声书），视频 `.moviePlayback`；
+  - mode：固定 `.spokenAudio`（播客/有声书）；不切换 `.moviePlayback`；
   - 首次播放时 `setActive(true)`；停止时 `setActive(false, options: .notifyOthersOnDeactivation)`；
   - 处理 interruption（来电/闹钟/Siri）：`.began` 暂停并记录；`.ended` 且 `.shouldResume` 时恢复；
   - 处理 route change：`.oldDeviceUnavailable`（拔耳机/断开蓝牙）暂停；
@@ -634,39 +633,20 @@ idle → preparing → ready → playing ⇄ paused
   - changePlaybackPosition（拖动）；
   - nextTrack/previousTrack（有队列时启用）；
   - 无当前项时返回 `.noActionableNowPlayingItem`。
-- 锁屏封面：视频取帧，音频取内嵌 artwork；没有则生成带首字母的占位图。
-- 视频后台策略：**进入后台默认暂停视频**（系统不渲染后台视频帧，避免“只出声”误解）；如果用户启用 PiP 且 PiP 活跃，则保持播放。音频条目后台继续。
+- 锁屏封面：音频取内嵌 artwork；视频文件使用导入时生成的缩略图；没有则生成带首字母的占位图。
+- 后台策略：音频（包括视频文件的音轨）进入后台后继续播放；工程已移除视频画面与 PiP，因此不存在“后台视频暂停/回前台恢复”规则。
 - 锁屏/控制中心/耳机/AirPods 全部走系统 Now Playing，不自己做锁屏 UI。
 
-#### 3.7.7 视频渲染与“只出声不出画”
+#### 3.7.7 视频文件：只导入、只播音轨（M2 后最终决策）
 
-推荐：视频用 `AVPlayerViewController` 包装。
+2026-11-10 产品决策明确：LocalPod **只做音频消费**，不渲染视频画面。原计划的 AVPlayerViewController 全屏/旋转/PiP/AirPlay 方案全部废止，已从代码中移除。
 
-- 配置：`showsPlaybackControls = true`、`allowsPictureInPicturePlayback = true`、`videoGravity = .resizeAspect`、`entersFullScreenWhenPlaybackBegins`（可选）、`updatesNowPlayingInfoCenter = false`（统一由 PlaybackController 管理）。
-- 全屏/旋转：如果资料库锁定竖屏，需要为播放器允许横屏；用 AppDelegate 的 `supportedInterfaceOrientationsFor` 或 Info.plist 放开横屏，避免“视频全屏不能转”。
-- AirPlay：`AVPlayer.allowsExternalPlayback = true`；`AVRoutePickerView` 或系统控制面板。
-- PiP：AVPlayerViewController 原生支持；后台 PiP 活跃时不要执行“暂停视频”策略。
-
-如果必须自定义视频 UI（用 `AVPlayerLayer`）：
-
-- 自定义 `UIView` 子类，在 `layoutSubviews` 里设置 `playerLayer.frame = bounds`；
-- 必须强引用 `AVPlayer` 和 `AVPlayerLayer`；
-- `playerLayer.player = player`、`videoGravity = .resizeAspect`；
-- 不要在 SwiftUI `UIViewRepresentable` 里让 layer 的 frame 永远为 0；
-- 自己实现控制层、全屏、旋转、PiP（PiP 自己实现成本高，优先 AVPlayerViewController）。
-
-“只出声不出画”排查清单：
-
-1. 是否用了 `AVAudioPlayer` 或音频专用引擎播视频？→ 改用 AVPlayer。
-2. `AVPlayerLayer` 是否 frame 为 0、未 attach、player 为 nil、被提前释放？
-3. 视频条目是否有视频轨？用 `loadTracks(withMediaType: .video)` 确认；MKV/AVI/部分 HEVC 可能只有音频可解或整体不可播。
-4. 是否在后台？iOS 不渲染后台视频帧；回前台/开 PiP 再验证。
-5. `VideoPlayer` 是否被放在零高度容器/ScrollView 里？
-6. 是否 DRM/受保护内容？不支持就明确报错。
-7. 模拟器 codec 支持有限，必须真机验证 H.264/HEVC。
-8. `AVPlayerItem` 是否被释放？`player.replaceCurrentItem` 后要持有 item。
-9. 是否误把 `AVPlayerLayer.player` 设成了另一个 player？
-10. 视频轨编码不受支持时，AVPlayer 可能只播音频；导入探测阶段标记“不支持视频轨”，不要进入播放器。
+- 视频文件仍可被文件夹扫描、导入、去重、探测元数据并生成缩略图；资料库筛选和条目详情保留“视频”类型。
+- 播放时使用同一个 `AVPlayer` 播放其音轨，不创建 `AVPlayerLayer`/`AVPlayerViewController`，不提供“打开视频画面”入口。
+- 移除 `UIBackgroundModes` 的 `picture-in-picture`；仅保留 `audio`；界面锁定竖屏，不声明横屏方向。
+- 音频会话固定为 `.playback` + `.spokenAudio` + `.allowAirPlay`，不切换 `.moviePlayback`。
+- 不支持视频画面的产品边界需在 README、设置页“关于”和验收文档中明确写出，避免“只出声不出画”被误解为缺陷。
+- 自动化边界：单元测试验证视频文件可播放音轨且后台继续；导入测试仍覆盖视频缩略图。真机只需确认音轨兼容性，不再验证画面/旋转/PiP。
 
 #### 3.7.8 睡眠定时
 
@@ -690,7 +670,7 @@ idle → preparing → ready → playing ⇄ paused
 
 ### 3.9 UI/UX 信息架构
 
-**Tab（3 个）**：资料库 / 播放列表 / 设置。队列从迷你播放器和全屏播放器进入，避免 Tab 过多。
+**M3 实际 Tab（5 个，保留 M0/M1 调试入口）**：资料库 / 导入 / 播放 / 收件箱 / 诊断。播放列表从资料库工具栏进入；设置从资料库和播放页的齿轮打开；队列、睡眠定时在播放页。原计划收敛为“资料库 / 播放列表 / 设置”3 Tab，但为避免破坏 M0/M1 验收路径，M3 暂不重排；上架前可再收敛并把收件箱/诊断并入设置。
 
 | 页面 | 内容 |
 |---|---|
@@ -698,8 +678,7 @@ idle → preparing → ready → playing ⇄ paused
 | 资料库 | 继续播放、最近添加、合集网格、全部条目；搜索；音频/视频筛选；排序；列表/网格切换 |
 | 合集页 | 封面、条目数、总时长、播放全部/随机、单集列表（进度/已播完标记） |
 | 条目详情 | 标题、合集、格式/大小/时长、路径信息、播放、加入队列、加入播放列表、删除 |
-| 音频播放器 | 大封面、标题/合集、进度条、±跳过、倍速、睡眠定时、队列、AirPlay、更多 |
-| 视频播放器 | AVPlayerViewController 全屏；系统控制；PiP/AirPlay；横屏 |
+| 音频播放器 | 大封面、标题/合集、进度条、±跳过、上一集/下一集、倍速、睡眠定时、队列、AirPlay、更多；**没有视频画面入口** |
 | 队列 | 当前播放 + Up Next；拖拽排序；移除/清空；“播放下一首/加入队列”入口统一 |
 | 播放列表 | 列表；新建/重命名/删除；详情拖拽排序；播放全部 |
 | 导入 | 来源选择 → 扫描确认 → 进度（文件数/字节/当前文件）→ 报告 |
@@ -710,9 +689,9 @@ idle → preparing → ready → playing ⇄ paused
 
 - 导入是“向导”，不是后台黑盒：先展示扫描结果和大小，再开始；导入中禁止误导性“可关闭”文案。
 - 删除必须二次确认；显示将删除的文件数和释放空间。
-- 视频列表项显示“视频”标记/时长/缩略图，避免用户误以为只有音频。
+- 视频列表项显示“视频 · 仅音频”标记/时长/缩略图，避免用户误以为能看画面。
 - 深色模式、Dynamic Type、VoiceOver：进度条提供 adjustable action；按钮有明确 label；对比度达标。
-- 方向：资料库竖屏；视频播放器允许横屏（通过 AppDelegate/Info.plist 控制），不要全局放开导致资料库乱转。
+- 方向：全局仅竖屏（Info.plist 只声明 Portrait）；不做视频横屏。
 - 设备：**仅 iPhone**；不做 iPad 分栏/键盘快捷键，iPad 兼容模式不承诺体验。
 
 ### 3.10 隐私、日志与可观测性
@@ -743,7 +722,7 @@ idle → preparing → ready → playing ⇄ paused
 | 3 | iCloud 未下载/占位文件 | 枚举卡住、读取失败、体验像“卡死” | 高 | 检测下载状态、触发下载、NSFileCoordinator、进度/离线文案 | 关闭 iCloud 下载、飞行模式、第三方 provider |
 | 4 | **免费账号 7 天签名过期** | App 停止启动，需重签 | 高（确定发生） | SideStore/AltStore 自动续签或 Xcode 重签；同一 bundle ID；数据备份；到期前提醒 | 安装后检查 profile 日期；重签后数据仍在 |
 | 5 | **免费账号无 App Groups → Share Extension 不可用** | 少一个分享入口 | 高（确定发生） | 已决定 A：当前不做扩展；用“打开方式/Files/Finder”替代（Wi-Fi P1）；保留 `ImportInbox` 抽象，未来付费账号再加 | 免费账号签名验证；替代渠道覆盖测试 |
-| 6 | 视频“只出声不出画” | 核心需求失败 | 中 | AVPlayer + AVPlayerViewController；轨道探测；真机 checklist | H.264/HEVC/4K、全屏/PiP/AirPlay |
+| 6 | 视频文件无音轨或音轨不可解码 | 条目可导入但无法播放 | 低 | 导入探测音轨；无音轨/不支持时明确标记；只承诺 AVFoundation 可解码格式 | 视频容器音轨探测测试；真机音轨播放 |
 | 7 | 后台播放/Now Playing 被系统打断 | 锁屏控制失效、播放停止 | 中 | 统一 PlaybackController；AudioSession 中断/路由/重置处理；真机矩阵 | 来电、闹钟、拔耳机、蓝牙、低电量 |
 | 8 | 数据不一致/容器路径变化 | 记录在、文件没了；重复/孤儿 | 中 | 相对路径、staging、批量提交、启动对账、fingerprint 重链 | 强杀、重装、升级、恢复备份 |
 | 9 | SwiftData 性能/迁移 | 列表卡顿、升级丢数据 | 中 | M0 5k 基准；版本化 schema；迁移演练；批处理/索引/分页优化 | 5k/10k 导入、查询、滚动 |
@@ -757,7 +736,7 @@ idle → preparing → ready → playing ⇄ paused
 > **M0 更新（2026-11-10）**：
 > - #9 SwiftData 风险下调：模拟器 5k 插入 268 ms、Mac 内存库 255 ms，列表可滚动；维持批处理/索引/分页优化，不换框架。
 > - #7 新增已修复问题：`MPMediaItemArtwork` 封面回调在 MediaPlayer 后台队列触发，闭包不能继承 MainActor 隔离；M0 已改为 `nonisolated` 构造，后续播放状态机不得退回旧写法。
-> - #4/#6/#7 的真机部分仍未关闭：免费账号 7 天重签、锁屏/控制中心、真机 H.264/HEVC 与最老机型性能按 `docs/M0-REPORT.md` 第 7 节执行。
+> - #4/#6/#7 的真机部分仍未关闭：免费账号 7 天重签、锁屏/控制中心与最老机型性能按 `docs/M0-REPORT.md` 第 7 节执行。视频画面相关真机项已随音频-only 决策取消。
 > - 未新增范围决策；第 7 节九项决策保持不变。
 
 ### 4.1 文件夹权限与 bookmark 失效（重点）
@@ -787,11 +766,11 @@ idle → preparing → ready → playing ⇄ paused
 - 未来：付费账号或上架时，加 App Group + `LocalPodShareExtension`，复用 `ImportInbox`/`LocalPodKit`；不要把 App Group 硬编码进主 App 逻辑。
 - 验收：免费账号能正常签名/安装主 App；打开方式/Finder/Wi-Fi 三条路径都能导入；不出现缺 entitlement 导致的安装失败。
 
-### 4.5 视频“只出声不出画”（重点）
+### 4.5 视频文件音轨兼容性（已降级，不再做画面）
 
-- 根因：用错播放器（AVAudioPlayer）、layer/frame 问题、容器/编码不支持、后台渲染、模拟器限制。
-- 策略：AVPlayerViewController 为主；导入时检测视频轨；不支持容器/编码在导入报告里标记；真机测试 H.264/HEVC/4K；后台默认暂停视频（PiP 例外）。
-- 验收：视频列表项点开即见画面；全屏/旋转/PiP/AirPlay 正常；后台再回前台能恢复画面；不支持文件给出明确错误而不是只有声音。
+- 最终决策：视频画面、全屏、旋转、PiP 全部不做；M2 中已实现的相关代码和测试已移除。
+- 剩余风险：视频容器可能没有音轨，或音轨编码 AVFoundation 不支持；导入探测应记录音轨信息，无法播放时给出明确错误。
+- 验收：视频文件可导入，能播放音轨并后台继续；无音轨文件在导入报告/条目状态中明确标记；不对画面做任何承诺。
 
 ### 4.6 分发与签名（当前重点）
 
@@ -821,7 +800,7 @@ idle → preparing → ready → playing ⇄ paused
 |---|---|---|---|
 | M0 技术验证 | 第 1 周 | 工程骨架、3 个技术 spike、SwiftData 基准、免费账号签名验证 | 关键路径真机跑通，架构/分发方式确认 |
 | M1 导入与资料库 | 第 2–3 周 | 扫描/复制/去重/DB/资料库 UI | 文件夹导入端到端可用，无脏数据 |
-| M2 播放核心 | 第 4–5 周 | 音频/视频/进度/倍速/后台/Now Playing | 锁屏可播、视频有画、进度可恢复 |
+| M2 播放核心 | 第 4–5 周 | 音频（视频仅音轨）/进度/倍速/后台/Now Playing | 锁屏可播、进度可恢复、不渲染视频画面 |
 | M3 队列/播放列表/睡眠定时 | 第 6 周 | 队列、播放列表、睡眠定时、设置 | 队列持久化、自动下一集、定时生效 |
 | M4 当前渠道导入 | 第 7 周 | 打开方式/AirDrop、Finder | 所有 MVP 导入渠道统一走导入流水线 |
 | M5 打磨与侧载交付 | 第 8–9 周 | 引导、无障碍、本地化、自用验收、安装/重签说明 | 无 P0/P1 bug，能日常自用 |
@@ -837,7 +816,7 @@ idle → preparing → ready → playing ⇄ paused
 
 - Xcode 工程骨架：iOS 17、SwiftUI、SwiftData、`LocalPodKit`；**不建 Share Extension/App Group**。
 - Spike A：`UIDocumentPickerViewController` 选文件夹 → 递归扫描 100 个文件 → 分块复制 + 进度。
-- Spike B：AVPlayer 播音频 → 后台/锁屏/Now Playing/远程控制；AVPlayerViewController 播视频。
+- Spike B：AVPlayer 播音频 → 后台/锁屏/Now Playing/远程控制。（M0 曾额外验证 AVPlayerViewController 视频画面；该能力已在 M2 后取消。）
 - Spike C：`ImportInbox` + “用 LocalPod 打开”/Finder `Documents/Import` 导入。
 - 基准：SwiftData 5k 条插入/查询/列表滚动。
 - 签名验证：免费 Apple ID 安装到真机；确认 7 天 profile 过期时间；重签后数据仍保留。
@@ -847,7 +826,7 @@ idle → preparing → ready → playing ⇄ paused
 
 - [ ] 真机（最老支持机型）上能选一个 3 层文件夹并导入 100 个文件，进度正确。
 - [ ] 锁屏后音频继续，锁屏/控制中心能播放/暂停/快进。
-- [ ] 视频有画面，能全屏；H.264 与 HEVC 各测一个。
+- [x] **视频范围已关闭**：M0 曾用 AVPlayerViewController 验证 H.264/HEVC 画面；2026-11-10 产品决策改为只播放音频，画面/PiP/旋转能力已从代码和测试中移除，不再是验收项。视频文件仅保留“可导入、可播放音轨”。
 - [ ] “用 LocalPod 打开”/Finder 收件箱能把 1 个文件投递并完成导入。
 - [ ] SwiftData 5k 条插入 + 列表滚动达到可接受水平；只做批处理/索引/分页优化，不换框架。
 - [ ] 免费账号能安装/重签，重签后 App 数据仍在；7 天过期行为已确认。
@@ -859,7 +838,7 @@ idle → preparing → ready → playing ⇄ paused
 
 - 工程骨架：iOS 17、SwiftUI、SwiftData、Swift 6、`LocalPodKit`；仅 iPhone；无 Share Extension/App Group。
 - Spike A：3 层 100 文件导入完成，进度 100/100、16.5 MB / 16.5 MB；分块复制、`.part` 原子落盘、取消入口、导入报告可用。真实文件夹选择器待真机。
-- Spike B：音频后台播放已验证（切到 Settings 再返回，0:02 → 0:12）；H.264/HEVC 均出画面并可全屏；背景音频/Now Playing/远程命令/中断处理已实现，锁屏控制待真机。
+- Spike B：音频后台播放已验证（切到 Settings 再返回，0:02 → 0:12）；背景音频/Now Playing/远程命令/中断处理已实现，锁屏控制待真机。**历史记录：M0 曾验证 H.264/HEVC 出画面并可全屏；该视频画面能力已在 M2 后按产品决策移除，当前版本只播放音频。**
 - Spike C：`Documents/Import` 收件箱自动导入 1 个；`file://` 外部打开导入 1 个，来源标为“外部打开”。
 - SwiftData 5k：App 内插入 268 ms；列表可滚动；Mac 内存库 255 ms。
 - 自动化：`LocalPodKit` 15/15 单元测试通过；UI 测试 4/4 通过（64.391 s）；模拟器与真机编译均无源码 warning。
@@ -870,7 +849,7 @@ idle → preparing → ready → playing ⇄ paused
 - 真实“选择文件夹”与 100 文件导入、最老支持机型性能。
 - 锁屏/控制中心：继续播放、标题/封面/进度、播放/暂停/±15s/拖动。
 - 免费账号安装、约 7 天过期、同一 Bundle ID 重签后数据保留。
-- 真机 H.264/HEVC、全屏/旋转，以及 Files 分享与 Finder 文件共享。
+- Files 分享与 Finder 文件共享；视频文件只需确认音轨可播放与后台继续（不再验证画面/旋转）。
 
 证据与详细发现见 `docs/M0-REPORT.md`、`docs/M0-SIGNING.md` 和 `docs/screenshots/`。
 
@@ -903,7 +882,7 @@ idle → preparing → ready → playing ⇄ paused
 
 ### 5.4 M2 播放核心（第 4–5 周）
 
-**目标**：音频/视频都能稳定播放，后台/锁屏/进度/倍速完整。
+**目标**：音频与视频文件的音轨都能稳定播放；后台/锁屏/进度/倍速完整。产品决策：不渲染视频画面。
 
 **交付**
 
@@ -911,19 +890,19 @@ idle → preparing → ready → playing ⇄ paused
 - AudioSession、Now Playing、远程命令、中断/路由/媒体服务重置。
 - 进度持久化/恢复、完成阈值。
 - 倍速 + `timeDomain` 音调修正。
-- 音频播放器 UI、视频 AVPlayerViewController、全屏/横屏/PiP/AirPlay。
-- 视频后台暂停策略（PiP 例外）。
+- 音频播放器 UI（不含视频画面入口）；视频文件仅播放音轨。
+- 后台策略：音频（含视频文件音轨）持续播放；无视频画面/PiP。
 
 **验收标准**
 
 - [ ] 锁屏后音频继续；锁屏显示标题/封面/进度；控制中心播放/暂停/±15s/拖动生效。**（部分自动化：后台音频持续推进 UI 测试、Now Playing 元数据/远程命令启用单元测试通过；锁屏与控制中心实际显示/交互待真机）**
 - [x] 强退后重开，进度恢复误差 ≤ 2 秒；已播完不自动续播。**（UI 测试：跳转 2:00 后强退恢复 2:00；播放中强退恢复误差 ≤ 2 秒；播放结束重开为 0:00）**
 - [ ] 0.5/1.0/1.5/2.0/3.0x 可用，人声不变调。**（自动化通过：5 档倍速 UI 切换 + `timeDomain` 音调算法断言；实际听感需真机/人耳确认）**
-- [ ] 视频有画面；全屏/旋转/PiP/AirPlay 正常；后台默认暂停，回前台恢复。**（部分自动化：H.264/HEVC 启动、全屏展示/关闭 UI 测试与后台暂停/回前台恢复、PiP 例外单元测试通过；旋转、PiP、AirPlay 待真机）**
+- [x] **视频画面范围已取消（仅音频）**：不实现全屏/旋转/PiP/视频渲染；视频文件保留导入与音轨播放。**（已移除 VideoPlayerScreen、PiP、横屏声明与相关测试；新增“视频文件播放音轨且后台继续”单元测试）**
 - [ ] 拔耳机暂停；来电/闹钟打断后按 shouldResume 恢复。**（部分自动化：打断恢复策略单元测试通过；真实来电/闹钟/拔耳机需真机）**
 - [ ] 2 小时长音频播放内存稳定，无泄漏；切歌 100 次无崩溃。**（切歌 100 次单元测试通过；2 小时长播内存/泄漏需真机长跑）**
 
-> M2 执行结果与证据见 [`docs/M2-REPORT.md`](docs/M2-REPORT.md)。锁屏/控制中心、真实中断/路由、旋转/PiP/AirPlay、2 小时内存仍列入“待真机”，未计为已通过。
+> M2 执行结果与证据见 [`docs/M2-REPORT.md`](docs/M2-REPORT.md)。锁屏/控制中心、真实中断/路由、2 小时内存仍列入“待真机”，未计为已通过。视频画面/PiP/旋转已按产品决策取消，不再列入待办。
 
 ### 5.5 M3 队列、播放列表、睡眠定时、设置（第 6 周）
 
@@ -938,11 +917,13 @@ idle → preparing → ready → playing ⇄ paused
 
 **验收标准**
 
-- [ ] 队列重启后保留；播放下一首/加入队列语义正确；当前项删除后自动前进。
-- [ ] 播放列表拖拽排序保存；随机/循环行为正确。
-- [ ] 睡眠定时 1 分钟测试到点淡出暂停；本集结束模式不自动下一集。
-- [ ] 已播完阈值正确；“继续播放”不出现已播完条目。
-- [ ] 设置项重启后保留。
+- [x] 队列重启后保留；播放下一首/加入队列语义正确；当前项删除后自动前进。**（自动化通过：`QueueManagerTests` 10 个、`PlaybackSessionTests` 删除/恢复用例、`M3UITests.testQueueSemanticsCurrentDeletionAndRelaunch`）**
+- [x] 播放列表拖拽排序保存；随机/循环行为正确。**（自动化通过：`PlaylistServiceTests` 6 个、`QueueManagerTests` 随机/循环用例、`M3UITests.testPlaylistCreateReorderPersistAndPlayAll`）**
+- [x] 睡眠定时 1 分钟测试到点淡出暂停；本集结束模式不自动下一集。**（自动化通过：`SleepTimerTests` 固定时钟淡出/取消、`PlaybackSessionTests`、M3 两个睡眠 UI 用例；锁屏后台到点需真机）**
+- [x] 已播完阈值正确；“继续播放”不出现已播完条目。**（自动化通过：M2 完成阈值/进度测试、`M3UITests.testContinueListeningExcludesFinishedItems`）**
+- [x] 设置项重启后保留。**（自动化通过：`AppSettingsStoreTests` 4 个、`M3UITests.testSettingsPersistAcrossRestart`）**
+
+> M3 执行结果与证据见 [`docs/M3-REPORT.md`](docs/M3-REPORT.md)。锁屏状态下的睡眠定时、拖拽手感、控制中心上一首/下一首等真机项仍列入“待真机”，未计为已通过。
 
 ### 5.6 M4 当前渠道导入（第 7 周）
 
@@ -1004,7 +985,7 @@ idle → preparing → ready → playing ⇄ paused
 | 单元测试 | 扫描过滤（隐藏/包/符号链接/深度/数量）、UTType 分类、自然排序、SHA-256、进度计算、完成阈值、队列前进/随机/循环、睡眠定时截止、路径清洗、磁盘预检、bookmark stale 处理（mock） |
 | 集成测试 | 临时 fixture 文件夹导入、取消/强杀恢复、批量 DB 提交、iCloud 状态（手工）、打开方式/本地 Inbox、Finder 扫描（Wi-Fi 上传属 P1，不在 MVP 回归） |
 | UI 测试 | 引导 → 导入（注入测试文件）→ 资料库 → 播放 → 队列 → 播放列表 → 睡眠定时；删除/存储 |
-| 手工测试 | 锁屏/控制中心、来电/闹钟、拔耳机/蓝牙、AirPlay/PiP、后台视频暂停、低电量、低存储 |
+| 手工测试 | 锁屏/控制中心、来电/闹钟、拔耳机/蓝牙、AirPlay 音频、低电量、低存储 |
 
 ### 6.2 设备与素材矩阵
 
@@ -1013,7 +994,7 @@ idle → preparing → ready → playing ⇄ paused
 - 免费账号有设备/App ID 配额限制；测试以自己设备 + 1–2 台备用机为主。
 - 文件：
   - 音频：mp3、m4a、aac、wav、aiff、flac、alac；1 秒/1 小时/2 小时。
-  - 视频：mp4/mov，H.264/HEVC，1080p/4K，横竖屏，含/不含音轨。
+  - 视频容器：mp4/mov，H.264/HEVC，1080p/4K，含/不含音轨；仅验证导入与音轨播放，不验证画面/旋转。
   - 不支持：mkv、avi、ogg、opus、损坏文件、0 字节文件。
   - 命名：中文、emoji、空格、超长、无扩展名、大写扩展名、重复名。
   - 结构：3 层/10 层、100/1000/5000 文件、空文件夹、隐藏文件、包。
@@ -1067,13 +1048,13 @@ idle → preparing → ready → playing ⇄ paused
 | 编号 | 决策 | 理由 | 代价/触发条件 |
 |---|---|---|---|
 | ADR-001 | 导入采用复制入库 | 避免 bookmark 失效、后台 scope 丢失、iCloud 占位；文件稳定可备份/删除 | 占用双份空间（源文件仍在 Files）；→ P1 可加“链接文件夹” |
-| ADR-002 | AVPlayer 单引擎 + AVPlayerViewController 播视频 | 音频/视频/倍速/音调/AirPlay/PiP 统一；避免音频引擎播视频 | 自定义 UI 需包装 UIKit；系统控制样式不完全可控 |
+| ADR-002 | AVPlayer 单引擎，只输出音频 | 音频/视频音轨/倍速/音调/AirPlay 统一；不维护视频渲染 UI | 视频文件无画面、无 PiP；产品边界需明确沟通 |
 | ADR-003 | SwiftData（iOS 17+，固定） | 开发快、与 SwiftUI 集成好；iOS 17 已定 | 批量导入/迁移仍需谨慎；只做批处理/索引/分页优化，不换框架 |
 | ADR-004 | 当前不做 Share Extension，保留 `ImportInbox` 抽象 | 免费账号无 App Groups，扩展无法与主 App 共享容器 | 少一个分享入口；未来付费账号/上架时加 App Group + extension |
 | ADR-005 | MVP 不申请 iCloud 容器 | document picker 足够读 iCloud Drive；避免大媒体同步冲突；免费账号也不支持 iCloud entitlement | 无法“LocalPod 文件夹”跨设备自动出现；P1 再评估 |
 | ADR-006 | 文件夹 = 合集，播放列表独立 | 符合播客心智；导入即组织 | 合集重命名/合并需要 UI；P1 加 |
 | ADR-007 | 媒体排除 iCloud 备份 | 避免备份膨胀；媒体可重导 | 换机后媒体缺失，需要重链/重导；文档说明 |
-| ADR-008 | 视频后台默认暂停 | iOS 不渲染后台视频；避免“只出声”误解 | 用户可能想后台听视频；P1 加“仅音频”开关 |
+| ADR-008 | 只播放音频，不渲染视频画面（M2 后修订） | 产品定位是播客式音频消费；避免视频渲染/PiP/旋转的复杂度 | 视频文件只能听音轨；如需画面需另立项目 |
 | ADR-009 | RSS 只留扩展位 | 控制 MVP 范围；不引入抓取/刷新/下载 | 后续做 RSS 需新增 Feed 模型/刷新/下载策略 |
 | ADR-010 | Wi-Fi 上传 P1（已定） | 主渠道已覆盖；本地网络权限/安全/依赖成本 | 少了 Windows/浏览器批量导入；P1 再补，不进 MVP |
 | ADR-011 | 免费账号自签名侧载，暂不上架 | 个人自用，无 App Store/TestFlight/审核成本 | 7 天重签；无 App Groups；代码不硬编码侧载假设，未来上架只补材料 |
@@ -1105,7 +1086,7 @@ idle → preparing → ready → playing ⇄ paused
 | 类型 | 容器/编码 | 说明 |
 |---|---|---|
 | 音频 | mp3、m4a/AAC、ALAC、wav、aiff、caf、flac | AVFoundation 常见支持；仍以 `AVAsset.isPlayable` + 轨道探测为准 |
-| 视频 | mp4/m4v/mov，H.264/HEVC + AAC | 1080p/4K 以设备解码能力为准；HDR 需真机验证 |
+| 视频容器 | mp4/m4v/mov，H.264/HEVC + AAC | 仅导入与音轨播放；不渲染画面，1080p/4K/HDR 画面能力不在范围 |
 | 字幕 | 内嵌 mov/text 轨 | 外挂 SRT/VTT 为 P1 |
 | 不支持 | mkv、avi、wmv、flv、webm、ogg/opus、ape、dsf、VIDEO_TS | 导入报告明确标记；当前不引入 VLCKit |
 
@@ -1127,8 +1108,7 @@ idle → preparing → ready → playing ⇄ paused
 - 资料库（继续播放/最近添加/合集/全部）
 - 合集页
 - 条目详情
-- 音频播放器
-- 视频播放器（全屏）
+- 音频播放器（视频文件只显示为音频条目）
 - 队列（Up Next）
 - 播放列表 / 播放列表详情
 - 导入来源选择 / 扫描确认 / 进度 / 报告

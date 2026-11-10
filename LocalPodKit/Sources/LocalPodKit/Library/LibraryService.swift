@@ -229,6 +229,18 @@ public final class LibraryService {
         for state in states {
             context.delete(state)
         }
+        let queueRows = try context.fetch(FetchDescriptor<QueueEntry>(
+            predicate: #Predicate { $0.itemID == itemID }
+        ))
+        for row in queueRows {
+            context.delete(row)
+        }
+        let playlistRows = try context.fetch(FetchDescriptor<PlaylistEntry>(
+            predicate: #Predicate { $0.itemID == itemID }
+        ))
+        for row in playlistRows {
+            context.delete(row)
+        }
         context.delete(item)
         try context.save()
 

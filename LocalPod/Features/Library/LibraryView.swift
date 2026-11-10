@@ -27,16 +27,25 @@ struct LibraryView: View {
         var id: String { rawValue }
     }
 
+    @Environment(PlaybackSession.self) private var session
+
     @Query(sort: \MediaItem.addedAt, order: .reverse)
     private var allItems: [MediaItem]
 
     @Query(sort: \MediaCollection.name)
     private var collections: [MediaCollection]
 
+    @Query(sort: \PlaybackState.lastPlayedAt, order: .reverse)
+    private var progressStates: [PlaybackState]
+
+    @Query(sort: \Playlist.sortOrder)
+    private var playlists: [Playlist]
+
     @State private var scope: Scope = .items
     @State private var filter: ItemFilter = .all
     @State private var sort: ItemSort = .recent
     @State private var searchText = ""
+    @State private var showSettings = false
 
     private var libraryItems: [MediaItem] {
         allItems.filter { $0.source != .benchmark }
@@ -98,6 +107,21 @@ struct LibraryView: View {
         libraryItems.reduce(0) { $0 + ($1.durationSeconds ?? 0) }
     }
 
+    private var continueItems: [(item: MediaItem, state: PlaybackState)] {
+        let byID = Dictionary(uniqueKeysWithValues: libraryItems.map { ($0.id, $0) })
+        return progressStates.compactMap { state in
+            guard !state.isFinished,
+                  state.playCount > 0,
+                  !(byID[state.itemID]?.isMissing ?? true),
+                  let item = byID[state.itemID] else {
+                return nil
+            }
+            return (item, state)
+        }
+        .prefix(5)
+        .map { $0 }
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -115,6 +139,20 @@ struct LibraryView: View {
                     LabeledContent("总时长", value: formatDuration(totalDuration))
                 } header: {
                     Text("资料库")
+                }
+
+                if !continueItems.isEmpty {
+                    Section("继续播放") {
+                        ForEach(continueItems, id: \.item.id) { entry in
+                            Button {
+                                session.play(item: entry.item)
+                            } label: {
+                                ContinueListeningRow(item: entry.item, state: entry.state)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("continueItem-\(entry.item.title)")
+                        }
+                    }
                 }
 
                 Section {
@@ -135,7 +173,22 @@ struct LibraryView: View {
             .navigationTitle("资料库")
             .searchable(text: $searchText, prompt: "搜索标题或文件夹")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Label("设置", systemImage: "gearshape")
+                    }
+                    .accessibilityIdentifier("librarySettingsButton")
+                }
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    NavigationLink {
+                        PlaylistListView()
+                    } label: {
+                        Label("播放列表", systemImage: "music.note.list")
+                    }
+                    .accessibilityIdentifier("libraryPlaylistsLink")
+
                     Menu {
                         Picker("筛选", selection: $filter) {
                             ForEach(ItemFilter.allCases) { filter in
@@ -153,6 +206,9 @@ struct LibraryView: View {
                     }
                     .accessibilityIdentifier("libraryFilterMenu")
                 }
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
             }
         }
     }
@@ -175,6 +231,29 @@ struct LibraryView: View {
                     }
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("libraryItem-\(item.title)")
+                    .contextMenu {
+                        Button("播放") {
+                            session.play(item: item)
+                        }
+                        Button("播放下一首") {
+                            session.playNext(itemID: item.id)
+                        }
+                        Button("加入队列") {
+                            session.enqueue(itemID: item.id)
+                        }
+                        if !playlists.isEmpty {
+                            Menu("加入播放列表") {
+                                ForEach(playlists) { playlist in
+                                    Button(playlist.name) {
+                                        _ = session.playlists.add(
+                                            itemID: item.id,
+                                            to: playlist
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -264,8 +343,39 @@ struct LibraryItemRow: View {
     }
 }
 
+struct ContinueListeningRow: View {
+    let item: MediaItem
+    let state: PlaybackState
+
+    private var progress: Double {
+        guard state.duration > 0 else { return 0 }
+        return min(max(state.position / state.duration, 0), 1)
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            MediaArtworkView(item: item, size: 48)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.title)
+                    .lineLimit(1)
+                ProgressView(value: progress)
+                    .tint(.indigo)
+                Text("已听 \(Int(state.position)) 秒 / \(item.durationText)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "play.circle.fill")
+                .font(.title3)
+                .foregroundStyle(.indigo)
+        }
+    }
+}
+
 struct LibraryCollectionDetailView: View {
     let collection: MediaCollection
+
+    @Environment(PlaybackSession.self) private var session
 
     @Query(sort: \MediaItem.relativeFolderPath)
     private var allItems: [MediaItem]
@@ -276,6 +386,22 @@ struct LibraryCollectionDetailView: View {
 
     var body: some View {
         List {
+            Section {
+                Button {
+                    session.play(items: items)
+                } label: {
+                    Label("播放全部（\(items.count)）", systemImage: "play.fill")
+                }
+                .accessibilityIdentifier("collectionPlayAllButton")
+
+                Button {
+                    session.play(items: items, shuffle: true)
+                } label: {
+                    Label("随机播放", systemImage: "shuffle")
+                }
+                .accessibilityIdentifier("collectionShuffleButton")
+            }
+
             Section {
                 LabeledContent("条目", value: "\(items.count) 条")
                 LabeledContent("总大小", value: ByteCountFormatter.string(
@@ -306,11 +432,15 @@ struct LibraryItemDetailView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Environment(PlaybackController.self) private var playback
+    @Environment(PlaybackSession.self) private var session
+
+    @Query(sort: \Playlist.sortOrder)
+    private var playlists: [Playlist]
 
     @State private var showDeleteConfirmation = false
-    @State private var showVideo = false
+    @State private var showPlaylistPicker = false
     @State private var errorMessage: String?
+    @State private var infoMessage: String?
 
     var body: some View {
         List {
@@ -364,17 +494,40 @@ struct LibraryItemDetailView: View {
                 Button {
                     play()
                 } label: {
-                    Label(item.kind.isVideo ? "播放视频" : "播放音频", systemImage: "play.fill")
+                    Label(
+                        item.kind.isVideo ? "播放音频（视频仅音轨）" : "播放音频",
+                        systemImage: "play.fill"
+                    )
                 }
                 .accessibilityIdentifier("detailPlayButton")
 
-                if item.kind.isVideo {
+                Button {
+                    session.playNext(itemID: item.id)
+                    infoMessage = "已加入「播放下一首」。"
+                } label: {
+                    Label("播放下一首", systemImage: "text.line.first.and.arrowtriangle.forward")
+                }
+                .accessibilityIdentifier("detailPlayNextButton")
+
+                Button {
+                    session.enqueue(itemID: item.id)
+                    infoMessage = "已加入队列末尾。"
+                } label: {
+                    Label("加入队列", systemImage: "text.append")
+                }
+                .accessibilityIdentifier("detailEnqueueButton")
+
+                if playlists.isEmpty {
+                    Text("还没有播放列表。在资料库右上角进入「播放列表」创建。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
                     Button {
-                        guard play() else { return }
-                        showVideo = true
+                        showPlaylistPicker = true
                     } label: {
-                        Label("打开视频画面", systemImage: "rectangle.expand.vertical")
+                        Label("加入播放列表", systemImage: "music.note.list")
                     }
+                    .accessibilityIdentifier("detailAddToPlaylistMenu")
                 }
 
                 Button(role: .destructive) {
@@ -383,6 +536,15 @@ struct LibraryItemDetailView: View {
                     Label("删除条目", systemImage: "trash")
                 }
                 .accessibilityIdentifier("detailDeleteButton")
+            }
+
+            if let infoMessage {
+                Section {
+                    Text(infoMessage)
+                        .font(.caption)
+                        .foregroundStyle(.indigo)
+                        .accessibilityIdentifier("detailQueueInfoText")
+                }
             }
 
             if let errorMessage {
@@ -394,6 +556,29 @@ struct LibraryItemDetailView: View {
         }
         .navigationTitle(item.title)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showPlaylistPicker) {
+            NavigationStack {
+                List(playlists) { playlist in
+                    Button(playlist.name) {
+                        if session.playlists.add(itemID: item.id, to: playlist) {
+                            infoMessage = "已加入播放列表「\(playlist.name)」。"
+                        } else {
+                            infoMessage = "「\(playlist.name)」已包含此条目。"
+                        }
+                        showPlaylistPicker = false
+                    }
+                    .accessibilityIdentifier("addToPlaylistOption-\(playlist.name)")
+                }
+                .navigationTitle("加入播放列表")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("取消") { showPlaylistPicker = false }
+                    }
+                }
+            }
+            .presentationDetents([.medium, .large])
+        }
         .alert("删除这个条目？", isPresented: $showDeleteConfirmation) {
             Button("删除", role: .destructive) {
                 deleteItem()
@@ -401,13 +586,6 @@ struct LibraryItemDetailView: View {
             Button("取消", role: .cancel) {}
         } message: {
             Text("将删除资料库记录、媒体文件与封面，释放 \(ByteCountFormatter.string(fromByteCount: item.byteSize, countStyle: .file))。")
-        }
-        .fullScreenCover(isPresented: $showVideo) {
-            VideoPlayerScreen(
-                player: playback.player,
-                onPictureInPictureChange: { playback.setPictureInPictureActive($0) },
-                onRestoreUI: { showVideo = true }
-            )
         }
     }
 
@@ -418,25 +596,20 @@ struct LibraryItemDetailView: View {
             errorMessage = "媒体文件不存在：\(item.relativePath)"
             return false
         }
-        playback.load(
-            PlaybackItem(
-                title: item.title,
-                subtitle: item.folderName ?? "资料库",
-                fileURL: url,
-                kind: item.kind,
-                durationHint: item.durationSeconds,
-                libraryItemID: item.id,
-                artworkURL: item.artworkURL
-            ),
-            autoplay: true
-        )
+        session.play(item: item)
+        if let sessionError = session.lastError {
+            errorMessage = sessionError
+            return false
+        }
         return true
     }
 
     private func deleteItem() {
+        let itemID = item.id
         do {
             let service = LibraryService(storage: .live)
             _ = try service.delete(item, in: modelContext)
+            session.handleDeletedItem(itemID)
             dismiss()
         } catch {
             errorMessage = "删除失败：\(error.localizedDescription)"

@@ -5,6 +5,7 @@ import LocalPodKit
 
 struct PlaybackView: View {
     @Environment(PlaybackController.self) private var playback
+    @Environment(PlaybackSession.self) private var session
     @Query(
         sort: \MediaItem.addedAt,
         order: .reverse
@@ -15,7 +16,11 @@ struct PlaybackView: View {
         allItems.filter { $0.source != .benchmark && !$0.isMissing }
     }
 
-    @State private var showVideo = false
+    private var itemByID: [UUID: MediaItem] {
+        Dictionary(uniqueKeysWithValues: allItems.map { ($0.id, $0) })
+    }
+
+    @State private var showSettings = false
     @State private var localError: String?
     @State private var scrubPosition: Double?
 
@@ -24,41 +29,43 @@ struct PlaybackView: View {
             List {
                 Section {
                     Button {
-                        playDemo(name: "demo-audio", fileExtension: "m4a", title: "内置音频测试", kind: .audio)
+                        playDemo(
+                            name: "demo-audio",
+                            fileExtension: "m4a",
+                            title: "内置音频测试",
+                            kind: .audio
+                        )
                     } label: {
                         Label("播放内置音频", systemImage: "waveform")
                     }
                     .accessibilityIdentifier("playDemoAudioButton")
 
                     Button {
-                        playDemo(name: "demo-long-audio", fileExtension: "m4a", title: "内置长音频", kind: .audio)
+                        playDemo(
+                            name: "demo-long-audio",
+                            fileExtension: "m4a",
+                            title: "内置长音频",
+                            kind: .audio
+                        )
                     } label: {
                         Label("播放 5 分钟测试音频", systemImage: "waveform.badge.clock")
                     }
                     .accessibilityIdentifier("playLongAudioButton")
-
-                    Button {
-                        playDemo(name: "demo-h264", fileExtension: "mp4", title: "内置 H.264 视频", kind: .video)
-                    } label: {
-                        Label("播放 H.264 视频", systemImage: "film")
-                    }
-                    .accessibilityIdentifier("playH264Button")
-
-                    Button {
-                        playDemo(name: "demo-hevc", fileExtension: "mp4", title: "内置 HEVC 视频", kind: .video)
-                    } label: {
-                        Label("播放 HEVC 视频", systemImage: "film.stack")
-                    }
-                    .accessibilityIdentifier("playHEVCButton")
                 } header: {
                     Text("内置测试媒体")
                 } footer: {
-                    Text("音频用于验证后台播放、进度恢复、倍速与锁屏 Now Playing；视频用于验证画面、全屏、PiP 与 AirPlay。")
+                    Text("LocalPod 只播放音频。视频文件可导入并读取其音轨，但不显示画面、不做旋转/PiP。")
                 }
 
                 Section("当前播放") {
                     playerCard
                 }
+
+                if session.sleepTimer.isActive {
+                    sleepTimerSection
+                }
+
+                queueSection
 
                 Section("资料库 · \(items.count)") {
                     if items.isEmpty {
@@ -99,12 +106,23 @@ struct PlaybackView: View {
                 }
             }
             .navigationTitle("播放")
-            .fullScreenCover(isPresented: $showVideo) {
-                VideoPlayerScreen(
-                    player: playback.player,
-                    onPictureInPictureChange: { playback.setPictureInPictureActive($0) },
-                    onRestoreUI: { showVideo = true }
-                )
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if !session.queue.isEmpty {
+                        EditButton()
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Label("设置", systemImage: "gearshape")
+                    }
+                    .accessibilityIdentifier("playbackSettingsButton")
+                }
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
             }
         }
     }
@@ -167,29 +185,49 @@ struct PlaybackView: View {
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(.secondary)
 
-                HStack(spacing: 32) {
+                HStack(spacing: 24) {
                     Spacer()
                     Button {
-                        playback.skip(by: -15)
+                        session.previous()
                     } label: {
-                        Image(systemName: "gobackward.15")
+                        Image(systemName: "backward.end.fill")
+                            .font(.title2)
+                    }
+                    .accessibilityIdentifier("previousTrackButton")
+
+                    Button {
+                        playback.skip(by: -playback.skipBackwardInterval)
+                    } label: {
+                        Image(systemName: "gobackward")
                             .font(.title2)
                     }
                     .accessibilityIdentifier("skipBackwardButton")
+
                     Button {
                         playback.togglePlayPause()
                     } label: {
-                        Image(systemName: playback.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        Image(systemName: playback.isPlaying
+                            ? "pause.circle.fill"
+                            : "play.circle.fill")
                             .font(.system(size: 44))
                     }
                     .accessibilityIdentifier("playPauseButton")
+
                     Button {
-                        playback.skip(by: 15)
+                        playback.skip(by: playback.skipForwardInterval)
                     } label: {
-                        Image(systemName: "goforward.15")
+                        Image(systemName: "goforward")
                             .font(.title2)
                     }
                     .accessibilityIdentifier("skipForwardButton")
+
+                    Button {
+                        session.next()
+                    } label: {
+                        Image(systemName: "forward.end.fill")
+                            .font(.title2)
+                    }
+                    .accessibilityIdentifier("nextTrackButton")
                     Spacer()
                 }
 
@@ -231,19 +269,168 @@ struct PlaybackView: View {
                     Spacer(minLength: 0)
                 }
 
-                if playback.isVideo {
-                    Button {
-                        showVideo = true
+                HStack(spacing: 8) {
+                    Text("快进/快退 \(Int(playback.skipForwardInterval)) 秒")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Menu {
+                        Button("关闭") {
+                            session.cancelSleepTimer()
+                        }
+                        ForEach([1, 5, 15, 30, 45, 60, 90], id: \.self) { minutes in
+                            Button("\(minutes) 分钟") {
+                                session.startSleepTimer(minutes: minutes)
+                            }
+                        }
+                        Divider()
+                        Button("本集结束") {
+                            session.startSleepTimerEndOfEpisode()
+                        }
                     } label: {
-                        Label("打开视频画面", systemImage: "rectangle.expand.vertical")
+                        Label("睡眠定时", systemImage: "moon.zzz")
+                            .font(.caption)
                     }
-                    .accessibilityIdentifier("openVideoButton")
+                    .accessibilityIdentifier("sleepTimerMenu")
                 }
             }
             .padding(.vertical, 4)
         } else {
-            Text("未播放。选择内置测试媒体或资料库条目。")
+            Text("未播放。选择内置测试媒体、资料库条目或队列。")
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    private var sleepTimerSection: some View {
+        Section("睡眠定时") {
+            LabeledContent("模式") {
+                Text(sleepTimerStatus)
+                    .accessibilityIdentifier("sleepTimerStatus")
+            }
+            if session.sleepTimer.mode == .endOfEpisode {
+                Text("本集播完后暂停，不会自动播放下一集。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Button("取消睡眠定时", role: .destructive) {
+                session.cancelSleepTimer()
+            }
+            .accessibilityIdentifier("sleepTimerCancelButton")
+        }
+    }
+
+    private var sleepTimerStatus: String {
+        switch session.sleepTimer.mode {
+        case .off:
+            "关闭"
+        case .minutes:
+            if let remaining = session.sleepTimer.remainingText {
+                "\(session.sleepTimer.mode.displayName) · \(remaining)"
+            } else {
+                session.sleepTimer.mode.displayName
+            }
+        case .endOfEpisode:
+            "本集结束"
+        }
+    }
+
+    private var queueSection: some View {
+        Section {
+            if session.queue.isEmpty {
+                Text("队列为空。使用「播放下一首」或「加入队列」添加条目。")
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(Array(session.queue.entries.enumerated()), id: \.element.id) { index, entry in
+                    let item = itemByID[entry.itemID]
+                    Button {
+                        session.playQueueItem(itemID: entry.itemID)
+                    } label: {
+                        HStack(spacing: 10) {
+                            Text("\(index + 1)")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 22, alignment: .trailing)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item?.title ?? "已删除条目")
+                                    .lineLimit(1)
+                                if entry.itemID == session.queue.currentItemID {
+                                    Text("当前")
+                                        .font(.caption2)
+                                        .foregroundStyle(.indigo)
+                                } else {
+                                    Text(item?.durationText ?? "—")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            if entry.itemID != session.queue.currentItemID {
+                                Image(systemName: "play.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("queueRow-\(item?.title ?? entry.itemID.uuidString)")
+                }
+                .onMove { source, destination in
+                    session.moveQueue(fromOffsets: source, toOffset: destination)
+                }
+                .onDelete { offsets in
+                    for index in offsets.sorted(by: >) {
+                        guard session.queue.entries.indices.contains(index) else { continue }
+                        let entry = session.queue.entries[index]
+                        session.removeQueueEntry(entryID: entry.id)
+                    }
+                }
+            }
+        } header: {
+            HStack {
+                Text("队列 · \(session.queue.count)")
+                    .accessibilityIdentifier("queueCountText")
+                Spacer()
+                Button {
+                    session.toggleShuffle()
+                } label: {
+                    Label(
+                        session.queue.shuffleEnabled ? "随机：开" : "随机：关",
+                        systemImage: "shuffle"
+                    )
+                    .labelStyle(.titleAndIcon)
+                    .font(.caption)
+                    .foregroundStyle(
+                        session.queue.shuffleEnabled ? Color.indigo : Color.secondary
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("queueShuffleButton")
+
+                Button {
+                    session.cycleRepeatMode()
+                } label: {
+                    Label(
+                        "循环：\(session.queue.repeatMode.displayName)",
+                        systemImage: session.queue.repeatMode.symbolName
+                    )
+                    .labelStyle(.titleAndIcon)
+                    .font(.caption)
+                    .foregroundStyle(
+                        session.queue.repeatMode == .off ? Color.secondary : Color.indigo
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("queueRepeatButton")
+
+                Button(role: .destructive) {
+                    session.clearQueue()
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("queueClearButton")
+            }
         }
     }
 
@@ -262,6 +449,7 @@ struct PlaybackView: View {
             localError = "找不到内置资源 \(name).\(ext)。"
             return
         }
+        session.queue.clear()
         let item = PlaybackItem(
             title: title,
             subtitle: "内置测试媒体",
@@ -269,33 +457,17 @@ struct PlaybackView: View {
             kind: kind
         )
         playback.load(item, autoplay: true)
-        if kind.isVideo {
-            showVideo = true
-        }
     }
 
     private func playLibraryItem(_ item: MediaItem) {
         localError = nil
-        guard let url = item.fileURL else {
+        guard item.fileURL != nil, !item.isMissing else {
             localError = "无法解析文件路径：\(item.relativePath)"
             return
         }
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            localError = "文件不存在：\(url.lastPathComponent)"
-            return
-        }
-        let playbackItem = PlaybackItem(
-            title: item.title,
-            subtitle: item.folderName ?? "资料库",
-            fileURL: url,
-            kind: item.kind,
-            durationHint: item.durationSeconds,
-            libraryItemID: item.id,
-            artworkURL: item.artworkURL
-        )
-        playback.load(playbackItem, autoplay: true)
-        if item.kind.isVideo {
-            showVideo = true
+        session.play(item: item)
+        if let error = session.lastError {
+            localError = error
         }
     }
 

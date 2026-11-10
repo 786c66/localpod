@@ -7,9 +7,10 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(ImportCoordinator.self) private var importCoordinator
     @Environment(PlaybackController.self) private var playback
+    @Environment(PlaybackSession.self) private var session
 
     @State private var selectedTab = 0
-    @State private var autoVideoPresented = false
+    @State private var showSettings = false
     @State private var didRunLaunchAutomation = false
 
     var body: some View {
@@ -35,24 +36,26 @@ struct RootView: View {
                 .tag(4)
         }
         .tint(.indigo)
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
         .task {
-            playback.attachProgressStore(
-                PlaybackProgressStore(context: modelContext)
+            session.attach(
+                context: modelContext,
+                progressStore: PlaybackProgressStore(context: modelContext)
             )
             importCoordinator.bootstrap(modelContext: modelContext)
             seedDebugLibraryIfNeeded()
+            seedM3FixturesIfNeeded()
             runLaunchAutomationIfNeeded()
         }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .active:
-                playback.handleSceneWillEnterForeground()
                 importCoordinator.runMaintenance(modelContext: modelContext)
                 importCoordinator.importInboxIfNeeded(modelContext: modelContext)
             case .background:
-                // Audio continues in the background; video pauses unless it is
-                // already playing in Picture in Picture. The controller owns
-                // the rule and the foreground resume.
+                // Audio continues in the background; only force a progress save.
                 playback.handleSceneDidEnterBackground()
             default:
                 break
@@ -60,13 +63,6 @@ struct RootView: View {
         }
         .onOpenURL { url in
             importCoordinator.handleOpenURL(url, modelContext: modelContext)
-        }
-        .fullScreenCover(isPresented: $autoVideoPresented) {
-            VideoPlayerScreen(
-                player: playback.player,
-                onPictureInPictureChange: { playback.setPictureInPictureActive($0) },
-                onRestoreUI: { autoVideoPresented = true }
-            )
         }
     }
 
@@ -118,28 +114,28 @@ struct RootView: View {
             }
         }
 
-        let videoName: String?
-        if arguments.contains("--m0-auto-play-h264") {
-            videoName = "demo-h264"
-        } else if arguments.contains("--m0-auto-play-hevc") {
-            videoName = "demo-hevc"
-        } else {
-            videoName = nil
+        if arguments.contains("--m3-open-settings") {
+            showSettings = true
         }
 
-        if let videoName,
-           let url = Bundle.main.url(forResource: videoName, withExtension: "mp4") {
+        if arguments.contains("--m3-arm-end-of-episode") {
+            // Arm before playback so the 20s fixture cannot end while the
+            // sleep-timer menu is still opening in UI tests.
+            session.startSleepTimerEndOfEpisode()
+        }
+
+        if arguments.contains("--m3-no-auto-next") {
+            // Queue UI tests navigate for over a minute; with a 20s fixture
+            // auto-next would advance the current item before the test
+            // deletes it. Disable auto-next so the queue stays deterministic.
+            session.settings.autoPlayNext = false
+        }
+
+        if arguments.contains("--m3-auto-play-first") {
             selectedTab = 2
-            playback.load(
-                PlaybackItem(
-                    title: videoName,
-                    subtitle: "启动参数",
-                    fileURL: url,
-                    kind: .video
-                ),
-                autoplay: true
+            session.playQueueItem(
+                itemID: session.queue.currentItemID ?? M3DebugSeed.itemA
             )
-            autoVideoPresented = true
         }
 
         if arguments.contains("--m2-auto-play-long-audio") {
@@ -172,6 +168,21 @@ struct RootView: View {
             return nil
         }
         return Double(arguments[index + 1])
+    }
+
+    private func seedM3FixturesIfNeeded() {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--m3-seed-playable-library") {
+            M3DebugSeed.seedPlayableLibrary(in: modelContext)
+        }
+        if arguments.contains("--m3-seed-queue") {
+            M3DebugSeed.seedQueue(in: session)
+        }
+        if arguments.contains("--m3-seed-single-queue") {
+            M3DebugSeed.seedSingleQueue(in: modelContext, session: session)
+        }
+        #endif
     }
 
     private func seedDebugLibraryIfNeeded() {

@@ -106,7 +106,7 @@ M1 用例：
 | `testDeleteItemUpdatesLibraryAndStorage` | 详情删除条目；资料库 97 → 96 条 |
 | `testLibraryFiveThousandItemsScroll` | 5000 条资料库渲染与滚动 |
 
-M0 回归：导入 100 文件、音频播放、H.264/HEVC、收件箱、SwiftData 5k 基准全部通过。M0 复合用例已拆成“导入”和“播放”两个独立用例，避免互相拖累。
+M0 回归：导入 100 文件、音频播放、收件箱、SwiftData 5k 基准全部通过。M0 复合用例已拆成“导入”和“播放”两个独立用例，避免互相拖累。（H.264/HEVC UI 用例已在 M3 音频-only 返工中删除。）
 
 ### 4.3 截图
 
@@ -137,7 +137,7 @@ M0 回归：导入 100 文件、音频播放、H.264/HEVC、收件箱、SwiftDat
 - [ ] 最老支持 iPhone（iOS 17）：3 层 100 文件导入耗时/内存；5000 文件导入峰值内存 < 200 MB；资料库 5000 条滚动是否明显卡顿。
 - [ ] 真机重装/覆盖安装后，资料库记录与 `Application Support/Media` 相对路径仍可解析。
 - [ ] 人工确认资料库搜索框、筛选/排序菜单在真实设备上的交互（本模拟器运行时的搜索控件未暴露给 XCUITest，自动化未覆盖）。
-- [ ] M0 真机项（免费账号签名/7 天过期、锁屏/控制中心、H.264/HEVC 真机解码）继续见 `docs/M0-DEVICE-CHECKLIST.md`。
+- [ ] M0 真机项（免费账号签名/7 天过期、锁屏/控制中心）继续见 `docs/M0-DEVICE-CHECKLIST.md`。
 
 ## 7. 已知限制
 

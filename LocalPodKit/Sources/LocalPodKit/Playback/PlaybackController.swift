@@ -32,9 +32,10 @@ public enum PlaybackPhase: String, Sendable, Equatable {
     }
 }
 
-/// Single AVPlayer for audio and video. The controller owns the playback state
-/// machine, audio session, Now Playing/remote commands, progress persistence
-/// and the video background policy. UI only observes and sends intents.
+/// Single AVPlayer for audio-only playback. Video files are played for their
+/// audio track only; the controller never presents a video surface. It owns the
+/// playback state machine, audio session, Now Playing/remote commands and
+/// progress persistence. UI only observes and sends intents.
 @MainActor
 @Observable
 public final class PlaybackController {
@@ -44,7 +45,16 @@ public final class PlaybackController {
     public private(set) var duration: Double = 0
     public private(set) var errorMessage: String?
     public private(set) var playbackRate: Float = 1.0
-    public private(set) var isPictureInPictureActive = false
+    public private(set) var skipForwardInterval: Double = 15
+    public private(set) var skipBackwardInterval: Double = 15
+    /// When false, loaded items ignore saved progress. Progress is still saved.
+    public var resumesSavedProgress = true
+
+    /// The queue/session installs these. `onItemEnded` fires after the finished
+    /// progress write, so auto-advance never races the final checkpoint.
+    @ObservationIgnored public var onItemEnded: (() -> Void)?
+    @ObservationIgnored public var onNextTrack: (() -> Void)?
+    @ObservationIgnored public var onPreviousTrack: (() -> Void)?
 
     @ObservationIgnored public let player = AVPlayer()
     @ObservationIgnored private var progressStore: PlaybackProgressStore?
@@ -63,14 +73,10 @@ public final class PlaybackController {
     @ObservationIgnored private var didRecordPlayStart = false
     @ObservationIgnored private var playIntent = false
     @ObservationIgnored private var wasPlayingBeforeInterruption = false
-    @ObservationIgnored private var pausedForBackground = false
-    @ObservationIgnored private var wasPlayingBeforeBackground = false
     @ObservationIgnored private var lastProgressSaveDate = Date.distantPast
     @ObservationIgnored private var lastSavedPosition: Double = 0
     @ObservationIgnored private var cachedArtworkKey: String?
     @ObservationIgnored private var cachedArtwork: MPMediaItemArtwork?
-
-    public var isVideo: Bool { currentItem?.kind == .video }
 
     public var isPlaying: Bool {
         phase == .playing || phase == .buffering
@@ -108,12 +114,12 @@ public final class PlaybackController {
         errorMessage = nil
         playbackRate = PlaybackPolicy.clampedRate(playbackRate)
         playIntent = false
-        pausedForBackground = false
-        wasPlayingBeforeBackground = false
         didRecordPlayStart = false
 
         var resumePosition: Double = 0
-        if let libraryItemID = item.libraryItemID, let progressStore {
+        if resumesSavedProgress,
+           let libraryItemID = item.libraryItemID,
+           let progressStore {
             resumePosition = (try? progressStore.resumePosition(
                 for: libraryItemID,
                 fallbackDuration: item.durationHint
@@ -146,8 +152,6 @@ public final class PlaybackController {
             return
         }
 
-        pausedForBackground = false
-        wasPlayingBeforeBackground = false
         if phase == .ended {
             seek(to: 0, persistImmediately: false)
             pendingSeekPosition = 0
@@ -180,10 +184,6 @@ public final class PlaybackController {
         if phase == .preparing {
             pendingAutoplay = false
             return
-        }
-        if userInitiated {
-            pausedForBackground = false
-            wasPlayingBeforeBackground = false
         }
         pendingAutoplay = false
         playIntent = false
@@ -228,6 +228,32 @@ public final class PlaybackController {
         updateNowPlaying()
     }
 
+    public func setSkipIntervals(forward: Double, backward: Double) {
+        skipForwardInterval = min(max(forward, 5), 120)
+        skipBackwardInterval = min(max(backward, 5), 120)
+        let center = MPRemoteCommandCenter.shared()
+        center.skipForwardCommand.preferredIntervals = [NSNumber(value: skipForwardInterval)]
+        center.skipBackwardCommand.preferredIntervals = [NSNumber(value: skipBackwardInterval)]
+    }
+
+    /// Clears the current item and returns to idle. Used when the current queue
+    /// item is deleted and no replacement remains.
+    public func stop() {
+        persistProgress(force: true)
+        playIntent = false
+        pendingAutoplay = false
+        player.pause()
+        teardownItemObservers()
+        player.replaceCurrentItem(with: nil)
+        currentItem = nil
+        currentTime = 0
+        duration = 0
+        errorMessage = nil
+        phase = .idle
+        lastSavedPosition = 0
+        updateNowPlaying()
+    }
+
     /// Rebuild the player item after a decode error or media-services reset.
     public func retry() {
         guard let item = currentItem else { return }
@@ -238,33 +264,12 @@ public final class PlaybackController {
         updateNowPlaying()
     }
 
-    public func setPictureInPictureActive(_ active: Bool) {
-        isPictureInPictureActive = active
-        if active {
-            // Do not pause video that continues in PiP when the app backgrounds.
-            pausedForBackground = false
-        }
-    }
-
     // MARK: - App lifecycle
 
+    /// Audio keeps playing in the background. The app calls this only to force
+    /// a progress checkpoint before iOS may suspend the process.
     public func handleSceneDidEnterBackground() {
         persistProgress(force: true)
-        guard isVideo, !isPictureInPictureActive, isPlaying else { return }
-        pausedForBackground = true
-        wasPlayingBeforeBackground = true
-        pause(userInitiated: false)
-    }
-
-    public func handleSceneWillEnterForeground() {
-        guard pausedForBackground, wasPlayingBeforeBackground, !isPlaying else {
-            pausedForBackground = false
-            wasPlayingBeforeBackground = false
-            return
-        }
-        pausedForBackground = false
-        wasPlayingBeforeBackground = false
-        play()
     }
 
     // MARK: - Player item lifecycle
@@ -401,6 +406,7 @@ public final class PlaybackController {
         }
         persistProgress(force: true, finishedOverride: true)
         updateNowPlaying()
+        onItemEnded?()
     }
 
     private func handleFailure(message: String) {
@@ -551,12 +557,10 @@ public final class PlaybackController {
 
     #if os(iOS)
     private func activateAudioSession() {
-        let video = isVideo
-        let mode: AVAudioSession.Mode = video ? .moviePlayback : .spokenAudio
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let session = AVAudioSession.sharedInstance()
-                try session.setCategory(.playback, mode: mode, options: [.allowAirPlay])
+                try session.setCategory(.playback, mode: .spokenAudio, options: [.allowAirPlay])
                 try session.setActive(true)
             } catch {
                 let message = "音频会话激活失败：\(error.localizedDescription)"
@@ -636,10 +640,12 @@ public final class PlaybackController {
         center.pauseCommand.isEnabled = true
         center.togglePlayPauseCommand.isEnabled = true
         center.skipForwardCommand.isEnabled = true
-        center.skipForwardCommand.preferredIntervals = [15]
+        center.skipForwardCommand.preferredIntervals = [NSNumber(value: skipForwardInterval)]
         center.skipBackwardCommand.isEnabled = true
-        center.skipBackwardCommand.preferredIntervals = [15]
+        center.skipBackwardCommand.preferredIntervals = [NSNumber(value: skipBackwardInterval)]
         center.changePlaybackPositionCommand.isEnabled = true
+        center.nextTrackCommand.isEnabled = true
+        center.previousTrackCommand.isEnabled = true
 
         center.playCommand.addTarget { [weak self] _ in
             Task { @MainActor [weak self] in self?.play() }
@@ -654,13 +660,29 @@ public final class PlaybackController {
             return .success
         }
         center.skipForwardCommand.addTarget { [weak self] event in
-            let interval = (event as? MPSkipIntervalCommandEvent)?.interval ?? 15
-            Task { @MainActor [weak self] in self?.skip(by: interval) }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let interval = (event as? MPSkipIntervalCommandEvent)?.interval
+                    ?? self.skipForwardInterval
+                self.skip(by: interval)
+            }
             return .success
         }
         center.skipBackwardCommand.addTarget { [weak self] event in
-            let interval = (event as? MPSkipIntervalCommandEvent)?.interval ?? 15
-            Task { @MainActor [weak self] in self?.skip(by: -interval) }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let interval = (event as? MPSkipIntervalCommandEvent)?.interval
+                    ?? self.skipBackwardInterval
+                self.skip(by: -interval)
+            }
+            return .success
+        }
+        center.nextTrackCommand.addTarget { [weak self] _ in
+            Task { @MainActor [weak self] in self?.onNextTrack?() }
+            return .success
+        }
+        center.previousTrackCommand.addTarget { [weak self] _ in
+            Task { @MainActor [weak self] in self?.onPreviousTrack?() }
             return .success
         }
         center.changePlaybackPositionCommand.addTarget { [weak self] event in
@@ -690,9 +712,7 @@ public final class PlaybackController {
             MPNowPlayingInfoPropertyPlaybackRate: playIntent ? Double(playbackRate) : 0,
             MPNowPlayingInfoPropertyDefaultPlaybackRate: Double(playbackRate),
             MPNowPlayingInfoPropertyIsLiveStream: false,
-            MPNowPlayingInfoPropertyMediaType: item.kind.isVideo
-                ? MPNowPlayingInfoMediaType.video.rawValue
-                : MPNowPlayingInfoMediaType.audio.rawValue
+            MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue
         ]
         if let artwork = artwork(for: item) {
             info[MPMediaItemPropertyArtwork] = artwork
@@ -749,8 +769,7 @@ public final class PlaybackController {
                     options: []
                 )
             }
-            let symbolName = item.kind.isVideo ? "play.rectangle.fill" : "waveform.circle.fill"
-            if let symbol = UIImage(systemName: symbolName)?.withTintColor(
+            if let symbol = UIImage(systemName: "waveform.circle.fill")?.withTintColor(
                 .white,
                 renderingMode: .alwaysOriginal
             ) {

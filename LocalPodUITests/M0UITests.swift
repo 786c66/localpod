@@ -96,22 +96,6 @@ final class M0UITests: XCTestCase {
         attachScreenshot(app, name: "M0-inbox-imported-from-finder")
     }
 
-    func testH264AndHEVCVideoLaunch() throws {
-        let h264App = XCUIApplication()
-        h264App.launchArguments = ["--m0-auto-play-h264"]
-        h264App.launch()
-        sleep(3)
-        attachScreenshot(h264App, name: "M0-video-h264")
-        h264App.terminate()
-
-        let hevcApp = XCUIApplication()
-        hevcApp.launchArguments = ["--m0-auto-play-hevc"]
-        hevcApp.launch()
-        sleep(3)
-        attachScreenshot(hevcApp, name: "M0-video-hevc")
-        hevcApp.terminate()
-    }
-
     private func attachScreenshot(_ app: XCUIApplication, name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name
