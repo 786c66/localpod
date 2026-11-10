@@ -234,6 +234,22 @@ public struct ImportEngine: Sendable {
                 continue
             }
 
+            // The scan size is a snapshot, not a guarantee: a file can grow or
+            // shrink while it is being copied (Finder/iCloud). Cheap defense:
+            // compare the bytes we actually hashed with the scanned size. A
+            // mismatch means the staged bytes are not the scanned file.
+            if copyResult.byteCount != file.byteSize {
+                try? fileManager.removeItem(at: partURL)
+                failureIssues.append(ImportIssue(
+                    relativePath: file.relativePath,
+                    kind: .copyFailed,
+                    message: "源文件在导入期间发生变化（扫描大小 \(file.byteSize) 字节，实际复制 \(copyResult.byteCount) 字节），已跳过。"
+                ))
+                completedFiles += 1
+                progress(Self.makeProgress(phase: .copying, totalFiles: totalCandidates, completedFiles: completedFiles, totalBytes: scan.totalBytes, copiedBytes: copiedBytes))
+                continue
+            }
+
             progress(Self.makeProgress(phase: .probing, totalFiles: totalCandidates, completedFiles: completedFiles, totalBytes: scan.totalBytes, copiedBytes: copiedBytes, currentFileName: currentFileName, currentFileTotalBytes: currentFileSize))
 
             let probed: ProbedMedia

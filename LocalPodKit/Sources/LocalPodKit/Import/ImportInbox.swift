@@ -58,6 +58,11 @@ public struct ImportInbox: Sendable {
 
     /// Copies a file or folder into the inbox. The caller must hold any
     /// security-scoped access for the duration of this call.
+    ///
+    /// The copy lands in a hidden temporary item inside the inbox and is then
+    /// atomically renamed to its final unique destination. Inbox scans skip
+    /// hidden items, so a crash or failure can never expose a partial file as
+    /// pending, and no partial destination is left behind.
     @discardableResult
     public func stage(url sourceURL: URL) throws -> URL {
         try ensureExists()
@@ -68,10 +73,9 @@ public struct ImportInbox: Sendable {
             return source
         }
 
-        let destination = Self.uniqueDestination(
-            for: source.lastPathComponent,
-            in: directoryURL,
-            fileManager: fileManager
+        let temporaryURL = directoryURL.appendingPathComponent(
+            ".localpod-stage-\(UUID().uuidString)",
+            isDirectory: false
         )
 
         var coordinatorError: NSError?
@@ -82,15 +86,64 @@ public struct ImportInbox: Sendable {
             error: &coordinatorError
         ) { readURL in
             do {
-                try fileManager.copyItem(at: readURL, to: destination)
+                try fileManager.copyItem(at: readURL, to: temporaryURL)
             } catch {
                 copyError = error
             }
         }
 
-        if let coordinatorError { throw coordinatorError }
-        if let copyError { throw copyError }
-        return destination
+        if let coordinatorError {
+            try? fileManager.removeItem(at: temporaryURL)
+            throw coordinatorError
+        }
+        if let copyError {
+            try? fileManager.removeItem(at: temporaryURL)
+            throw copyError
+        }
+
+        var moveAttempts = 0
+        while true {
+            let destination = Self.uniqueDestination(
+                for: source.lastPathComponent,
+                in: directoryURL,
+                fileManager: fileManager
+            )
+            do {
+                try fileManager.moveItem(at: temporaryURL, to: destination)
+                return destination
+            } catch {
+                // Another stage may have claimed the name after we checked.
+                if fileManager.fileExists(atPath: destination.path), moveAttempts < 100 {
+                    moveAttempts += 1
+                    continue
+                }
+                try? fileManager.removeItem(at: temporaryURL)
+                throw error
+            }
+        }
+    }
+
+    /// Removes hidden staging leftovers from a previous crash. Recent items
+    /// are kept so a concurrent stage can finish; callers use this at launch.
+    @discardableResult
+    public func cleanupStaleStaging(olderThan age: TimeInterval = 3600) throws -> Int {
+        try ensureExists()
+        let cutoff = Date().addingTimeInterval(-max(0, age))
+        let urls = try FileManager.default.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: [.contentModificationDateKey],
+            options: []
+        )
+        var removed = 0
+        for url in urls where url.lastPathComponent.hasPrefix(".localpod-stage-") {
+            let modifiedAt = try? url.resourceValues(
+                forKeys: [.contentModificationDateKey]
+            ).contentModificationDate
+            if let modifiedAt, modifiedAt > cutoff { continue }
+            try? FileManager.default.removeItem(at: url)
+            removed += 1
+        }
+        return removed
     }
 
     public func remove(_ url: URL) throws {

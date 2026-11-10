@@ -243,12 +243,13 @@ final class ImportEngineTests: XCTestCase {
     private static func scanResult(
         root: URL,
         fileURL: URL,
-        cloudState: CloudItemState
+        cloudState: CloudItemState,
+        byteSize: Int64 = 128
     ) -> ScanResult {
         let file = ScannedFile(
             url: fileURL,
             relativePath: fileURL.lastPathComponent,
-            byteSize: 128,
+            byteSize: byteSize,
             kind: .audio,
             contentTypeIdentifier: "public.mpeg-4-audio",
             cloudState: cloudState
@@ -261,6 +262,45 @@ final class ImportEngineTests: XCTestCase {
             truncated: false,
             totalCandidates: 1
         )
+    }
+
+    func testScannedSizeMismatchReportsCopyFailedAndImportsNothing() async throws {
+        for scannedSize in [Int64(64), Int64(4096)] {
+            let source = try TemporaryDirectory()
+            let roots = try Self.makeRoots()
+            let fileURL = try source.write("changing.m4a", bytes: 128)
+            let recorder = ProgressRecorder()
+
+            let result = try await Self.importFolder(
+                source: source.url,
+                roots: roots,
+                scanner: FakeFolderScanner(result: Self.scanResult(
+                    root: source.url,
+                    fileURL: fileURL,
+                    cloudState: .local,
+                    byteSize: scannedSize
+                )),
+                progress: { recorder.append($0) }
+            )
+
+            XCTAssertEqual(result.importedCount, 0, "scanned \(scannedSize) bytes")
+            XCTAssertEqual(result.duplicateCount, 0)
+            XCTAssertEqual(result.failedCount, 1)
+            XCTAssertEqual(result.failureIssues.first?.kind, .copyFailed)
+            XCTAssertTrue(
+                result.failureIssues.first?.message.contains("源文件在导入期间发生变化") == true,
+                "scanned \(scannedSize) bytes"
+            )
+            XCTAssertEqual(result.copiedBytes, 0)
+            XCTAssertEqual(recorder.last?.phase, .finished)
+            XCTAssertEqual(recorder.last?.completedFiles, 1)
+            XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: roots.media.path).count, 0)
+            XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: roots.staging.path).count, 0)
+            XCTAssertTrue(
+                FileManager.default.fileExists(atPath: fileURL.path),
+                "The engine must not delete the source; the coordinator owns it."
+            )
+        }
     }
 
     func testRelinkKeepsExistingFingerprintButImportsNewCopy() async throws {
