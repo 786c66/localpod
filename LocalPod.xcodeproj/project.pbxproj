@@ -13,9 +13,9 @@
 		27085B42C4116AAEA272FA8F /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D803FA536A5958263A625E /* OnboardingView.swift */; };
 		289D7FB4F15C1D781C64222C /* LocalPodKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0FD9FD8B08DA934EFA2B4552 /* LocalPodKit */; };
 		2C750406DE2646C2DFC14B80 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 361F918E598EAD9C59C223E8 /* DiagnosticsView.swift */; };
-		3B0BBC9C9D130B6A867C27D0 /* demo-hevc.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = CC6EE4C4A13662596AFB63B0 /* demo-hevc.mp4 */; };
 		3D9F253E7D1B5E9839CEDEEE /* M4UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB42381B83497C220C5B45CB /* M4UITests.swift */; };
 		3E930D6A214511223DB90AC2 /* PlaylistViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78C751F6184AADE403909F1 /* PlaylistViews.swift */; };
+		41E2453FADEB97F15C7EAD44 /* SampleContent in Resources */ = {isa = PBXBuildFile; fileRef = DC4E61AF6AD15CB716921049 /* SampleContent */; };
 		4C6D139BC918AAC0E64B1249 /* demo-audio.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 23346E600CEA4A18BA25978B /* demo-audio.m4a */; };
 		4F20DD44075396004A3472DA /* BenchmarkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2310D31581FEB3DC9E6D0B97 /* BenchmarkView.swift */; };
 		537088C83C23043BA2D22DDC /* InboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB082AAFCA17FAF2392BEF17 /* InboxView.swift */; };
@@ -28,12 +28,12 @@
 		86ECCF1483AABDCC432F8B2E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A4706ACE075EC1F83E5A70 /* SettingsView.swift */; };
 		98187EE9B16597D503E25C56 /* M1UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 629BFC9FD7ECCD7B7A19C1CB /* M1UITests.swift */; };
 		9900645556FC372AFED8F47E /* DocumentPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D17F0BADA440FB407E46DA /* DocumentPicker.swift */; };
+		ADBB7965B11E440241B1D17F /* M5DeliveryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9F0BC6809D1861746C7FAB /* M5DeliveryUITests.swift */; };
 		B47A8F974E5AF2E0CCB88A48 /* M3UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A1CFB6A6BD9067B93CA6FA /* M3UITests.swift */; };
 		B47C57FD19EBBE914893017A /* LocalPodApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BA0DF86D0C69BC29BE9F624 /* LocalPodApp.swift */; };
 		B509A743EB3CD7E141D27980 /* M2UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 562ADF714076DD62E7590544 /* M2UITests.swift */; };
 		B56B53B162D5DD51D04357AB /* M5UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BE5FFCCF1BFDDC0A7C14512 /* M5UITests.swift */; };
 		DC0F4714648A8F7C99E7DACC /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFD2D2A1E3D000812950E085 /* LibraryView.swift */; };
-		DE683B751E476EDC3FDDA784 /* demo-h264.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 87B68AB75FE621F1C3EC5A63 /* demo-h264.mp4 */; };
 		E88FB4648BE59E15C934CEE6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3DC41E9533AC5BE62B52E987 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -50,6 +50,7 @@
 /* Begin PBXFileReference section */
 		00705DECE55BE2A80CE153C3 /* LocalPodUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LocalPodUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		06AE680CAD12BBEC847065DD /* M0UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M0UITests.swift; sourceTree = "<group>"; };
+		1E9F0BC6809D1861746C7FAB /* M5DeliveryUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M5DeliveryUITests.swift; sourceTree = "<group>"; };
 		222D3B52B8184050320B4910 /* M4DebugSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M4DebugSupport.swift; sourceTree = "<group>"; };
 		2310D31581FEB3DC9E6D0B97 /* BenchmarkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchmarkView.swift; sourceTree = "<group>"; };
 		23346E600CEA4A18BA25978B /* demo-audio.m4a */ = {isa = PBXFileReference; path = "demo-audio.m4a"; sourceTree = "<group>"; };
@@ -60,7 +61,6 @@
 		562ADF714076DD62E7590544 /* M2UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M2UITests.swift; sourceTree = "<group>"; };
 		629BFC9FD7ECCD7B7A19C1CB /* M1UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M1UITests.swift; sourceTree = "<group>"; };
 		802390B4491E30D754B0FB2A /* demo-long-audio.m4a */ = {isa = PBXFileReference; path = "demo-long-audio.m4a"; sourceTree = "<group>"; };
-		87B68AB75FE621F1C3EC5A63 /* demo-h264.mp4 */ = {isa = PBXFileReference; path = "demo-h264.mp4"; sourceTree = "<group>"; };
 		8BA0DF86D0C69BC29BE9F624 /* LocalPodApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalPodApp.swift; sourceTree = "<group>"; };
 		A76F3D1F54687DC6C9E03182 /* LocalPodKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = LocalPodKit; path = LocalPodKit; sourceTree = SOURCE_ROOT; };
 		AB082AAFCA17FAF2392BEF17 /* InboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxView.swift; sourceTree = "<group>"; };
@@ -70,9 +70,9 @@
 		BB622C565ECF037091092A17 /* M3DebugSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M3DebugSeed.swift; sourceTree = "<group>"; };
 		C240AF67ECE4340E5C07A451 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		C78C751F6184AADE403909F1 /* PlaylistViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistViews.swift; sourceTree = "<group>"; };
-		CC6EE4C4A13662596AFB63B0 /* demo-hevc.mp4 */ = {isa = PBXFileReference; path = "demo-hevc.mp4"; sourceTree = "<group>"; };
 		CF0159A431873BBF57DF3694 /* ImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinator.swift; sourceTree = "<group>"; };
 		DB42381B83497C220C5B45CB /* M4UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M4UITests.swift; sourceTree = "<group>"; };
+		DC4E61AF6AD15CB716921049 /* SampleContent */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SampleContent; path = LocalPod/Resources/SampleContent; sourceTree = SOURCE_ROOT; };
 		DFD2D2A1E3D000812950E085 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		E02DE9E7DBFAAA5822D68D7F /* LocalPod.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LocalPod.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2C0FF2DD1CF8BA191DE2461 /* SigningInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningInfo.swift; sourceTree = "<group>"; };
@@ -131,9 +131,8 @@
 			isa = PBXGroup;
 			children = (
 				23346E600CEA4A18BA25978B /* demo-audio.m4a */,
-				87B68AB75FE621F1C3EC5A63 /* demo-h264.mp4 */,
-				CC6EE4C4A13662596AFB63B0 /* demo-hevc.mp4 */,
 				802390B4491E30D754B0FB2A /* demo-long-audio.m4a */,
+				DC4E61AF6AD15CB716921049 /* SampleContent */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -219,6 +218,7 @@
 				562ADF714076DD62E7590544 /* M2UITests.swift */,
 				B4A1CFB6A6BD9067B93CA6FA /* M3UITests.swift */,
 				DB42381B83497C220C5B45CB /* M4UITests.swift */,
+				1E9F0BC6809D1861746C7FAB /* M5DeliveryUITests.swift */,
 				2BE5FFCCF1BFDDC0A7C14512 /* M5UITests.swift */,
 			);
 			path = LocalPodUITests;
@@ -352,9 +352,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				E88FB4648BE59E15C934CEE6 /* Assets.xcassets in Resources */,
+				41E2453FADEB97F15C7EAD44 /* SampleContent in Resources */,
 				4C6D139BC918AAC0E64B1249 /* demo-audio.m4a in Resources */,
-				DE683B751E476EDC3FDDA784 /* demo-h264.mp4 in Resources */,
-				3B0BBC9C9D130B6A867C27D0 /* demo-hevc.mp4 in Resources */,
 				84C2C5304B70ED8D1CFDBD2F /* demo-long-audio.m4a in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -394,6 +393,7 @@
 				B509A743EB3CD7E141D27980 /* M2UITests.swift in Sources */,
 				B47A8F974E5AF2E0CCB88A48 /* M3UITests.swift in Sources */,
 				3D9F253E7D1B5E9839CEDEEE /* M4UITests.swift in Sources */,
+				ADBB7965B11E440241B1D17F /* M5DeliveryUITests.swift in Sources */,
 				B56B53B162D5DD51D04357AB /* M5UITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

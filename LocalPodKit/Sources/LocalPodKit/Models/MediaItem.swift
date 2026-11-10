@@ -11,6 +11,7 @@ public enum MediaSource: String, Codable, Sendable, CaseIterable {
     case share
     case rss
     case benchmark
+    case sample
 
     public var displayName: String {
         switch self {
@@ -23,6 +24,7 @@ public enum MediaSource: String, Codable, Sendable, CaseIterable {
         case .share: "分享"
         case .rss: "RSS"
         case .benchmark: "基准"
+        case .sample: "示例"
         }
     }
 }

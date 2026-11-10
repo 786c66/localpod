@@ -63,6 +63,7 @@ final class ImportCoordinator {
         case acceptance = "验收文件夹"
         case inbox = "收件箱"
         case openURL = "外部打开"
+        case sample = "示例内容"
 
         var displayName: String { rawValue }
     }
@@ -202,6 +203,46 @@ final class ImportCoordinator {
             acceptance: true,
             modelContext: modelContext
         )
+    }
+
+    /// User-facing built-in sample set. The files live in a folder reference
+    /// inside the app bundle, so the existing import pipeline can scan them
+    /// without touching security-scoped URLs or anything outside the sandbox.
+    static let sampleCollectionName = "示例内容"
+
+    static var sampleRootURL: URL? {
+        guard let url = Bundle.main.url(
+            forResource: "SampleContent",
+            withExtension: nil
+        ) else {
+            return nil
+        }
+        let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+        return isDirectory ? url : nil
+    }
+
+    var isSampleImportAvailable: Bool {
+        Self.sampleRootURL != nil
+    }
+
+    func importSampleContent(modelContext: ModelContext) {
+        guard !isRunning else { return }
+        guard let root = Self.sampleRootURL else {
+            phase = .failed
+            lastErrorMessage = "找不到内置示例内容 SampleContent。请重新构建 App。"
+            return
+        }
+        beginRun(kind: .sample)
+        task = Task { [weak self] in
+            await self?.runFolder(
+                rootURL: root,
+                kind: .sample,
+                source: .sample,
+                collectionName: Self.sampleCollectionName,
+                removeSourceAfterSuccess: false,
+                modelContext: modelContext
+            )
+        }
     }
 
     private func importBuiltInFolder(

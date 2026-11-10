@@ -28,6 +28,12 @@ targets:
       - path: LocalPod
         excludes:
           - Info.plist
+          - Resources/SampleContent
+      # Folder reference: keeps "SampleContent" as a directory inside the app
+      # bundle so the import pipeline can scan the bundled folder in place.
+      - path: LocalPod/Resources/SampleContent
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: LocalPodKit
         product: LocalPodKit

@@ -13,9 +13,15 @@ struct SettingsView: View {
     @Query private var allItems: [MediaItem]
 
     @State private var maintenanceSummary: String?
+    @State private var showDeleteSamplesConfirmation = false
+    @State private var sampleDeleteSummary: String?
 
     private var libraryItems: [MediaItem] {
         allItems.filter { $0.source != .benchmark }
+    }
+
+    private var sampleItems: [MediaItem] {
+        allItems.filter { $0.source == .sample }
     }
 
     private var totalBytes: Int64 {
@@ -111,6 +117,8 @@ struct SettingsView: View {
                     }
                 }
 
+                sampleSection
+
                 Section("导入历史") {
                     if importSessions.isEmpty {
                         Text("还没有导入记录。")
@@ -149,6 +157,45 @@ struct SettingsView: View {
             .onChange(of: settings.skipForwardSeconds) { _, _ in session.applySettings() }
             .onChange(of: settings.skipBackwardSeconds) { _, _ in session.applySettings() }
             .onChange(of: settings.resumeEnabled) { _, _ in session.applySettings() }
+            .alert("删除示例内容？", isPresented: $showDeleteSamplesConfirmation) {
+                Button("删除", role: .destructive) {
+                    deleteSamples()
+                }
+                .accessibilityIdentifier("sampleDeleteConfirmButton")
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("将删除 \(sampleItems.count) 条示例及其进度、队列和播放列表引用。你导入的内容不会受影响。")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var sampleSection: some View {
+        Section {
+            HStack {
+                Text("示例条目")
+                Spacer()
+                Text("\(sampleItems.count) 条")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("sampleCountText")
+            }
+            Button(role: .destructive) {
+                showDeleteSamplesConfirmation = true
+            } label: {
+                Label("删除示例内容", systemImage: "trash")
+            }
+            .accessibilityIdentifier("sampleDeleteButton")
+            .disabled(sampleItems.isEmpty)
+            if let sampleDeleteSummary {
+                Text(sampleDeleteSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("sampleDeleteSummary")
+            }
+        } header: {
+            Text("示例内容")
+        } footer: {
+            Text("内置示例均为自生成的系统语音，不包含第三方内容。删除会同时移除示例的进度、队列与播放列表引用；之后可以重新添加。")
         }
     }
 
@@ -198,6 +245,26 @@ struct SettingsView: View {
             }
         } catch {
             maintenanceSummary = "维护失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func deleteSamples() {
+        let sampleIDs = sampleItems.map(\.id)
+        do {
+            let result = try LibraryService().deleteSamples(in: modelContext)
+            // The persisted queue was cleaned by LibraryService; keep the
+            // in-memory session consistent too, especially if a sample is the
+            // currently loaded item.
+            for id in sampleIDs {
+                session.handleDeletedItem(id)
+            }
+            let freed = ByteCountFormatter.string(
+                fromByteCount: result.freedBytes,
+                countStyle: .file
+            )
+            sampleDeleteSummary = "已删除 \(result.deletedCount) 条示例（\(freed)），同时清理进度 \(result.removedPlaybackStates) · 队列 \(result.removedQueueEntries) · 播放列表 \(result.removedPlaylistEntries) · 媒体 \(result.removedMediaFiles) · 封面 \(result.removedArtworkFiles)。"
+        } catch {
+            sampleDeleteSummary = "删除示例失败：\(error.localizedDescription)"
         }
     }
 }

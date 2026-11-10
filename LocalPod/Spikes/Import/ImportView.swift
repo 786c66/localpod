@@ -27,6 +27,20 @@ struct ImportView: View {
             List {
                 Section {
                     Button {
+                        coordinator.importSampleContent(modelContext: modelContext)
+                    } label: {
+                        Label("添加示例内容", systemImage: "sparkles")
+                    }
+                    .disabled(coordinator.isRunning || !coordinator.isSampleImportAvailable)
+                    .accessibilityIdentifier("sampleAddButton")
+                } header: {
+                    Text("示例内容")
+                } footer: {
+                    Text("导入 3 段自生成的短语音示例，归入「示例内容」合集。可随时在设置中一键删除，不会影响你导入的内容。")
+                }
+
+                Section {
+                    Button {
                         activeSheet = .folder
                     } label: {
                         Label("选择文件夹（文件 App）", systemImage: "folder.badge.plus")

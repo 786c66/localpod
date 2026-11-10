@@ -27,6 +27,16 @@ public struct LibraryDeleteResult: Sendable {
     public let removedArtwork: Bool
 }
 
+public struct LibrarySampleDeleteResult: Sendable {
+    public let deletedCount: Int
+    public let freedBytes: Int64
+    public let removedMediaFiles: Int
+    public let removedArtworkFiles: Int
+    public let removedPlaybackStates: Int
+    public let removedQueueEntries: Int
+    public let removedPlaylistEntries: Int
+}
+
 public struct LibraryCleanupSummary: Sendable {
     public var missingMarked: Int = 0
     public var restored: Int = 0
@@ -249,6 +259,118 @@ public final class LibraryService {
             freedBytes: freedBytes,
             removedMediaFile: removedMedia,
             removedArtwork: removedArtwork
+        )
+    }
+
+    /// Deletes every built-in sample item and its dependent rows/files in one
+    /// transaction. Samples are ordinary library items once imported, so this
+    /// intentionally reuses the same cleanup rules as `delete(_:in:)`.
+    ///
+    /// The source is matched through `sourceRaw`; it is not a schema change, so
+    /// this works for stores created before M5.
+    @discardableResult
+    public func deleteSamples(
+        in context: ModelContext
+    ) throws -> LibrarySampleDeleteResult {
+        let sampleRaw = MediaSource.sample.rawValue
+        let items = try context.fetch(FetchDescriptor<MediaItem>(
+            predicate: #Predicate { $0.sourceRaw == sampleRaw }
+        ))
+        guard !items.isEmpty else {
+            return LibrarySampleDeleteResult(
+                deletedCount: 0,
+                freedBytes: 0,
+                removedMediaFiles: 0,
+                removedArtworkFiles: 0,
+                removedPlaybackStates: 0,
+                removedQueueEntries: 0,
+                removedPlaylistEntries: 0
+            )
+        }
+
+        let itemIDs = Set(items.map(\.id))
+        let fileManager = FileManager.default
+        var freedBytes: Int64 = 0
+        var removedMediaFiles = 0
+        var removedArtworkFiles = 0
+
+        for item in items {
+            freedBytes += item.byteSize
+
+            if let url = try? storage.url(forRelativePath: item.relativePath),
+               fileManager.fileExists(atPath: url.path),
+               (try? fileManager.removeItem(at: url)) != nil {
+                removedMediaFiles += 1
+            }
+            if let artworkKey = item.artworkKey,
+               let url = try? storage.artworkURL(forKey: artworkKey),
+               fileManager.fileExists(atPath: url.path),
+               (try? fileManager.removeItem(at: url)) != nil {
+                removedArtworkFiles += 1
+            }
+            context.delete(item)
+        }
+
+        var removedPlaybackStates = 0
+        for state in try context.fetch(FetchDescriptor<PlaybackState>())
+        where itemIDs.contains(state.itemID) {
+            context.delete(state)
+            removedPlaybackStates += 1
+        }
+
+        var removedQueueEntries = 0
+        for entry in try context.fetch(FetchDescriptor<QueueEntry>())
+        where itemIDs.contains(entry.itemID) {
+            context.delete(entry)
+            removedQueueEntries += 1
+        }
+
+        var removedPlaylistEntries = 0
+        for entry in try context.fetch(FetchDescriptor<PlaylistEntry>())
+        where itemIDs.contains(entry.itemID) {
+            context.delete(entry)
+            removedPlaylistEntries += 1
+        }
+
+        // QueueManager reloads entries at attach time, but the persisted
+        // singleton must not keep pointing at a deleted sample or a stale
+        // shuffle order.
+        let queueStateKey = QueueManager.stateKey
+        var stateDescriptor = FetchDescriptor<QueueState>(
+            predicate: #Predicate { $0.key == queueStateKey }
+        )
+        stateDescriptor.fetchLimit = 1
+        if let state = try context.fetch(stateDescriptor).first {
+            var changed = false
+            if let currentItemID = state.currentItemID,
+               itemIDs.contains(currentItemID) {
+                state.currentItemID = nil
+                changed = true
+            }
+            let order = state.shuffleOrderRaw
+                .split(separator: ",")
+                .compactMap { UUID(uuidString: String($0)) }
+                .filter { !itemIDs.contains($0) }
+            let rewrittenOrder = order.map(\.uuidString).joined(separator: ",")
+            if rewrittenOrder != state.shuffleOrderRaw {
+                state.shuffleOrderRaw = rewrittenOrder
+                changed = true
+            }
+            if changed {
+                state.updatedAt = Date()
+            }
+        }
+
+        try context.save()
+
+        return LibrarySampleDeleteResult(
+            deletedCount: items.count,
+            freedBytes: freedBytes,
+            removedMediaFiles: removedMediaFiles,
+            removedArtworkFiles: removedArtworkFiles,
+            removedPlaybackStates: removedPlaybackStates,
+            removedQueueEntries: removedQueueEntries,
+            removedPlaylistEntries: removedPlaylistEntries
         )
     }
 
