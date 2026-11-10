@@ -18,6 +18,10 @@ struct InboxView: View {
             List {
                 Section {
                     LabeledContent("待处理", value: "\(coordinator.inboxPendingCount) 个")
+                    Text("待处理 \(coordinator.inboxPendingCount)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("inboxPendingCount")
                     Button {
                         coordinator.refreshInboxPendingCount()
                         coordinator.importInboxIfNeeded(modelContext: modelContext)
@@ -64,8 +68,20 @@ struct InboxView: View {
                 if let summary = coordinator.summary,
                    summary.kind == .inbox || summary.kind == .openURL {
                     Section("上次结果") {
+                        Text("导入 \(summary.importedCount) · 重复 \(summary.duplicateCount) · 不支持 \(summary.unsupportedCount) · 失败 \(summary.failedCount)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("inboxCategorySummary")
                         LabeledContent("导入", value: "\(summary.importedCount) 个")
-                        LabeledContent("问题", value: "\(summary.failedCount) 条")
+                        if summary.duplicateCount > 0 {
+                            LabeledContent("重复", value: "\(summary.duplicateCount) 个")
+                        }
+                        if summary.unsupportedCount > 0 {
+                            LabeledContent("不支持", value: "\(summary.unsupportedCount) 个")
+                        }
+                        if summary.failedCount > 0 {
+                            LabeledContent("失败", value: "\(summary.failedCount) 个")
+                        }
                         LabeledContent("复制", value: ByteCountFormatter.string(
                             fromByteCount: summary.copiedBytes,
                             countStyle: .file

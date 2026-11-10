@@ -22,6 +22,8 @@ final class FolderScannerTests: XCTestCase {
 
         XCTAssertEqual(result.files.count, 100)
         XCTAssertEqual(result.skippedUnsupportedCount, 1)
+        XCTAssertEqual(result.unsupportedFiles.first?.relativePath, "notes.txt")
+        XCTAssertEqual(result.totalCandidates, 101)
         XCTAssertEqual(result.truncated, false)
         XCTAssertEqual(result.issues.count, 0)
         XCTAssertEqual(result.totalBytes, expectedBytes)

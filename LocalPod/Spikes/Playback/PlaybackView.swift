@@ -6,11 +6,14 @@ import LocalPodKit
 struct PlaybackView: View {
     @Environment(PlaybackController.self) private var playback
     @Query(
-        filter: #Predicate<MediaItem> { $0.sourceRaw == "import" },
         sort: \MediaItem.addedAt,
         order: .reverse
     )
-    private var items: [MediaItem]
+    private var allItems: [MediaItem]
+
+    private var items: [MediaItem] {
+        allItems.filter { $0.source != .benchmark && !$0.isMissing }
+    }
 
     @State private var showVideo = false
     @State private var localError: String?

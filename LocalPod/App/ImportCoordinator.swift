@@ -2,6 +2,9 @@ import Foundation
 import Observation
 import SwiftData
 import LocalPodKit
+#if os(iOS)
+import UIKit
+#endif
 
 @MainActor
 @Observable
@@ -9,6 +12,7 @@ final class ImportCoordinator {
     enum RunKind: String, Sendable {
         case folder = "文件夹"
         case demo = "演示文件夹"
+        case acceptance = "验收文件夹"
         case inbox = "收件箱"
         case openURL = "外部打开"
 
@@ -17,30 +21,42 @@ final class ImportCoordinator {
 
     struct RunSummary: Sendable {
         var kind: RunKind
+        var collectionName: String
+        var totalCandidates: Int
+        var supportedFiles: Int
         var importedCount: Int
+        var relinkedCount: Int
+        var duplicateCount: Int
+        var unsupportedCount: Int
         var failedCount: Int
-        var skippedUnsupportedCount: Int
         var copiedBytes: Int64
         var duration: TimeInterval
         var cancelled: Bool
         var messages: [String]
+        var reportPath: String?
     }
 
     private(set) var phase: ImportPhase = .idle
     private(set) var progress: ImportProgress?
     private(set) var summary: RunSummary?
+    private(set) var lastResult: FolderImportResult?
     private(set) var issueMessages: [String] = []
     private(set) var isRunning = false
     private(set) var isCancelling = false
     private(set) var currentKind: RunKind?
     private(set) var lastErrorMessage: String?
     private(set) var inboxPendingCount = 0
+    private(set) var lastCleanupSummary: LibraryCleanupSummary?
 
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var didBootstrap = false
-    @ObservationIgnored private let engine = ImportEngine()
     @ObservationIgnored private let storage = MediaStorage.live
     @ObservationIgnored private let inbox = ImportInbox.live
+    @ObservationIgnored private let libraryService = LibraryService(storage: .live)
+    @ObservationIgnored private lazy var importService = FolderImportService(
+        storage: storage,
+        library: libraryService
+    )
 
     func bootstrap(modelContext: ModelContext) {
         do {
@@ -51,7 +67,18 @@ final class ImportCoordinator {
         }
         guard !didBootstrap else { return }
         didBootstrap = true
+        runMaintenance(modelContext: modelContext)
         importInboxIfNeeded(modelContext: modelContext)
+    }
+
+    func runMaintenance(modelContext: ModelContext) {
+        guard !isRunning else { return }
+        do {
+            let summary = try libraryService.reconcile(in: modelContext)
+            lastCleanupSummary = lastCleanupSummary.map { $0.merging(summary) } ?? summary
+        } catch {
+            lastErrorMessage = "启动清理失败：\(error.localizedDescription)"
+        }
     }
 
     func refreshInboxPendingCount() {
@@ -67,41 +94,69 @@ final class ImportCoordinator {
 
     func startFolderImport(_ url: URL, modelContext: ModelContext) {
         guard !isRunning else { return }
-        beginRun(kind: .folder)
-        task = Task { [weak self] in
-            await self?.runImport(
-                rootURL: url,
-                kind: .folder,
-                folderName: url.lastPathComponent,
-                removeSourceAfterSuccess: false,
-                modelContext: modelContext
-            )
-        }
+        startPreparedFolderImport(
+            url,
+            kind: .folder,
+            source: .files,
+            collectionName: url.lastPathComponent,
+            modelContext: modelContext
+        )
     }
 
     func importDemoFolder(modelContext: ModelContext) {
+        importBuiltInFolder(
+            kind: .demo,
+            collectionName: "演示文件夹",
+            acceptance: false,
+            modelContext: modelContext
+        )
+    }
+
+    func importAcceptanceFolder(modelContext: ModelContext) {
+        importBuiltInFolder(
+            kind: .acceptance,
+            collectionName: "验收文件夹",
+            acceptance: true,
+            modelContext: modelContext
+        )
+    }
+
+    private func importBuiltInFolder(
+        kind: RunKind,
+        collectionName: String,
+        acceptance: Bool,
+        modelContext: ModelContext
+    ) {
         guard !isRunning else { return }
         guard let template = Bundle.main.url(forResource: "demo-audio", withExtension: "m4a") else {
             phase = .failed
             lastErrorMessage = "找不到内置演示音频 demo-audio.m4a。"
             return
         }
+        let folderName = acceptance ? "AcceptanceInput" : "DemoInput"
         let demoRoot = storage.applicationSupportRoot
-            .appendingPathComponent("DemoInput", isDirectory: true)
-        beginRun(kind: .demo)
+            .appendingPathComponent(folderName, isDirectory: true)
+        beginRun(kind: kind)
         task = Task { [weak self] in
             guard let self else { return }
             do {
                 let root = try await Task.detached(priority: .userInitiated) {
-                    try DemoFolderFactory.makeIfNeeded(
+                    if acceptance {
+                        return try DemoFolderFactory.makeAcceptanceFolderIfNeeded(
+                            at: demoRoot,
+                            audioTemplateURL: template
+                        )
+                    }
+                    return try DemoFolderFactory.makeIfNeeded(
                         at: demoRoot,
                         audioTemplateURL: template
                     )
                 }.value
-                await self.runImport(
+                await self.runFolder(
                     rootURL: root,
-                    kind: .demo,
-                    folderName: "演示文件夹",
+                    kind: kind,
+                    source: .imported,
+                    collectionName: collectionName,
                     removeSourceAfterSuccess: false,
                     modelContext: modelContext
                 )
@@ -146,8 +201,30 @@ final class ImportCoordinator {
         phase = .idle
         progress = nil
         summary = nil
+        lastResult = nil
         issueMessages = []
         lastErrorMessage = nil
+    }
+
+    private func startPreparedFolderImport(
+        _ url: URL,
+        kind: RunKind,
+        source: MediaSource,
+        collectionName: String,
+        modelContext: ModelContext
+    ) {
+        guard !isRunning else { return }
+        beginRun(kind: kind)
+        task = Task { [weak self] in
+            await self?.runFolder(
+                rootURL: url,
+                kind: kind,
+                source: source,
+                collectionName: collectionName,
+                removeSourceAfterSuccess: false,
+                modelContext: modelContext
+            )
+        }
     }
 
     private func startInboxImport(
@@ -168,43 +245,67 @@ final class ImportCoordinator {
         phase = .scanning
         progress = nil
         summary = nil
+        lastResult = nil
         issueMessages = []
         lastErrorMessage = nil
         currentKind = kind
+        #if os(iOS)
+        UIApplication.shared.isIdleTimerDisabled = true
+        #endif
     }
 
-    private func runImport(
+    private func runFolder(
         rootURL: URL,
         kind: RunKind,
-        folderName: String,
+        source: MediaSource,
+        collectionName: String,
         removeSourceAfterSuccess: Bool,
         modelContext: ModelContext
     ) async {
+        let didStart = rootURL.startAccessingSecurityScopedResource()
+        defer {
+            if didStart { rootURL.stopAccessingSecurityScopedResource() }
+        }
+
         do {
-            let session = try storage.newSessionURL()
-            let performed = try await performImport(
+            let startedAt = Date()
+            let result = try await importService.importFolder(
                 rootURL: rootURL,
-                destinationRootURL: session,
-                folderName: folderName,
-                removeSourceAfterSuccess: removeSourceAfterSuccess,
-                modelContext: modelContext
+                source: source,
+                rootName: collectionName,
+                collectionName: collectionName,
+                in: modelContext,
+                options: importOptions(),
+                progress: { [weak self] update in
+                    Task { @MainActor [weak self] in
+                        self?.apply(update)
+                    }
+                }
             )
-            let summary = RunSummary(
+            let report = result.report
+            let summary = makeSummary(
                 kind: kind,
-                importedCount: performed.insertedCount,
-                failedCount: performed.messages.count,
-                skippedUnsupportedCount: performed.result.skippedUnsupportedCount,
-                copiedBytes: performed.result.copiedBytes,
-                duration: performed.result.finishedAt.timeIntervalSince(performed.result.startedAt),
-                cancelled: performed.result.cancelled,
-                messages: performed.messages
+                collectionName: collectionName,
+                report: report,
+                duration: Date().timeIntervalSince(startedAt),
+                reportPath: result.reportPath
             )
+            lastResult = result
             finish(
-                phase: performed.result.cancelled ? .cancelled : .finished,
-                summary: summary
+                phase: report.cancelled ? .cancelled : .finished,
+                summary: summary,
+                issues: report.allIssues.map { "\($0.kind.displayName)：\($0.relativePath) — \($0.message)" }
             )
+
+            if removeSourceAfterSuccess,
+               !report.cancelled,
+               report.failedCount == 0,
+               report.unsupportedCount == 0 {
+                try? inbox.remove(rootURL)
+            }
+            refreshInboxPendingCount()
         } catch is CancellationError {
-            finish(phase: .cancelled, summary: nil)
+            finish(phase: .cancelled, summary: nil, issues: [])
         } catch {
             finishWithError(error)
         }
@@ -216,11 +317,19 @@ final class ImportCoordinator {
         modelContext: ModelContext
     ) async {
         let startedAt = Date()
+        let collectionName = kind == .inbox ? "收件箱" : "外部打开"
+        let source: MediaSource = kind == .inbox ? .finder : .openIn
         var importedCount = 0
-        var skippedUnsupportedCount = 0
+        var relinkedCount = 0
+        var duplicateCount = 0
+        var unsupportedCount = 0
+        var failedCount = 0
         var copiedBytes: Int64 = 0
+        var totalCandidates = 0
+        var supportedFiles = 0
         var messages: [String] = []
         var cancelled = false
+        var lastReportPath: String?
 
         for url in urls {
             if Task.isCancelled {
@@ -228,26 +337,45 @@ final class ImportCoordinator {
                 break
             }
             do {
-                let session = try storage.newSessionURL()
-                let performed = try await performImport(
+                let result = try await importService.importFolder(
                     rootURL: url,
-                    destinationRootURL: session,
-                    folderName: kind == .inbox ? "收件箱" : "外部打开",
-                    removeSourceAfterSuccess: true,
-                    modelContext: modelContext
+                    source: source,
+                    rootName: url.lastPathComponent,
+                    collectionName: collectionName,
+                    in: modelContext,
+                    options: importOptions(),
+                    progress: { [weak self] update in
+                        Task { @MainActor [weak self] in
+                            self?.apply(update)
+                        }
+                    }
                 )
-                importedCount += performed.insertedCount
-                skippedUnsupportedCount += performed.result.skippedUnsupportedCount
-                copiedBytes += performed.result.copiedBytes
-                messages.append(contentsOf: performed.messages)
-                if performed.result.cancelled {
+                let report = result.report
+                lastResult = result
+                lastReportPath = result.reportPath
+                importedCount += report.importedCount
+                relinkedCount += report.relinkedCount
+                duplicateCount += report.duplicateCount
+                unsupportedCount += report.unsupportedCount
+                failedCount += report.failedCount
+                copiedBytes += report.copiedBytes
+                totalCandidates += report.totalCandidates
+                supportedFiles += report.supportedFiles
+                messages.append(contentsOf: report.allIssues.map {
+                    "\($0.kind.displayName)：\($0.relativePath) — \($0.message)"
+                })
+                if report.cancelled {
                     cancelled = true
                     break
+                }
+                if report.failedCount == 0, report.unsupportedCount == 0 {
+                    try? inbox.remove(url)
                 }
             } catch is CancellationError {
                 cancelled = true
                 break
             } catch {
+                failedCount += 1
                 messages.append("\(url.lastPathComponent)：\(error.localizedDescription)")
             }
         }
@@ -255,91 +383,59 @@ final class ImportCoordinator {
         refreshInboxPendingCount()
         let summary = RunSummary(
             kind: kind,
+            collectionName: collectionName,
+            totalCandidates: totalCandidates,
+            supportedFiles: supportedFiles,
             importedCount: importedCount,
-            failedCount: messages.count,
-            skippedUnsupportedCount: skippedUnsupportedCount,
+            relinkedCount: relinkedCount,
+            duplicateCount: duplicateCount,
+            unsupportedCount: unsupportedCount,
+            failedCount: failedCount,
             copiedBytes: copiedBytes,
             duration: Date().timeIntervalSince(startedAt),
             cancelled: cancelled,
-            messages: messages
+            messages: messages,
+            reportPath: lastReportPath
         )
-        finish(phase: cancelled ? .cancelled : .finished, summary: summary)
+        finish(phase: cancelled ? .cancelled : .finished, summary: summary, issues: messages)
     }
 
-    private struct PerformedImport {
-        var result: ImportRunResult
-        var insertedCount: Int
-        var messages: [String]
+    private func makeSummary(
+        kind: RunKind,
+        collectionName: String,
+        report: ImportRunResult,
+        duration: TimeInterval,
+        reportPath: String?
+    ) -> RunSummary {
+        RunSummary(
+            kind: kind,
+            collectionName: collectionName,
+            totalCandidates: report.totalCandidates,
+            supportedFiles: report.supportedFiles,
+            importedCount: report.importedCount,
+            relinkedCount: report.relinkedCount,
+            duplicateCount: report.duplicateCount,
+            unsupportedCount: report.unsupportedCount,
+            failedCount: report.failedCount,
+            copiedBytes: report.copiedBytes,
+            duration: duration,
+            cancelled: report.cancelled,
+            messages: report.allIssues.map {
+                "\($0.kind.displayName)：\($0.relativePath) — \($0.message)"
+            },
+            reportPath: reportPath
+        )
     }
 
-    private func performImport(
-        rootURL: URL,
-        destinationRootURL: URL,
-        folderName: String,
-        removeSourceAfterSuccess: Bool,
-        modelContext: ModelContext
-    ) async throws -> PerformedImport {
-        let didStart = rootURL.startAccessingSecurityScopedResource()
-        defer {
-            if didStart { rootURL.stopAccessingSecurityScopedResource() }
+    private func importOptions() -> ImportEngine.Options {
+        var options = ImportEngine.Options()
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--m1-slow-copy") {
+            options.chunkDelay = .milliseconds(30)
+            options.chunkSize = 64 * 1024
         }
-
-        let result = try await engine.scanAndImport(
-            rootURL: rootURL,
-            destinationRootURL: destinationRootURL,
-            progress: { [weak self] update in
-                Task { @MainActor [weak self] in
-                    self?.apply(update)
-                }
-            }
-        )
-
-        var messages = result.issues.map { "\($0.relativePath)：\($0.message)" }
-        var insertedCount = 0
-        for imported in result.importedFiles {
-            do {
-                let relativePath = try storage.relativePath(for: imported.destinationURL)
-                let item = MediaItem(
-                    title: imported.displayName,
-                    relativePath: relativePath,
-                    kind: imported.kind,
-                    fileExtension: imported.destinationURL.pathExtension,
-                    byteSize: imported.byteSize,
-                    folderName: folderName,
-                    source: .imported
-                )
-                modelContext.insert(item)
-                insertedCount += 1
-            } catch {
-                messages.append("\(imported.sourceRelativePath)：\(error.localizedDescription)")
-            }
-        }
-
-        if insertedCount > 0 {
-            do {
-                try modelContext.save()
-            } catch {
-                messages.append("保存数据库失败：\(error.localizedDescription)")
-                throw error
-            }
-        }
-
-        if removeSourceAfterSuccess,
-           result.issues.isEmpty,
-           result.skippedUnsupportedCount == 0,
-           !result.cancelled {
-            try? inbox.remove(rootURL)
-        }
-
-        if result.importedFiles.isEmpty {
-            try? FileManager.default.removeItem(at: destinationRootURL)
-        }
-
-        return PerformedImport(
-            result: result,
-            insertedCount: insertedCount,
-            messages: messages
-        )
+        #endif
+        return options
     }
 
     private func apply(_ update: ImportProgress) {
@@ -347,15 +443,22 @@ final class ImportCoordinator {
         phase = update.phase
     }
 
-    private func finish(phase: ImportPhase, summary: RunSummary?) {
+    private func finish(
+        phase: ImportPhase,
+        summary: RunSummary?,
+        issues: [String]
+    ) {
         self.phase = phase
         self.summary = summary
-        self.issueMessages = summary?.messages ?? []
+        self.issueMessages = issues
         self.isRunning = false
         self.isCancelling = false
         self.currentKind = nil
         self.task = nil
-        refreshInboxPendingCount()
+        self.refreshInboxPendingCount()
+        #if os(iOS)
+        UIApplication.shared.isIdleTimerDisabled = false
+        #endif
     }
 
     private func finishWithError(_ error: Error) {
@@ -368,5 +471,8 @@ final class ImportCoordinator {
         currentKind = nil
         task = nil
         refreshInboxPendingCount()
+        #if os(iOS)
+        UIApplication.shared.isIdleTimerDisabled = false
+        #endif
     }
 }

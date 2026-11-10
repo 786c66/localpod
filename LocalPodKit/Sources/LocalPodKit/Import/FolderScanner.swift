@@ -13,6 +13,33 @@ public struct ScanIssue: Identifiable, Sendable, Hashable {
     }
 }
 
+public struct UnsupportedFile: Identifiable, Sendable, Hashable {
+    public let id: UUID
+    public let relativePath: String
+    public let contentTypeIdentifier: String?
+
+    public init(id: UUID = UUID(), relativePath: String, contentTypeIdentifier: String?) {
+        self.id = id
+        self.relativePath = relativePath
+        self.contentTypeIdentifier = contentTypeIdentifier
+    }
+
+    public var message: String {
+        if let contentTypeIdentifier {
+            "不支持的格式：\(contentTypeIdentifier)"
+        } else {
+            "不支持的格式"
+        }
+    }
+}
+
+public enum CloudItemState: String, Sendable, Hashable {
+    case local
+    case needsDownload
+
+    public var needsDownload: Bool { self == .needsDownload }
+}
+
 public struct ScannedFile: Identifiable, Sendable, Hashable {
     public let id: UUID
     public let url: URL
@@ -20,6 +47,7 @@ public struct ScannedFile: Identifiable, Sendable, Hashable {
     public let byteSize: Int64
     public let kind: MediaKind
     public let contentTypeIdentifier: String?
+    public let cloudState: CloudItemState
 
     public init(
         id: UUID = UUID(),
@@ -27,7 +55,8 @@ public struct ScannedFile: Identifiable, Sendable, Hashable {
         relativePath: String,
         byteSize: Int64,
         kind: MediaKind,
-        contentTypeIdentifier: String?
+        contentTypeIdentifier: String?,
+        cloudState: CloudItemState = .local
     ) {
         self.id = id
         self.url = url
@@ -35,10 +64,20 @@ public struct ScannedFile: Identifiable, Sendable, Hashable {
         self.byteSize = byteSize
         self.kind = kind
         self.contentTypeIdentifier = contentTypeIdentifier
+        self.cloudState = cloudState
     }
 
     public var displayName: String {
         url.deletingPathExtension().lastPathComponent
+    }
+
+    public var originalFileName: String {
+        url.lastPathComponent
+    }
+
+    public var relativeFolderPath: String {
+        let folder = (relativePath as NSString).deletingLastPathComponent
+        return folder == "." ? "" : folder
     }
 }
 
@@ -46,22 +85,27 @@ public struct ScanResult: Sendable {
     public let rootURL: URL
     public let files: [ScannedFile]
     public let issues: [ScanIssue]
-    public let skippedUnsupportedCount: Int
+    public let unsupportedFiles: [UnsupportedFile]
     public let truncated: Bool
+    public let totalCandidates: Int
     public let totalBytes: Int64
+
+    public var skippedUnsupportedCount: Int { unsupportedFiles.count }
 
     public init(
         rootURL: URL,
         files: [ScannedFile],
         issues: [ScanIssue],
-        skippedUnsupportedCount: Int,
-        truncated: Bool
+        unsupportedFiles: [UnsupportedFile],
+        truncated: Bool,
+        totalCandidates: Int
     ) {
         self.rootURL = rootURL
         self.files = files
         self.issues = issues
-        self.skippedUnsupportedCount = skippedUnsupportedCount
+        self.unsupportedFiles = unsupportedFiles
         self.truncated = truncated
+        self.totalCandidates = totalCandidates
         self.totalBytes = files.reduce(into: Int64(0)) { partial, file in
             partial += file.byteSize
         }
@@ -82,7 +126,11 @@ public enum FolderScannerError: LocalizedError {
     }
 }
 
-public struct FolderScanner: Sendable {
+public protocol FolderScanning: Sendable {
+    func scan(rootURL: URL, limits: FolderScanner.Limits) throws -> ScanResult
+}
+
+public struct FolderScanner: FolderScanning, Sendable {
     public struct Limits: Sendable {
         public var maxDepth: Int
         public var maxFiles: Int
@@ -114,8 +162,9 @@ public struct FolderScanner: Sendable {
                 rootURL: rootURL.deletingLastPathComponent(),
                 files: [file],
                 issues: [],
-                skippedUnsupportedCount: 0,
-                truncated: false
+                unsupportedFiles: [],
+                truncated: false,
+                totalCandidates: 1
             )
         }
 
@@ -137,11 +186,12 @@ public struct FolderScanner: Sendable {
         }
 
         var files: [ScannedFile] = []
-        var skippedUnsupported = 0
+        var unsupportedFiles: [UnsupportedFile] = []
+        var totalCandidates = 0
         var truncated = false
 
         while let url = enumerator.nextObject() as? URL {
-            if files.count >= limits.maxFiles {
+            if totalCandidates >= limits.maxFiles {
                 truncated = true
                 break
             }
@@ -157,21 +207,24 @@ public struct FolderScanner: Sendable {
             if values?.isDirectory == true { continue }
             guard values?.isRegularFile == true else { continue }
 
+            totalCandidates += 1
             let relative = Self.relativePath(of: url, root: root)
-            if values?.isUbiquitousItem == true {
-                let status = values?.ubiquitousItemDownloadingStatus
-                if status != .current {
-                    issueBox.append(ScanIssue(
-                        relativePath: relative,
-                        message: "iCloud 文件尚未下载，M0 先跳过。"
-                    ))
-                    continue
-                }
+            let contentType = values?.contentType
+
+            guard let kind = SupportedMedia.kind(for: contentType) else {
+                unsupportedFiles.append(UnsupportedFile(
+                    relativePath: relative,
+                    contentTypeIdentifier: contentType?.identifier
+                ))
+                continue
             }
 
-            guard let kind = SupportedMedia.kind(for: values?.contentType) else {
-                skippedUnsupported += 1
-                continue
+            let cloudState: CloudItemState
+            if values?.isUbiquitousItem == true,
+               values?.ubiquitousItemDownloadingStatus != .current {
+                cloudState = .needsDownload
+            } else {
+                cloudState = .local
             }
 
             let size = Int64(values?.fileSize ?? 0)
@@ -180,7 +233,8 @@ public struct FolderScanner: Sendable {
                 relativePath: relative,
                 byteSize: size,
                 kind: kind,
-                contentTypeIdentifier: values?.contentType?.identifier
+                contentTypeIdentifier: contentType?.identifier,
+                cloudState: cloudState
             ))
         }
 
@@ -192,8 +246,9 @@ public struct FolderScanner: Sendable {
             rootURL: root,
             files: files,
             issues: issueBox.issues,
-            skippedUnsupportedCount: skippedUnsupported,
-            truncated: truncated
+            unsupportedFiles: unsupportedFiles,
+            truncated: truncated,
+            totalCandidates: totalCandidates
         )
     }
 
@@ -202,19 +257,23 @@ public struct FolderScanner: Sendable {
         guard values?.isRegularFile == true else {
             throw FolderScannerError.notAFile(url)
         }
-        if values?.isUbiquitousItem == true,
-           values?.ubiquitousItemDownloadingStatus != .current {
-            throw FolderScannerError.notAFile(url)
-        }
         guard let kind = SupportedMedia.kind(for: values?.contentType) else {
             throw FolderScannerError.notAFile(url)
+        }
+        let cloudState: CloudItemState
+        if values?.isUbiquitousItem == true,
+           values?.ubiquitousItemDownloadingStatus != .current {
+            cloudState = .needsDownload
+        } else {
+            cloudState = .local
         }
         return ScannedFile(
             url: url,
             relativePath: relativePath ?? url.lastPathComponent,
             byteSize: Int64(values?.fileSize ?? 0),
             kind: kind,
-            contentTypeIdentifier: values?.contentType?.identifier
+            contentTypeIdentifier: values?.contentType?.identifier,
+            cloudState: cloudState
         )
     }
 

@@ -12,6 +12,10 @@ let package = Package(
     ],
     targets: [
         .target(name: "LocalPodKit"),
-        .testTarget(name: "LocalPodKitTests", dependencies: ["LocalPodKit"])
+        .testTarget(
+            name: "LocalPodKitTests",
+            dependencies: ["LocalPodKit"],
+            resources: [.process("Resources")]
+        )
     ]
 )

@@ -1,63 +1,73 @@
 import Foundation
 import SwiftData
 
-public enum MediaSource: String, Codable, Sendable {
+public enum MediaSource: String, Codable, Sendable, CaseIterable {
     case imported
+    case files
+    case iCloud
+    case openIn
+    case finder
+    case wifi
+    case share
+    case rss
     case benchmark
+
+    public var displayName: String {
+        switch self {
+        case .imported: "导入"
+        case .files: "文件"
+        case .iCloud: "iCloud Drive"
+        case .openIn: "外部打开"
+        case .finder: "Finder"
+        case .wifi: "Wi-Fi"
+        case .share: "分享"
+        case .rss: "RSS"
+        case .benchmark: "基准"
+        }
+    }
 }
 
-@Model
-public final class MediaItem {
-    public var id: UUID = UUID()
-    public var title: String = ""
-    /// Path relative to Application Support. Never store an absolute container path.
-    public var relativePath: String = ""
-    public var kindRaw: String = MediaKind.audio.rawValue
-    public var fileExtension: String = ""
-    public var byteSize: Int64 = 0
-    public var durationSeconds: Double?
-    public var addedAt: Date = Date()
-    public var folderName: String?
-    public var sourceRaw: String = MediaSource.imported.rawValue
-    public var contentHash: String?
+public typealias MediaItem = LocalPodSchemaV2.MediaItem
+public typealias MediaCollection = LocalPodSchemaV2.MediaCollection
+public typealias ImportSession = LocalPodSchemaV2.ImportSession
 
-    public init(
-        id: UUID = UUID(),
-        title: String,
-        relativePath: String,
-        kind: MediaKind,
-        fileExtension: String,
-        byteSize: Int64,
-        durationSeconds: Double? = nil,
-        addedAt: Date = Date(),
-        folderName: String? = nil,
-        source: MediaSource = .imported,
-        contentHash: String? = nil
-    ) {
-        self.id = id
-        self.title = title
-        self.relativePath = relativePath
-        self.kindRaw = kind.rawValue
-        self.fileExtension = fileExtension
-        self.byteSize = byteSize
-        self.durationSeconds = durationSeconds
-        self.addedAt = addedAt
-        self.folderName = folderName
-        self.sourceRaw = source.rawValue
-        self.contentHash = contentHash
-    }
-
-    public var kind: MediaKind {
+public extension LocalPodSchemaV2.MediaItem {
+    var kind: MediaKind {
         get { MediaKind(rawValue: kindRaw) ?? .audio }
         set { kindRaw = newValue.rawValue }
     }
 
-    public var source: MediaSource {
+    var source: MediaSource {
         get { MediaSource(rawValue: sourceRaw) ?? .imported }
         set { sourceRaw = newValue.rawValue }
     }
 
-    public var fileURL: URL? {
+    var fileSize: Int64 {
+        get { byteSize }
+        set { byteSize = newValue }
+    }
+
+    var fileURL: URL? {
         try? MediaStorage.live.url(forRelativePath: relativePath)
+    }
+
+    var durationText: String {
+        guard let durationSeconds, durationSeconds.isFinite, durationSeconds > 0 else {
+            return "—"
+        }
+        let total = Int(durationSeconds.rounded())
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let seconds = total % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+}
+
+public extension LocalPodSchemaV2.MediaCollection {
+    static func normalizedKey(for name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 }

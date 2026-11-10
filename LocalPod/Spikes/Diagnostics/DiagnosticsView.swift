@@ -6,9 +6,14 @@ import LocalPodKit
 
 struct DiagnosticsView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(ImportCoordinator.self) private var coordinator
 
     @State private var importedCount = 0
     @State private var benchmarkCount = 0
+    @State private var collectionCount = 0
+    @State private var sessionCount = 0
+    @State private var missingCount = 0
+    @State private var libraryBytes: Int64 = 0
     @State private var signingInfo: SigningInfo?
     @State private var inboxPath = ""
     @State private var mediaPath = ""
@@ -36,6 +41,58 @@ struct DiagnosticsView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section("工具") {
+                    NavigationLink {
+                        BenchmarkView()
+                    } label: {
+                        Label("SwiftData 5k 基准", systemImage: "gauge.with.dots.needle.67percent")
+                    }
+                    .accessibilityIdentifier("benchmarkLink")
+                }
+
+                Section {
+                    if let summary = coordinator.lastCleanupSummary {
+                        Text(summary.hasChanges ? "启动维护已完成。" : "启动维护已完成，没有需要清理的内容。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("maintenanceSummaryText")
+                        Text("staging \(summary.stagingSessionsRemoved) · 孤儿媒体 \(summary.orphanMediaFilesRemoved) · 孤儿封面 \(summary.orphanArtworkFilesRemoved) · 缺失 \(summary.missingMarked)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("maintenanceDetailText")
+                        LabeledContent("标记缺失", value: "\(summary.missingMarked)")
+                        LabeledContent("恢复存在", value: "\(summary.restored)")
+                        LabeledContent("清理孤儿媒体", value: "\(summary.orphanMediaFilesRemoved)")
+                        LabeledContent("清理 staging", value: "\(summary.stagingSessionsRemoved)")
+                        LabeledContent("清理孤儿封面", value: "\(summary.orphanArtworkFilesRemoved)")
+                        if !summary.failures.isEmpty {
+                            ForEach(summary.failures, id: \.self) { failure in
+                                Text(failure)
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                            }
+                        }
+                    } else {
+                        Text("尚未运行启动维护。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Button {
+                        coordinator.runMaintenance(modelContext: modelContext)
+                        refresh()
+                    } label: {
+                        Label("立即对账 / 清理", systemImage: "cross.case")
+                    }
+                    .disabled(coordinator.isRunning)
+                    .accessibilityIdentifier("runMaintenanceButton")
+
+                } header: {
+                    Text("维护")
+                } footer: {
+                    Text("启动、回前台或手动触发：缺失文件标记、孤儿媒体/封面清理、残留 staging 清理。导入进行中不执行。")
+                }
+
                 Section("App") {
                     LabeledContent("Bundle ID", value: bundleIdentifier)
                     LabeledContent("版本", value: appVersion)
@@ -78,6 +135,13 @@ struct DiagnosticsView: View {
 
                 Section("数据") {
                     LabeledContent("资料库条目", value: "\(importedCount) 条")
+                    LabeledContent("缺失条目", value: "\(missingCount) 条")
+                    LabeledContent("合集", value: "\(collectionCount) 个")
+                    LabeledContent("导入会话", value: "\(sessionCount) 次")
+                    LabeledContent("资料库大小", value: ByteCountFormatter.string(
+                        fromByteCount: libraryBytes,
+                        countStyle: .file
+                    ))
                     LabeledContent("基准条目", value: "\(benchmarkCount) 条")
                 }
 
@@ -136,6 +200,10 @@ struct DiagnosticsView: View {
             "版本: \(appVersion)",
             "设备: \(deviceDescription)",
             "资料库: \(importedCount) 条",
+            "缺失: \(missingCount) 条",
+            "合集: \(collectionCount) 个",
+            "导入会话: \(sessionCount) 次",
+            "资料库大小: \(ByteCountFormatter.string(fromByteCount: libraryBytes, countStyle: .file))",
             "基准: \(benchmarkCount) 条",
             "收件箱: \(inboxPath)",
             "媒体库: \(mediaPath)"
@@ -162,11 +230,19 @@ struct DiagnosticsView: View {
         supportPath = MediaStorage.live.applicationSupportRoot.path
         mediaPath = (try? MediaStorage.live.mediaRootURL().path) ?? "—"
         importedCount = (try? modelContext.fetchCount(
-            FetchDescriptor<MediaItem>(predicate: #Predicate { $0.sourceRaw == "import" })
+            FetchDescriptor<MediaItem>(predicate: #Predicate { $0.sourceRaw != "benchmark" })
         )) ?? 0
         benchmarkCount = (try? modelContext.fetchCount(
             FetchDescriptor<MediaItem>(predicate: #Predicate { $0.sourceRaw == "benchmark" })
         )) ?? 0
+        collectionCount = (try? modelContext.fetchCount(FetchDescriptor<MediaCollection>())) ?? 0
+        sessionCount = (try? modelContext.fetchCount(FetchDescriptor<ImportSession>())) ?? 0
+        missingCount = (try? modelContext.fetchCount(
+            FetchDescriptor<MediaItem>(predicate: #Predicate { $0.isMissing })
+        )) ?? 0
+        libraryBytes = (try? modelContext.fetch(FetchDescriptor<MediaItem>())
+            .filter { $0.source != .benchmark }
+            .reduce(into: Int64(0)) { $0 += $1.byteSize }) ?? 0
         copied = false
     }
 }

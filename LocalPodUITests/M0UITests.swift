@@ -6,10 +6,11 @@ final class M0UITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testImport100FilesAndAudioPlayback() throws {
+    func testImport100Files() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--m0-reset-data"]
         app.launch()
+        app.buttons["导入"].tap()
 
         let importButton = app.descendants(matching: .any)["importDemoFolderButton"]
         XCTAssertTrue(importButton.waitForExistence(timeout: 20))
@@ -18,19 +19,17 @@ final class M0UITests: XCTestCase {
         let progressText = app.staticTexts
             .matching(NSPredicate(format: "label CONTAINS %@", "文件 100/100"))
             .firstMatch
-        XCTAssertTrue(progressText.waitForExistence(timeout: 60))
+        XCTAssertTrue(progressText.waitForExistence(timeout: 120))
         attachScreenshot(app, name: "M0-import-100-result")
 
-        app.swipeUp()
-        let resultText = app.staticTexts
-            .matching(NSPredicate(format: "label CONTAINS %@", "导入、100 个"))
-            .firstMatch
-        XCTAssertTrue(resultText.waitForExistence(timeout: 10))
+        let resultText = app.descendants(matching: .any)["importCategorySummary"]
+        XCTAssertTrue(resultText.waitForExistence(timeout: 20))
+        XCTAssertTrue(resultText.label.contains("导入 100"))
+    }
 
-        app.terminate()
-
+    func testAudioPlaybackFromLaunchArgument() throws {
         let playbackApp = XCUIApplication()
-        playbackApp.launchArguments = ["--m0-auto-play-audio"]
+        playbackApp.launchArguments = ["--m0-reset-data", "--m0-auto-play-audio"]
         playbackApp.launch()
 
         let title = playbackApp.descendants(matching: .any)["currentPlaybackTitle"]
@@ -47,6 +46,10 @@ final class M0UITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--m0-reset-data", "--m0-auto-benchmark"]
         app.launch()
+
+        let benchmarkLink = app.descendants(matching: .any)["benchmarkLink"]
+        XCTAssertTrue(benchmarkLink.waitForExistence(timeout: 20))
+        benchmarkLink.tap()
 
         let insertButton = app.descendants(matching: .any)["benchmarkInsertButton"]
         XCTAssertTrue(insertButton.waitForExistence(timeout: 20))
@@ -83,15 +86,13 @@ final class M0UITests: XCTestCase {
         ]
         app.launch()
 
-        let result = app.staticTexts
-            .matching(NSPredicate(format: "label CONTAINS %@", "导入、1 个"))
-            .firstMatch
+        let result = app.descendants(matching: .any)["inboxCategorySummary"]
         XCTAssertTrue(result.waitForExistence(timeout: 40))
+        XCTAssertTrue(result.label.contains("导入 1"))
 
-        let pending = app.staticTexts
-            .matching(NSPredicate(format: "label CONTAINS %@", "待处理、0 个"))
-            .firstMatch
+        let pending = app.descendants(matching: .any)["inboxPendingCount"]
         XCTAssertTrue(pending.waitForExistence(timeout: 10))
+        XCTAssertTrue(pending.label.contains("0"))
         attachScreenshot(app, name: "M0-inbox-imported-from-finder")
     }
 

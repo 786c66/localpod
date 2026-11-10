@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 public enum ChunkedFileCopierError: LocalizedError {
@@ -11,22 +12,35 @@ public enum ChunkedFileCopierError: LocalizedError {
     }
 }
 
+public struct CopyResult: Sendable {
+    public let byteCount: Int64
+    public let sha256: String
+
+    public init(byteCount: Int64, sha256: String) {
+        self.byteCount = byteCount
+        self.sha256 = sha256
+    }
+}
+
 public struct ChunkedFileCopier: Sendable {
     public let chunkSize: Int
+    /// Debug-only pacing hook used by UI tests that need an import to stay
+    /// cancellable long enough to be interrupted.
+    public let chunkDelay: Duration?
 
-    public init(chunkSize: Int = 1 << 20) {
+    public init(chunkSize: Int = 1 << 20, chunkDelay: Duration? = nil) {
         self.chunkSize = max(64 * 1024, chunkSize)
+        self.chunkDelay = chunkDelay
     }
 
-    /// Copies with bounded memory and reports bytes written for this file.
+    /// Copies with bounded memory and calculates SHA-256 in the same pass.
     /// The destination is removed on error or cancellation so callers never
     /// leave a half-written file behind.
-    @discardableResult
-    public func copy(
+    public func copyHashing(
         from source: URL,
         to destination: URL,
         onChunk: @Sendable (Int64) -> Void = { _ in }
-    ) throws -> Int64 {
+    ) async throws -> CopyResult {
         let fileManager = FileManager.default
         guard fileManager.createFile(atPath: destination.path, contents: nil) else {
             throw ChunkedFileCopierError.cannotCreateDestination(destination)
@@ -54,6 +68,7 @@ public struct ChunkedFileCopier: Sendable {
             try? output.close()
         }
 
+        var hasher = SHA256()
         var copied: Int64 = 0
         do {
             while true {
@@ -62,14 +77,29 @@ public struct ChunkedFileCopier: Sendable {
                     break
                 }
                 try output.write(contentsOf: data)
+                hasher.update(data: data)
                 copied += Int64(data.count)
                 onChunk(copied)
+                if let chunkDelay, chunkDelay > .zero {
+                    try await Task.sleep(for: chunkDelay)
+                }
             }
             try output.synchronize()
-            return copied
+            let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
+            return CopyResult(byteCount: copied, sha256: digest)
         } catch {
             try? fileManager.removeItem(at: destination)
             throw error
         }
+    }
+
+    /// Backwards-compatible convenience for callers that do not need the hash.
+    @discardableResult
+    public func copy(
+        from source: URL,
+        to destination: URL,
+        onChunk: @Sendable (Int64) -> Void = { _ in }
+    ) async throws -> Int64 {
+        try await copyHashing(from: source, to: destination, onChunk: onChunk).byteCount
     }
 }

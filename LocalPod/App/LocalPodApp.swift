@@ -41,11 +41,13 @@ struct LocalPodApp: App {
     private static func resetDebugData() {
         LocalPodStore.deleteDefaultStoreFiles()
         let supportRoot = MediaStorage.live.applicationSupportRoot
+        for directory in ["Media", "DemoInput", "AcceptanceInput", "ImportStaging", "ImportReports"] {
+            try? FileManager.default.removeItem(
+                at: supportRoot.appendingPathComponent(directory, isDirectory: true)
+            )
+        }
         try? FileManager.default.removeItem(
-            at: supportRoot.appendingPathComponent("Media", isDirectory: true)
-        )
-        try? FileManager.default.removeItem(
-            at: supportRoot.appendingPathComponent("DemoInput", isDirectory: true)
+            at: MediaStorage.live.cachesRoot.appendingPathComponent("Artwork", isDirectory: true)
         )
         _ = try? ImportInbox.live.ensureExists()
         if let pending = try? ImportInbox.live.pendingURLs() {
