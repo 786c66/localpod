@@ -403,7 +403,11 @@ struct LibraryItemDetailView: View {
             Text("将删除资料库记录、媒体文件与封面，释放 \(ByteCountFormatter.string(fromByteCount: item.byteSize, countStyle: .file))。")
         }
         .fullScreenCover(isPresented: $showVideo) {
-            VideoPlayerScreen(player: playback.player)
+            VideoPlayerScreen(
+                player: playback.player,
+                onPictureInPictureChange: { playback.setPictureInPictureActive($0) },
+                onRestoreUI: { showVideo = true }
+            )
         }
     }
 
@@ -420,7 +424,9 @@ struct LibraryItemDetailView: View {
                 subtitle: item.folderName ?? "资料库",
                 fileURL: url,
                 kind: item.kind,
-                durationHint: item.durationSeconds
+                durationHint: item.durationSeconds,
+                libraryItemID: item.id,
+                artworkURL: item.artworkURL
             ),
             autoplay: true
         )

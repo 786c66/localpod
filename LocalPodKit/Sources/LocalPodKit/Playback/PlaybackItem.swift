@@ -7,6 +7,10 @@ public struct PlaybackItem: Identifiable, Sendable, Equatable {
     public let fileURL: URL
     public let kind: MediaKind
     public let durationHint: Double?
+    /// `MediaItem.id` for library media. Nil for bundled demo clips; when nil
+    /// playback progress is not persisted.
+    public let libraryItemID: UUID?
+    public let artworkURL: URL?
 
     public init(
         id: UUID = UUID(),
@@ -14,7 +18,9 @@ public struct PlaybackItem: Identifiable, Sendable, Equatable {
         subtitle: String,
         fileURL: URL,
         kind: MediaKind,
-        durationHint: Double? = nil
+        durationHint: Double? = nil,
+        libraryItemID: UUID? = nil,
+        artworkURL: URL? = nil
     ) {
         self.id = id
         self.title = title
@@ -22,5 +28,7 @@ public struct PlaybackItem: Identifiable, Sendable, Equatable {
         self.fileURL = fileURL
         self.kind = kind
         self.durationHint = durationHint
+        self.libraryItemID = libraryItemID
+        self.artworkURL = artworkURL
     }
 }

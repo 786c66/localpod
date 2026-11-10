@@ -99,6 +99,9 @@ final class LibraryServiceTests: XCTestCase {
         )
 
         let item = try XCTUnwrap(try env.context.fetch(FetchDescriptor<MediaItem>()).first)
+        env.context.insert(PlaybackState(itemID: item.id, position: 12, duration: 60))
+        try env.context.save()
+        XCTAssertEqual(try env.context.fetchCount(FetchDescriptor<PlaybackState>()), 1)
         let mediaURL = try env.storage.url(forRelativePath: item.relativePath)
         let artworkURL = try env.storage.artworkURL(forKey: XCTUnwrap(item.artworkKey))
         XCTAssertTrue(FileManager.default.fileExists(atPath: mediaURL.path))
@@ -113,6 +116,7 @@ final class LibraryServiceTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: mediaURL.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: artworkURL.path))
         XCTAssertEqual(try env.context.fetchCount(FetchDescriptor<MediaItem>()), 0)
+        XCTAssertEqual(try env.context.fetchCount(FetchDescriptor<PlaybackState>()), 0)
         XCTAssertEqual(try env.library.storageBytes(in: env.context), before - 128)
     }
 

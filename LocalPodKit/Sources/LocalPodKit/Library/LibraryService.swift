@@ -222,6 +222,13 @@ public final class LibraryService {
 
         let title = item.title
         let freedBytes = item.byteSize
+        let itemID = item.id
+        let states = try context.fetch(FetchDescriptor<PlaybackState>(
+            predicate: #Predicate { $0.itemID == itemID }
+        ))
+        for state in states {
+            context.delete(state)
+        }
         context.delete(item)
         try context.save()
 

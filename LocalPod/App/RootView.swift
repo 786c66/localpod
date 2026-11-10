@@ -36,6 +36,9 @@ struct RootView: View {
         }
         .tint(.indigo)
         .task {
+            playback.attachProgressStore(
+                PlaybackProgressStore(context: modelContext)
+            )
             importCoordinator.bootstrap(modelContext: modelContext)
             seedDebugLibraryIfNeeded()
             runLaunchAutomationIfNeeded()
@@ -43,13 +46,14 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .active:
+                playback.handleSceneWillEnterForeground()
                 importCoordinator.runMaintenance(modelContext: modelContext)
                 importCoordinator.importInboxIfNeeded(modelContext: modelContext)
             case .background:
-                // M0/M1 policy: audio continues in the background, video pauses.
-                if playback.isVideo {
-                    playback.pause()
-                }
+                // Audio continues in the background; video pauses unless it is
+                // already playing in Picture in Picture. The controller owns
+                // the rule and the foreground resume.
+                playback.handleSceneDidEnterBackground()
             default:
                 break
             }
@@ -58,9 +62,18 @@ struct RootView: View {
             importCoordinator.handleOpenURL(url, modelContext: modelContext)
         }
         .fullScreenCover(isPresented: $autoVideoPresented) {
-            VideoPlayerScreen(player: playback.player)
+            VideoPlayerScreen(
+                player: playback.player,
+                onPictureInPictureChange: { playback.setPictureInPictureActive($0) },
+                onRestoreUI: { autoVideoPresented = true }
+            )
         }
     }
+
+    /// Stable identity for the debug long-audio clip so progress resume can be
+    /// exercised across app launches in UI tests.
+    private static let m2LongAudioLibraryID =
+        UUID(uuidString: "22222222-2222-4222-8222-222222222222")!
 
     /// Debug-only launch switches used by UI tests and manual simulator
     /// validation. They have no effect in Release builds.
@@ -128,7 +141,37 @@ struct RootView: View {
             )
             autoVideoPresented = true
         }
+
+        if arguments.contains("--m2-auto-play-long-audio") {
+            selectedTab = 2
+            if let url = Bundle.main.url(
+                forResource: "demo-long-audio",
+                withExtension: "m4a"
+            ) {
+                playback.load(
+                    PlaybackItem(
+                        title: "长音频测试",
+                        subtitle: "启动参数",
+                        fileURL: url,
+                        kind: .audio,
+                        libraryItemID: Self.m2LongAudioLibraryID
+                    ),
+                    autoplay: !arguments.contains("--m2-no-autoplay")
+                )
+                if let seek = doubleValue(after: "--m2-seek-to", in: arguments) {
+                    playback.seek(to: seek)
+                }
+            }
+        }
         #endif
+    }
+
+    private func doubleValue(after flag: String, in arguments: [String]) -> Double? {
+        guard let index = arguments.firstIndex(of: flag),
+              arguments.indices.contains(index + 1) else {
+            return nil
+        }
+        return Double(arguments[index + 1])
     }
 
     private func seedDebugLibraryIfNeeded() {

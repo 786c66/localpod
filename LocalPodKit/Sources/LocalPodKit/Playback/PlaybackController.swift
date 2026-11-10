@@ -6,39 +6,79 @@ import Observation
 @preconcurrency import UIKit
 #endif
 
-/// M0 playback spike: one AVPlayer for audio and video, Now Playing metadata,
-/// remote commands, audio session interruption/route handling and a periodic
-/// time observer. PiP and full recovery/state machine are M2 work.
+public enum PlaybackPhase: String, Sendable, Equatable {
+    case idle
+    case preparing
+    case ready
+    case playing
+    case paused
+    case buffering
+    case interrupted
+    case ended
+    case failed
+
+    public var statusText: String {
+        switch self {
+        case .idle: "未播放"
+        case .preparing: "加载中"
+        case .ready: "就绪"
+        case .playing: "播放中"
+        case .paused: "已暂停"
+        case .buffering: "缓冲中"
+        case .interrupted: "已打断"
+        case .ended: "播放结束"
+        case .failed: "播放失败"
+        }
+    }
+}
+
+/// Single AVPlayer for audio and video. The controller owns the playback state
+/// machine, audio session, Now Playing/remote commands, progress persistence
+/// and the video background policy. UI only observes and sends intents.
 @MainActor
 @Observable
 public final class PlaybackController {
     public private(set) var currentItem: PlaybackItem?
-    public private(set) var isPlaying = false
+    public private(set) var phase: PlaybackPhase = .idle
     public private(set) var currentTime: Double = 0
     public private(set) var duration: Double = 0
     public private(set) var errorMessage: String?
-    public private(set) var statusText = "未播放"
-    public var playbackRate: Float = 1.0 {
-        didSet {
-            if isPlaying {
-                player.rate = playbackRate
-            }
-            updateNowPlaying()
-        }
-    }
+    public private(set) var playbackRate: Float = 1.0
+    public private(set) var isPictureInPictureActive = false
 
     @ObservationIgnored public let player = AVPlayer()
+    @ObservationIgnored private var progressStore: PlaybackProgressStore?
+
     @ObservationIgnored private var timeObserver: Any?
     @ObservationIgnored private var statusObservation: NSKeyValueObservation?
     @ObservationIgnored private var timeControlObservation: NSKeyValueObservation?
     @ObservationIgnored private var endObserver: NSObjectProtocol?
+    @ObservationIgnored private var failedToEndObserver: NSObjectProtocol?
     @ObservationIgnored private var interruptionObserver: NSObjectProtocol?
     @ObservationIgnored private var routeChangeObserver: NSObjectProtocol?
+    @ObservationIgnored private var mediaServicesResetObserver: NSObjectProtocol?
+
+    @ObservationIgnored private var pendingSeekPosition: Double = 0
+    @ObservationIgnored private var pendingAutoplay = false
+    @ObservationIgnored private var didRecordPlayStart = false
+    @ObservationIgnored private var playIntent = false
     @ObservationIgnored private var wasPlayingBeforeInterruption = false
-    @ObservationIgnored private var shouldAutoplay = false
-    @ObservationIgnored private var artworkCache: [UUID: MPMediaItemArtwork] = [:]
+    @ObservationIgnored private var pausedForBackground = false
+    @ObservationIgnored private var wasPlayingBeforeBackground = false
+    @ObservationIgnored private var lastProgressSaveDate = Date.distantPast
+    @ObservationIgnored private var lastSavedPosition: Double = 0
+    @ObservationIgnored private var cachedArtworkKey: String?
+    @ObservationIgnored private var cachedArtwork: MPMediaItemArtwork?
 
     public var isVideo: Bool { currentItem?.kind == .video }
+
+    public var isPlaying: Bool {
+        phase == .playing || phase == .buffering
+    }
+
+    public var statusText: String {
+        phase.statusText
+    }
 
     public init() {
         player.actionAtItemEnd = .pause
@@ -49,70 +89,130 @@ public final class PlaybackController {
         registerAudioSessionObservers()
     }
 
+    /// Called by the app once SwiftData is ready. Playback works without a
+    /// store (demo media, previews), but library items then do not persist
+    /// progress.
+    public func attachProgressStore(_ store: PlaybackProgressStore) {
+        progressStore = store
+    }
+
+    // MARK: - Loading
+
     public func load(_ item: PlaybackItem, autoplay: Bool = true) {
+        persistProgress(force: true)
+        teardownItemObservers()
+
         currentItem = item
         currentTime = 0
-        duration = item.durationHint ?? 0
+        duration = item.durationHint.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } ?? 0
         errorMessage = nil
-        statusText = "加载中"
-        shouldAutoplay = autoplay
+        playbackRate = PlaybackPolicy.clampedRate(playbackRate)
+        playIntent = false
+        pausedForBackground = false
+        wasPlayingBeforeBackground = false
+        didRecordPlayStart = false
 
-        statusObservation?.invalidate()
-        let playerItem = AVPlayerItem(url: item.fileURL)
-        player.replaceCurrentItem(with: playerItem)
-        statusObservation = playerItem.observe(\.status, options: [.initial, .new]) { [weak self] observed, _ in
-            let status = observed.status
-            let itemDuration = observed.duration.seconds
-            let error = observed.error?.localizedDescription
-            Task { @MainActor [weak self] in
-                self?.handleStatus(status, duration: itemDuration, error: error)
-            }
+        var resumePosition: Double = 0
+        if let libraryItemID = item.libraryItemID, let progressStore {
+            resumePosition = (try? progressStore.resumePosition(
+                for: libraryItemID,
+                fallbackDuration: item.durationHint
+            )) ?? 0
         }
+        if resumePosition > 0 {
+            currentTime = resumePosition
+        }
+        lastSavedPosition = currentTime
 
-        Task { [weak self] in
-            let asset = AVURLAsset(url: item.fileURL)
-            guard let loaded = try? await asset.load(.duration) else { return }
-            let seconds = loaded.seconds
-            if seconds.isFinite, seconds > 0 {
-                self?.duration = seconds
-                self?.updateNowPlaying()
-            }
-        }
+        installPlayerItem(
+            for: item,
+            seek: resumePosition,
+            autoplay: autoplay
+        )
+        updateNowPlaying()
     }
 
     public func play() {
-        guard currentItem != nil else { return }
-        #if os(iOS)
+        guard let item = currentItem else { return }
+        if phase == .failed {
+            // A tap on play after a decode/server error retries and resumes.
+            errorMessage = nil
+            installPlayerItem(for: item, seek: currentTime, autoplay: true)
+            return
+        }
+        if phase == .preparing {
+            pendingAutoplay = true
+            activateAudioSession()
+            return
+        }
+
+        pausedForBackground = false
+        wasPlayingBeforeBackground = false
+        if phase == .ended {
+            seek(to: 0, persistImmediately: false)
+            pendingSeekPosition = 0
+            didRecordPlayStart = false
+        }
+
         activateAudioSession()
-        #endif
+        recordPlayStartIfNeeded(item: item)
+        playIntent = true
         player.play()
         player.rate = playbackRate
-        isPlaying = true
-        statusText = "播放中"
+        phase = .playing
         updateNowPlaying()
     }
 
     public func pause() {
-        player.pause()
-        isPlaying = false
-        statusText = "已暂停"
-        updateNowPlaying()
+        pause(userInitiated: true)
     }
 
     public func togglePlayPause() {
-        isPlaying ? pause() : play()
+        if isPlaying || (phase == .preparing && pendingAutoplay) {
+            pause()
+        } else {
+            play()
+        }
     }
 
-    public func seek(to seconds: Double) {
+    private func pause(userInitiated: Bool) {
+        guard currentItem != nil else { return }
+        if phase == .preparing {
+            pendingAutoplay = false
+            return
+        }
+        if userInitiated {
+            pausedForBackground = false
+            wasPlayingBeforeBackground = false
+        }
+        pendingAutoplay = false
+        playIntent = false
+        player.pause()
+        if phase != .interrupted {
+            phase = .paused
+        }
+        persistProgress(force: true)
+        updateNowPlaying()
+    }
+
+    public func seek(to seconds: Double, persistImmediately: Bool = true) {
         guard currentItem != nil else { return }
         let upperBound = duration > 0 ? duration : max(seconds, 0)
         let target = min(max(seconds, 0), upperBound)
         currentTime = target
+        pendingSeekPosition = target
+        if phase == .ended, target < upperBound - 0.001 {
+            phase = .paused
+            playIntent = false
+        }
         player.seek(
             to: CMTime(seconds: target, preferredTimescale: 600),
             toleranceBefore: .zero,
             toleranceAfter: .zero
         )
+        if persistImmediately {
+            persistProgress(force: true)
+        }
         updateNowPlaying()
     }
 
@@ -121,35 +221,248 @@ public final class PlaybackController {
     }
 
     public func setRate(_ rate: Float) {
-        playbackRate = min(max(rate, 0.5), 3.0)
+        playbackRate = PlaybackPolicy.clampedRate(rate)
+        if playIntent {
+            player.rate = playbackRate
+        }
+        updateNowPlaying()
+    }
+
+    /// Rebuild the player item after a decode error or media-services reset.
+    public func retry() {
+        guard let item = currentItem else { return }
+        let position = max(currentTime, pendingSeekPosition)
+        let autoplay = playIntent
+        errorMessage = nil
+        installPlayerItem(for: item, seek: position, autoplay: autoplay)
+        updateNowPlaying()
+    }
+
+    public func setPictureInPictureActive(_ active: Bool) {
+        isPictureInPictureActive = active
+        if active {
+            // Do not pause video that continues in PiP when the app backgrounds.
+            pausedForBackground = false
+        }
+    }
+
+    // MARK: - App lifecycle
+
+    public func handleSceneDidEnterBackground() {
+        persistProgress(force: true)
+        guard isVideo, !isPictureInPictureActive, isPlaying else { return }
+        pausedForBackground = true
+        wasPlayingBeforeBackground = true
+        pause(userInitiated: false)
+    }
+
+    public func handleSceneWillEnterForeground() {
+        guard pausedForBackground, wasPlayingBeforeBackground, !isPlaying else {
+            pausedForBackground = false
+            wasPlayingBeforeBackground = false
+            return
+        }
+        pausedForBackground = false
+        wasPlayingBeforeBackground = false
+        play()
+    }
+
+    // MARK: - Player item lifecycle
+
+    private func installPlayerItem(
+        for item: PlaybackItem,
+        seek: Double,
+        autoplay: Bool
+    ) {
+        teardownItemObservers()
+        phase = .preparing
+        errorMessage = nil
+        pendingSeekPosition = max(seek, 0)
+        pendingAutoplay = autoplay
+        playIntent = false
+        if pendingSeekPosition > 0 {
+            currentTime = pendingSeekPosition
+        }
+
+        let playerItem = AVPlayerItem(url: item.fileURL)
+        // Pitch correction for every rate; requirement: voice must not change
+        // pitch at 0.5x...3.0x.
+        playerItem.audioTimePitchAlgorithm = .timeDomain
+        let itemID = item.id
+
+        statusObservation = playerItem.observe(\.status, options: [.initial, .new]) { [weak self] observed, _ in
+            let status = observed.status
+            let itemDuration = observed.duration.seconds
+            let error = observed.error?.localizedDescription
+            Task { @MainActor [weak self] in
+                self?.handleStatus(
+                    status,
+                    itemID: itemID,
+                    itemDuration: itemDuration,
+                    error: error
+                )
+            }
+        }
+
+        let center = NotificationCenter.default
+        endObserver = center.addObserver(
+            forName: AVPlayerItem.didPlayToEndTimeNotification,
+            object: playerItem,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.handlePlaybackEnded(itemID: itemID)
+            }
+        }
+        failedToEndObserver = center.addObserver(
+            forName: AVPlayerItem.failedToPlayToEndTimeNotification,
+            object: playerItem,
+            queue: .main
+        ) { [weak self] note in
+            let message = (note.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error)?
+                .localizedDescription
+            Task { @MainActor [weak self] in
+                guard let self, self.currentItem?.id == itemID else { return }
+                self.handleFailure(message: message ?? "播放中断")
+            }
+        }
+
+        player.replaceCurrentItem(with: playerItem)
+        loadAssetDuration(item: item)
+    }
+
+    private func loadAssetDuration(item: PlaybackItem) {
+        Task { [weak self] in
+            let asset = AVURLAsset(url: item.fileURL)
+            guard let loaded = try? await asset.load(.duration) else { return }
+            let seconds = loaded.seconds
+            guard seconds.isFinite, seconds > 0 else { return }
+            await MainActor.run { [weak self] in
+                guard let self, self.currentItem?.id == item.id else { return }
+                if seconds > self.duration || self.duration <= 0 {
+                    self.duration = seconds
+                }
+                self.updateNowPlaying()
+            }
+        }
     }
 
     private func handleStatus(
         _ status: AVPlayerItem.Status,
-        duration itemDuration: Double,
+        itemID: UUID,
+        itemDuration: Double,
         error: String?
     ) {
+        guard currentItem?.id == itemID else { return }
         switch status {
         case .readyToPlay:
-            if duration <= 0, itemDuration.isFinite, itemDuration > 0 {
+            if itemDuration.isFinite, itemDuration > 0 {
                 duration = itemDuration
             }
-            statusText = "就绪"
-            if shouldAutoplay {
-                shouldAutoplay = false
+            let seekTarget = pendingSeekPosition
+            pendingSeekPosition = 0
+            if seekTarget > 0 {
+                currentTime = seekTarget
+                player.seek(
+                    to: CMTime(seconds: seekTarget, preferredTimescale: 600),
+                    toleranceBefore: .zero,
+                    toleranceAfter: .zero
+                )
+            }
+            if pendingAutoplay {
+                pendingAutoplay = false
+                phase = .ready
                 play()
+            } else {
+                phase = .ready
+                // The item duration is now known; make sure a resume position
+                // saved before the first ready state has a real duration.
+                if currentTime > 0 {
+                    persistProgress(force: true)
+                }
             }
         case .failed:
-            errorMessage = error ?? "播放失败"
-            statusText = "失败"
-            isPlaying = false
+            handleFailure(message: error ?? "播放失败")
         case .unknown:
-            break
+            phase = .preparing
         @unknown default:
-            break
+            phase = .preparing
         }
         updateNowPlaying()
     }
+
+    private func handlePlaybackEnded(itemID: UUID) {
+        guard currentItem?.id == itemID else { return }
+        playIntent = false
+        pendingAutoplay = false
+        phase = .ended
+        if duration > 0 {
+            currentTime = duration
+        }
+        persistProgress(force: true, finishedOverride: true)
+        updateNowPlaying()
+    }
+
+    private func handleFailure(message: String) {
+        guard currentItem != nil else { return }
+        playIntent = false
+        pendingAutoplay = false
+        errorMessage = message
+        phase = .failed
+        player.pause()
+        persistProgress(force: true)
+        updateNowPlaying()
+    }
+
+    private func teardownItemObservers() {
+        statusObservation?.invalidate()
+        statusObservation = nil
+        if let endObserver {
+            NotificationCenter.default.removeObserver(endObserver)
+            self.endObserver = nil
+        }
+        if let failedToEndObserver {
+            NotificationCenter.default.removeObserver(failedToEndObserver)
+            self.failedToEndObserver = nil
+        }
+    }
+
+    // MARK: - Progress persistence
+
+    private func recordPlayStartIfNeeded(item: PlaybackItem) {
+        guard !didRecordPlayStart, let libraryItemID = item.libraryItemID else { return }
+        guard let progressStore else { return }
+        didRecordPlayStart = true
+        _ = try? progressStore.recordPlayStart(itemID: libraryItemID, duration: duration)
+    }
+
+    private func persistProgress(force: Bool = false, finishedOverride: Bool? = nil) {
+        guard let item = currentItem, let libraryItemID = item.libraryItemID else { return }
+        guard let progressStore else { return }
+        if !force {
+            guard phase == .playing || phase == .buffering else { return }
+        }
+        let wallClockDue = Date().timeIntervalSince(lastProgressSaveDate) >= 1.0
+        // At 3x a wall-clock-only throttle could lose up to 3s of media on a
+        // force quit; also save when the media position moved by 1s.
+        let positionDue = abs(currentTime - lastSavedPosition) >= 1.0
+        guard force || wallClockDue || positionDue else { return }
+        guard duration > 0 || currentTime > 0 else { return }
+
+        let finished = finishedOverride
+            ?? (duration > 0 && PlaybackPolicy.isFinished(position: currentTime, duration: duration))
+        let position = finished == true && duration > 0 ? duration : currentTime
+        _ = try? progressStore.save(
+            itemID: libraryItemID,
+            position: position,
+            duration: duration,
+            isFinished: finished
+        )
+        lastProgressSaveDate = Date()
+        lastSavedPosition = currentTime
+    }
+
+    // MARK: - Observers
 
     private func addPeriodicTimeObserver() {
         let interval = CMTime(seconds: 0.5, preferredTimescale: 600)
@@ -158,11 +471,12 @@ public final class PlaybackController {
             Task { @MainActor [weak self] in
                 guard let self, seconds.isFinite else { return }
                 self.currentTime = seconds
-                if self.duration <= 0, let itemDuration = self.player.currentItem?.duration.seconds,
+                if self.duration <= 0,
+                   let itemDuration = self.player.currentItem?.duration.seconds,
                    itemDuration.isFinite, itemDuration > 0 {
                     self.duration = itemDuration
                 }
-                self.updateNowPlaying()
+                self.persistProgress()
             }
         }
     }
@@ -172,15 +486,149 @@ public final class PlaybackController {
             let status = observed.timeControlStatus
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                if status == .playing {
-                    self.isPlaying = true
-                } else if status == .paused, self.isPlaying {
-                    self.isPlaying = false
+                switch status {
+                case .playing:
+                    if self.currentItem != nil,
+                       self.phase == .buffering
+                        || self.phase == .paused
+                        || self.phase == .ready
+                        || self.phase == .interrupted {
+                        self.phase = .playing
+                    }
+                case .waitingToPlayAtSpecifiedRate:
+                    if self.phase == .playing {
+                        self.phase = .buffering
+                    }
+                case .paused:
+                    // Do not fight an explicit play() request that is still
+                    // waiting for the item to become ready. End/interruption
+                    // paths set the phase themselves.
+                    break
+                @unknown default:
+                    break
                 }
-                self.updateNowPlaying()
             }
         }
     }
+
+    private func registerAudioSessionObservers() {
+        #if os(iOS)
+        let center = NotificationCenter.default
+        interruptionObserver = center.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] note in
+            let typeRaw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+            let optionsRaw = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt
+            Task { @MainActor [weak self] in
+                self?.handleInterruption(typeRaw: typeRaw, optionsRaw: optionsRaw)
+            }
+        }
+
+        routeChangeObserver = center.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] note in
+            let reasonRaw = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
+            Task { @MainActor [weak self] in
+                self?.handleRouteChange(reasonRaw: reasonRaw)
+            }
+        }
+
+        mediaServicesResetObserver = center.addObserver(
+            forName: AVAudioSession.mediaServicesWereResetNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.handleMediaServicesReset()
+            }
+        }
+        #endif
+    }
+
+    #if os(iOS)
+    private func activateAudioSession() {
+        let video = isVideo
+        let mode: AVAudioSession.Mode = video ? .moviePlayback : .spokenAudio
+        Task.detached(priority: .userInitiated) { [weak self] in
+            do {
+                let session = AVAudioSession.sharedInstance()
+                try session.setCategory(.playback, mode: mode, options: [.allowAirPlay])
+                try session.setActive(true)
+            } catch {
+                let message = "音频会话激活失败：\(error.localizedDescription)"
+                await MainActor.run { [weak self] in
+                    self?.errorMessage = message
+                }
+            }
+        }
+    }
+
+    private func handleInterruption(typeRaw: UInt?, optionsRaw: UInt?) {
+        guard let typeRaw, let type = AVAudioSession.InterruptionType(rawValue: typeRaw) else {
+            return
+        }
+        switch type {
+        case .began:
+            wasPlayingBeforeInterruption = isPlaying
+            if isPlaying {
+                pause(userInitiated: false)
+                phase = .interrupted
+            }
+            persistProgress(force: true)
+        case .ended:
+            let options = AVAudioSession.InterruptionOptions(rawValue: optionsRaw ?? 0)
+            let shouldResume = PlaybackPolicy.shouldResumeAfterInterruption(
+                wasPlaying: wasPlayingBeforeInterruption,
+                optionsContainShouldResume: options.contains(.shouldResume)
+            )
+            let wasPlaying = wasPlayingBeforeInterruption
+            wasPlayingBeforeInterruption = false
+            if shouldResume {
+                play()
+            } else if wasPlaying {
+                phase = .paused
+                updateNowPlaying()
+            }
+        @unknown default:
+            break
+        }
+    }
+
+    private func handleRouteChange(reasonRaw: UInt?) {
+        guard let reasonRaw,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonRaw) else {
+            return
+        }
+        if reason == .oldDeviceUnavailable, isPlaying {
+            pause(userInitiated: false)
+            phase = .paused
+        }
+    }
+
+    private func handleMediaServicesReset() {
+        guard let item = currentItem else { return }
+        let position = currentTime
+        let wasPlaying = isPlaying
+        persistProgress(force: true)
+        didRecordPlayStart = true // do not count a second play
+        playIntent = wasPlaying
+        installPlayerItem(for: item, seek: position, autoplay: wasPlaying)
+    }
+    #else
+    private func activateAudioSession() {
+        // AVPlayer on macOS uses the default output device.
+    }
+
+    private func handleInterruption(typeRaw: UInt?, optionsRaw: UInt?) {}
+
+    private func handleRouteChange(reasonRaw: UInt?) {}
+
+    private func handleMediaServicesReset() {}
+    #endif
 
     private func configureRemoteCommands() {
         let center = MPRemoteCommandCenter.shared()
@@ -225,94 +673,23 @@ public final class PlaybackController {
         }
     }
 
-    private func registerAudioSessionObservers() {
-        #if os(iOS)
-        let center = NotificationCenter.default
-        interruptionObserver = center.addObserver(
-            forName: AVAudioSession.interruptionNotification,
-            object: AVAudioSession.sharedInstance(),
-            queue: .main
-        ) { [weak self] note in
-            let typeRaw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
-            let optionsRaw = note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt
-            Task { @MainActor [weak self] in
-                self?.handleInterruption(typeRaw: typeRaw, optionsRaw: optionsRaw)
-            }
-        }
-
-        routeChangeObserver = center.addObserver(
-            forName: AVAudioSession.routeChangeNotification,
-            object: AVAudioSession.sharedInstance(),
-            queue: .main
-        ) { [weak self] note in
-            let reasonRaw = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
-            Task { @MainActor [weak self] in
-                self?.handleRouteChange(reasonRaw: reasonRaw)
-            }
-        }
-        #endif
-    }
-
-    #if os(iOS)
-    private func activateAudioSession() {
-        let video = isVideo
-        // AVAudioSession activation can block; keep it off the main thread so
-        // the play button and remote commands stay responsive.
-        Task.detached(priority: .userInitiated) { [weak self] in
-            do {
-                let session = AVAudioSession.sharedInstance()
-                let mode: AVAudioSession.Mode = video ? .moviePlayback : .spokenAudio
-                try session.setCategory(.playback, mode: mode, options: [.allowAirPlay])
-                try session.setActive(true)
-            } catch {
-                let message = "音频会话激活失败：\(error.localizedDescription)"
-                await MainActor.run { [weak self] in
-                    self?.errorMessage = message
-                }
-            }
-        }
-    }
-
-    private func handleInterruption(typeRaw: UInt?, optionsRaw: UInt?) {
-        guard let typeRaw, let type = AVAudioSession.InterruptionType(rawValue: typeRaw) else {
-            return
-        }
-        switch type {
-        case .began:
-            wasPlayingBeforeInterruption = isPlaying
-            if isPlaying { pause() }
-        case .ended:
-            let options = AVAudioSession.InterruptionOptions(rawValue: optionsRaw ?? 0)
-            if options.contains(.shouldResume), wasPlayingBeforeInterruption {
-                play()
-            }
-        @unknown default:
-            break
-        }
-    }
-
-    private func handleRouteChange(reasonRaw: UInt?) {
-        guard let reasonRaw,
-              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonRaw) else {
-            return
-        }
-        if reason == .oldDeviceUnavailable {
-            pause()
-        }
-    }
-    #endif
-
     private func updateNowPlaying() {
         guard let item = currentItem else {
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+            #if os(iOS)
+            MPNowPlayingInfoCenter.default().playbackState = .stopped
+            #endif
             return
         }
         var info: [String: Any] = [
             MPMediaItemPropertyTitle: item.title,
             MPMediaItemPropertyArtist: item.subtitle,
+            MPMediaItemPropertyAlbumTitle: item.subtitle,
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? Double(playbackRate) : 0,
+            MPNowPlayingInfoPropertyPlaybackRate: playIntent ? Double(playbackRate) : 0,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: Double(playbackRate),
+            MPNowPlayingInfoPropertyIsLiveStream: false,
             MPNowPlayingInfoPropertyMediaType: item.kind.isVideo
                 ? MPNowPlayingInfoMediaType.video.rawValue
                 : MPNowPlayingInfoMediaType.audio.rawValue
@@ -321,22 +698,38 @@ public final class PlaybackController {
             info[MPMediaItemPropertyArtwork] = artwork
         }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        #if os(iOS)
+        MPNowPlayingInfoCenter.default().playbackState = playIntent
+            ? .playing
+            : (phase == .ended || phase == .idle ? .stopped : .paused)
+        #endif
     }
 
     #if os(iOS)
     private func artwork(for item: PlaybackItem) -> MPMediaItemArtwork? {
-        if let cached = artworkCache[item.id] {
-            return cached
+        let key = item.artworkURL?.path
+            ?? "placeholder-\(item.kind.rawValue)"
+        if cachedArtworkKey == key, let cachedArtwork {
+            return cachedArtwork
         }
         let artwork = Self.makeArtwork(item: item)
-        artworkCache[item.id] = artwork
+        cachedArtworkKey = key
+        cachedArtwork = artwork
         return artwork
     }
 
-    /// The artwork request handler is invoked by MediaPlayer on a background
-    /// queue. Keep it out of the main-actor-isolated method so the generated
-    /// closure does not inherit MainActor isolation (which traps at runtime).
+    /// MediaPlayer calls the request handler on a background queue. Reading the
+    /// JPEG and creating the image here keeps the closure free of main-actor
+    /// state.
     nonisolated private static func makeArtwork(item: PlaybackItem) -> MPMediaItemArtwork {
+        var sourceImage: UIImage?
+        if let artworkURL = item.artworkURL,
+           let data = try? Data(contentsOf: artworkURL) {
+            sourceImage = UIImage(data: data)
+        }
+        if let sourceImage {
+            return MPMediaItemArtwork(boundsSize: sourceImage.size) { _ in sourceImage }
+        }
         let size = CGSize(width: 600, height: 600)
         let renderer = UIGraphicsImageRenderer(size: size)
         let image = renderer.image { context in

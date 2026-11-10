@@ -222,18 +222,71 @@ public enum ImportSessionStatus: String, Codable, Sendable {
     case failed
 }
 
+/// M2 adds a small, independent playback-state table so periodic progress
+/// writes never invalidate MediaItem rows (and therefore the library list).
+/// The unchanged V2 entities are reused across schema versions.
+public enum LocalPodSchemaV3: VersionedSchema {
+    public static var versionIdentifier: Schema.Version { Schema.Version(3, 0, 0) }
+
+    public static var models: [any PersistentModel.Type] {
+        [
+            LocalPodSchemaV2.MediaItem.self,
+            LocalPodSchemaV2.MediaCollection.self,
+            LocalPodSchemaV2.ImportSession.self,
+            PlaybackState.self
+        ]
+    }
+
+    @Model
+    public final class PlaybackState {
+        @Attribute(.unique) public var itemID: UUID = UUID()
+        /// Seconds. Saved about once per second while playing, plus on
+        /// pause/seek/background/item switch.
+        public var position: Double = 0
+        /// Player-reported duration; falls back to the imported duration.
+        public var duration: Double = 0
+        public var isFinished: Bool = false
+        public var playCount: Int = 0
+        public var lastPlayedAt: Date?
+        public var updatedAt: Date = Date()
+
+        public init(
+            itemID: UUID,
+            position: Double = 0,
+            duration: Double = 0,
+            isFinished: Bool = false,
+            playCount: Int = 0,
+            lastPlayedAt: Date? = nil,
+            updatedAt: Date = Date()
+        ) {
+            self.itemID = itemID
+            self.position = position
+            self.duration = duration
+            self.isFinished = isFinished
+            self.playCount = playCount
+            self.lastPlayedAt = lastPlayedAt
+            self.updatedAt = updatedAt
+        }
+    }
+}
+
 public enum LocalPodMigrationPlan: SchemaMigrationPlan {
     public static var schemas: [any VersionedSchema.Type] {
-        [LocalPodSchemaV1.self, LocalPodSchemaV2.self]
+        [LocalPodSchemaV1.self, LocalPodSchemaV2.self, LocalPodSchemaV3.self]
     }
 
     public static var stages: [MigrationStage] {
-        [migrateV1toV2]
+        [migrateV1toV2, migrateV2toV3]
     }
 
     public static let migrateV1toV2 = MigrationStage.lightweight(
         fromVersion: LocalPodSchemaV1.self,
         toVersion: LocalPodSchemaV2.self
+    )
+
+    public static let migrateV2toV3 = MigrationStage.lightweight(
+        fromVersion: LocalPodSchemaV2.self,
+        toVersion: LocalPodSchemaV3.self
     )
 }
 
@@ -252,7 +305,7 @@ public enum LocalPodStore {
     }
 
     public static func makeContainer(inMemory: Bool = false) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: LocalPodSchemaV2.self)
+        let schema = Schema(versionedSchema: LocalPodSchemaV3.self)
         let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: inMemory

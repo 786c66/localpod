@@ -30,6 +30,7 @@ public enum MediaSource: String, Codable, Sendable, CaseIterable {
 public typealias MediaItem = LocalPodSchemaV2.MediaItem
 public typealias MediaCollection = LocalPodSchemaV2.MediaCollection
 public typealias ImportSession = LocalPodSchemaV2.ImportSession
+public typealias PlaybackState = LocalPodSchemaV3.PlaybackState
 
 public extension LocalPodSchemaV2.MediaItem {
     var kind: MediaKind {
@@ -49,6 +50,11 @@ public extension LocalPodSchemaV2.MediaItem {
 
     var fileURL: URL? {
         try? MediaStorage.live.url(forRelativePath: relativePath)
+    }
+
+    var artworkURL: URL? {
+        guard let artworkKey else { return nil }
+        return try? MediaStorage.live.artworkURL(forKey: artworkKey)
     }
 
     var durationText: String {
