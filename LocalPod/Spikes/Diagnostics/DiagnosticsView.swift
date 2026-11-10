@@ -41,6 +41,25 @@ struct DiagnosticsView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    if let info = signingInfo, let days = info.daysRemaining {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: days <= 2 ? "exclamationmark.triangle.fill" : "checkmark.shield.fill")
+                                .foregroundStyle(days <= 2 ? Color.orange : Color.green)
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(signingBannerText(days: days))
+                                    .font(.callout)
+                                    .accessibilityIdentifier("signingExpiryBanner")
+                                Text("到期：\(info.expirationDate?.formatted(date: .abbreviated, time: .shortened) ?? "—")")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+
                 Section("工具") {
                     NavigationLink {
                         BenchmarkView()
@@ -222,6 +241,16 @@ struct DiagnosticsView: View {
             lines.append("描述文件: 未发现（模拟器/未签名）")
         }
         return lines.joined(separator: "\n")
+    }
+
+    private func signingBannerText(days: Int) -> String {
+        if days < 0 {
+            return "签名已过期 \(-days) 天，请用同一 Bundle ID 重签；重签不会清除资料库"
+        }
+        if days == 0 {
+            return "签名将在今天到期，建议在到期前用同一 Bundle ID 重签；重签不会清除资料库"
+        }
+        return "签名将在 \(days) 天后到期，建议在到期前用同一 Bundle ID 重签；重签不会清除资料库"
     }
 
     private func refresh() {

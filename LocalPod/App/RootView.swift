@@ -63,6 +63,12 @@ struct RootView: View {
             seedM3FixturesIfNeeded()
             runLaunchAutomationIfNeeded()
             resolveOnboardingIfNeeded()
+            // Local-only expiry reminder. This never prompts at launch: it
+            // skips silently until the user enables notifications in Settings.
+            await SigningReminder.refresh(
+                expirationDate: SigningInfo.current()?.expirationDate,
+                isEnabled: session.settings.signingReminderEnabled
+            )
         }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {

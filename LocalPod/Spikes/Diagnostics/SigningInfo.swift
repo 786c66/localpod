@@ -31,6 +31,11 @@ struct SigningInfo {
 
     /// Parses the plist embedded in the CMS/PKCS#7 mobileprovision payload.
     static func current() -> SigningInfo? {
+        #if DEBUG
+        if let fake = debugFakeSigningInfo() {
+            return fake
+        }
+        #endif
         guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
               let data = try? Data(contentsOf: url) else {
             return nil
@@ -63,4 +68,32 @@ struct SigningInfo {
             provisionedDeviceCount: (plist["ProvisionedDevices"] as? [String])?.count
         )
     }
+
+    #if DEBUG
+    /// UI tests run on the simulator, which has no embedded profile. This
+    /// launch-only seam injects a profile expiry without affecting Release
+    /// builds. It must never be used by app logic outside diagnostics.
+    private static func debugFakeSigningInfo() -> SigningInfo? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flagIndex = arguments.firstIndex(of: "--m5-fake-signing-expiry-days"),
+              arguments.indices.contains(flagIndex + 1),
+              let days = Int(arguments[flagIndex + 1]) else {
+            return nil
+        }
+
+        let calendar = Calendar.current
+        let expirationDate = calendar.date(
+            byAdding: .day,
+            value: days,
+            to: Date()
+        )
+        return SigningInfo(
+            name: "UI 测试描述文件",
+            teamIdentifier: "UITESTTEAM",
+            appIdentifier: "UITEST.com.localpod.app",
+            expirationDate: expirationDate,
+            provisionedDeviceCount: 1
+        )
+    }
+    #endif
 }

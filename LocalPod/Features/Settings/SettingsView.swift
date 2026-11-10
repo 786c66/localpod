@@ -97,6 +97,15 @@ struct SettingsView: View {
                     Text("所有设置立即保存，重启 App 后仍然生效。")
                 }
 
+                Section {
+                    Toggle("签名到期提醒", isOn: $settings.signingReminderEnabled)
+                        .accessibilityIdentifier("settingsSigningReminderToggle")
+                } header: {
+                    Text("签名")
+                } footer: {
+                    Text("开启后会在描述文件到期前 2 天 10:00 发送本地通知；首次开启会请求通知权限。关闭会取消待发送的提醒。若开关原本就是开启状态，请先关闭再开启一次以触发系统授权。即使拒绝通知，诊断页仍会显示到期提示。")
+                }
+
                 Section("存储") {
                     LabeledContent("资料库条目", value: "\(libraryItems.count) 条")
                     LabeledContent("占用空间", value: ByteCountFormatter.string(
@@ -157,6 +166,9 @@ struct SettingsView: View {
             .onChange(of: settings.skipForwardSeconds) { _, _ in session.applySettings() }
             .onChange(of: settings.skipBackwardSeconds) { _, _ in session.applySettings() }
             .onChange(of: settings.resumeEnabled) { _, _ in session.applySettings() }
+            .onChange(of: settings.signingReminderEnabled) { _, enabled in
+                updateSigningReminder(enabled: enabled)
+            }
             .alert("删除示例内容？", isPresented: $showDeleteSamplesConfirmation) {
                 Button("删除", role: .destructive) {
                     deleteSamples()
@@ -233,6 +245,16 @@ struct SettingsView: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private func updateSigningReminder(enabled: Bool) {
+        let expirationDate = SigningInfo.current()?.expirationDate
+        Task {
+            await SigningReminder.setEnabled(
+                enabled,
+                expirationDate: expirationDate
+            )
+        }
     }
 
     private func runMaintenance() {

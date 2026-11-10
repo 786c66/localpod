@@ -19,6 +19,7 @@
 		4C6D139BC918AAC0E64B1249 /* demo-audio.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 23346E600CEA4A18BA25978B /* demo-audio.m4a */; };
 		4F20DD44075396004A3472DA /* BenchmarkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2310D31581FEB3DC9E6D0B97 /* BenchmarkView.swift */; };
 		537088C83C23043BA2D22DDC /* InboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB082AAFCA17FAF2392BEF17 /* InboxView.swift */; };
+		544C59412F5A855C292DEAB5 /* SigningReminder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0528E3BA0C08A8F079E0F46 /* SigningReminder.swift */; };
 		60156DF3AF1D096EE1D1EF55 /* M3DebugSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB622C565ECF037091092A17 /* M3DebugSeed.swift */; };
 		60F1E56C4F38270D9143225E /* ImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACB848B84419379A3691DB8D /* ImportView.swift */; };
 		7ADE606D3D7D40509C2CCE8A /* M4DebugSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 222D3B52B8184050320B4910 /* M4DebugSupport.swift */; };
@@ -29,10 +30,12 @@
 		98187EE9B16597D503E25C56 /* M1UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 629BFC9FD7ECCD7B7A19C1CB /* M1UITests.swift */; };
 		9900645556FC372AFED8F47E /* DocumentPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D17F0BADA440FB407E46DA /* DocumentPicker.swift */; };
 		ADBB7965B11E440241B1D17F /* M5DeliveryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9F0BC6809D1861746C7FAB /* M5DeliveryUITests.swift */; };
+		B17C1E4561DAAE88CF8C2828 /* M5PerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F7BF1A32BFD81852377C2A /* M5PerformanceTests.swift */; };
 		B47A8F974E5AF2E0CCB88A48 /* M3UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A1CFB6A6BD9067B93CA6FA /* M3UITests.swift */; };
 		B47C57FD19EBBE914893017A /* LocalPodApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BA0DF86D0C69BC29BE9F624 /* LocalPodApp.swift */; };
 		B509A743EB3CD7E141D27980 /* M2UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 562ADF714076DD62E7590544 /* M2UITests.swift */; };
 		B56B53B162D5DD51D04357AB /* M5UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BE5FFCCF1BFDDC0A7C14512 /* M5UITests.swift */; };
+		BF9AF77B4614F6D39512401C /* M5SigningUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A56F4FDF7EA19CDA9FB2C07 /* M5SigningUITests.swift */; };
 		DC0F4714648A8F7C99E7DACC /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFD2D2A1E3D000812950E085 /* LibraryView.swift */; };
 		E88FB4648BE59E15C934CEE6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3DC41E9533AC5BE62B52E987 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
@@ -61,10 +64,13 @@
 		562ADF714076DD62E7590544 /* M2UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M2UITests.swift; sourceTree = "<group>"; };
 		629BFC9FD7ECCD7B7A19C1CB /* M1UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M1UITests.swift; sourceTree = "<group>"; };
 		802390B4491E30D754B0FB2A /* demo-long-audio.m4a */ = {isa = PBXFileReference; path = "demo-long-audio.m4a"; sourceTree = "<group>"; };
+		8A56F4FDF7EA19CDA9FB2C07 /* M5SigningUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M5SigningUITests.swift; sourceTree = "<group>"; };
 		8BA0DF86D0C69BC29BE9F624 /* LocalPodApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalPodApp.swift; sourceTree = "<group>"; };
+		A0528E3BA0C08A8F079E0F46 /* SigningReminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningReminder.swift; sourceTree = "<group>"; };
 		A76F3D1F54687DC6C9E03182 /* LocalPodKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = LocalPodKit; path = LocalPodKit; sourceTree = SOURCE_ROOT; };
 		AB082AAFCA17FAF2392BEF17 /* InboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxView.swift; sourceTree = "<group>"; };
 		ACB848B84419379A3691DB8D /* ImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportView.swift; sourceTree = "<group>"; };
+		B0F7BF1A32BFD81852377C2A /* M5PerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M5PerformanceTests.swift; sourceTree = "<group>"; };
 		B3A4706ACE075EC1F83E5A70 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		B4A1CFB6A6BD9067B93CA6FA /* M3UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M3UITests.swift; sourceTree = "<group>"; };
 		BB622C565ECF037091092A17 /* M3DebugSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M3DebugSeed.swift; sourceTree = "<group>"; };
@@ -219,6 +225,8 @@
 				B4A1CFB6A6BD9067B93CA6FA /* M3UITests.swift */,
 				DB42381B83497C220C5B45CB /* M4UITests.swift */,
 				1E9F0BC6809D1861746C7FAB /* M5DeliveryUITests.swift */,
+				B0F7BF1A32BFD81852377C2A /* M5PerformanceTests.swift */,
+				8A56F4FDF7EA19CDA9FB2C07 /* M5SigningUITests.swift */,
 				2BE5FFCCF1BFDDC0A7C14512 /* M5UITests.swift */,
 			);
 			path = LocalPodUITests;
@@ -232,6 +240,7 @@
 				BB622C565ECF037091092A17 /* M3DebugSeed.swift */,
 				222D3B52B8184050320B4910 /* M4DebugSupport.swift */,
 				C240AF67ECE4340E5C07A451 /* RootView.swift */,
+				A0528E3BA0C08A8F079E0F46 /* SigningReminder.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -381,6 +390,7 @@
 				037014D99F4F78316432A9A3 /* RootView.swift in Sources */,
 				86ECCF1483AABDCC432F8B2E /* SettingsView.swift in Sources */,
 				80A51DA75F7704434827020C /* SigningInfo.swift in Sources */,
+				544C59412F5A855C292DEAB5 /* SigningReminder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -394,6 +404,8 @@
 				B47A8F974E5AF2E0CCB88A48 /* M3UITests.swift in Sources */,
 				3D9F253E7D1B5E9839CEDEEE /* M4UITests.swift in Sources */,
 				ADBB7965B11E440241B1D17F /* M5DeliveryUITests.swift in Sources */,
+				B17C1E4561DAAE88CF8C2828 /* M5PerformanceTests.swift in Sources */,
+				BF9AF77B4614F6D39512401C /* M5SigningUITests.swift in Sources */,
 				B56B53B162D5DD51D04357AB /* M5UITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

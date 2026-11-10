@@ -13,6 +13,7 @@ public final class AppSettingsStore {
     public static let keySkipBackward = "skipBackward"
     public static let keyResumeEnabled = "resumeEnabled"
     public static let keyAutoPlayNext = "autoPlayNext"
+    public static let keySigningReminderEnabled = "signingReminderEnabled"
 
     public var defaultRate: Float {
         didSet { defaults.set(Double(defaultRate), forKey: key(Self.keyDefaultRate)) }
@@ -31,6 +32,17 @@ public final class AppSettingsStore {
     /// Auto-advance the queue when an item ends.
     public var autoPlayNext: Bool {
         didSet { defaults.set(autoPlayNext, forKey: key(Self.keyAutoPlayNext)) }
+    }
+    /// Local notification two days before the embedded provisioning profile
+    /// expires. Scheduling itself never prompts; enabling the toggle from
+    /// Settings requests notification authorization.
+    public var signingReminderEnabled: Bool {
+        didSet {
+            defaults.set(
+                signingReminderEnabled,
+                forKey: key(Self.keySigningReminderEnabled)
+            )
+        }
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -53,12 +65,16 @@ public final class AppSettingsStore {
             as? Bool ?? true
         let storedAutoNext = defaults.object(forKey: keyPrefix + Self.keyAutoPlayNext)
             as? Bool ?? true
+        let storedSigningReminder = defaults.object(
+            forKey: keyPrefix + Self.keySigningReminderEnabled
+        ) as? Bool ?? true
 
         defaultRate = PlaybackPolicy.clampedRate(Float(storedRate))
         skipForwardSeconds = Self.validSkip(storedForward)
         skipBackwardSeconds = Self.validSkip(storedBackward)
         resumeEnabled = storedResume
         autoPlayNext = storedAutoNext
+        signingReminderEnabled = storedSigningReminder
     }
 
     public func reset() {
@@ -67,7 +83,8 @@ public final class AppSettingsStore {
             Self.keySkipForward,
             Self.keySkipBackward,
             Self.keyResumeEnabled,
-            Self.keyAutoPlayNext
+            Self.keyAutoPlayNext,
+            Self.keySigningReminderEnabled
         ] {
             defaults.removeObject(forKey: prefix + key)
         }
@@ -76,6 +93,7 @@ public final class AppSettingsStore {
         skipBackwardSeconds = 15
         resumeEnabled = true
         autoPlayNext = true
+        signingReminderEnabled = true
     }
 
     public static func clearStoredValues(
