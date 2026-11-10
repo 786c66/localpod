@@ -61,25 +61,25 @@ M5 端到端回归时同一条命令可再加 `-only-testing` 选择 M5Signing/M
 
 | 指标 | 迭代 | 平均值 | 相对标准差 | 各次值 |
 | --- | ---: | ---: | ---: | --- |
-| App 启动（`XCTApplicationLaunchMetric`） | 3 | **2.481 s** | 0.343% | 2.471434 / 2.492053 / 2.479055 s |
-| 资料库滚动减速（`scrollDecelerationMetric`） | 3 | **2.434 s** | 0.016% | 2.433073 / 2.433957 / 2.433862 s |
+| App 启动（`XCTApplicationLaunchMetric`） | 3 | **2.473 s** | 0.449% | 2.471920 / 2.460549 / 2.487657 s |
+| 资料库滚动减速（`scrollDecelerationMetric`） | 3 | **2.433 s** | 0.060% | 2.430630 / 2.433579 / 2.433886 s |
 
-另两次运行启动基线为 2.470 s（RSD 0.379%）和 2.499 s（RSD 0.553%），滚动均为 2.434 s。三次运行差异在模拟器噪声范围内。
+本地化前三次运行启动基线为 2.481 s（RSD 0.343%）、2.470 s（RSD 0.379%）和 2.499 s（RSD 0.553%），滚动为 2.434 s；本地化后独立回归为 2.473 s（RSD 0.449%），滚动 2.433 s（RSD 0.060%）。差异在模拟器噪声范围内。
 
 XCTest 原始输出（摘要）：
 
 ```text
-measured [Duration (AppLaunch), s] average: 2.481, relative standard deviation: 0.343%,
-values: [2.471434, 2.492053, 2.479055]
+measured [Duration (AppLaunch), s] average: 2.473, relative standard deviation: 0.449%,
+values: [2.471920, 2.460549, 2.487657]
 
-measured [Duration (Scroll_Deceleration), s] average: 2.434, relative standard deviation: 0.016%,
-values: [2.433073, 2.433957, 2.433862]
+measured [Duration (Scroll_Deceleration), s] average: 2.433, relative standard deviation: 0.060%,
+values: [2.430630, 2.433579, 2.433886]
 ```
 
 ### 解读
 
-- **启动约 2.48 s 包含每次清空数据**（删 SwiftData store、媒体、收件箱、设置）。日常覆盖安装后的启动不执行 `--m0-reset-data`，通常更快；该数字用于回归对比，不是用户感知的固定冷启动值。
-- **滚动 2.434 s 是系统滚动减速 signpost 的持续时间**，代表一次快速上滑后的减速过程，不是“滚动卡顿 2.4 秒”。3 次几乎一致说明合成手势和列表行为稳定；它只能用于同一模拟器/同一测试下的回归对比。
+- **启动约 2.47 s 包含每次清空数据**（删 SwiftData store、媒体、收件箱、设置）。日常覆盖安装后的启动不执行 `--m0-reset-data`，通常更快；该数字用于回归对比，不是用户感知的固定冷启动值。
+- **滚动 2.433 s 是系统滚动减速 signpost 的持续时间**，代表一次快速上滑后的减速过程，不是“滚动卡顿 2.4 秒”。3 次几乎一致说明合成手势和列表行为稳定；它只能用于同一模拟器/同一测试下的回归对比。
 - 5,000 行是 SwiftData 列表虚拟化压力测试；没有真实媒体文件、没有解码、没有网络。它不覆盖 1 GB 导入或播放。
 
 ## 启动优化结论

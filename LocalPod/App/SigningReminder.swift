@@ -53,8 +53,8 @@ enum SigningReminder {
         }
 
         let content = UNMutableNotificationContent()
-        content.title = "LocalPod 签名即将到期"
-        content.body = "签名将在 2 天后到期，建议在到期前用同一 Bundle ID 重签；重签不会清除资料库。"
+        content.title = L10n.string("notification.signing.title")
+        content.body = L10n.string("notification.signing.body")
         content.sound = .default
 
         // Leave the time zone unset so the trigger follows the device's local

@@ -19,23 +19,23 @@ struct OnboardingView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     feature(
                         icon: "folder.badge.plus",
-                        title: "文件夹导入会递归扫描",
-                        detail: "选择整个文件夹后，LocalPod 会扫描所有子文件夹，复制音频与视频文件进本地资料库。"
+                        title: L10n.string("onboarding.folders.title"),
+                        detail: L10n.string("onboarding.folders.detail")
                     )
                     feature(
                         icon: "waveform",
-                        title: "只播放音频",
-                        detail: "视频文件也可以导入，但只播放其中的音轨；不显示画面、不做旋转或画中画。"
+                        title: L10n.string("onboarding.audioOnly.title"),
+                        detail: L10n.string("onboarding.audioOnly.detail")
                     )
                     feature(
                         icon: "gift",
-                        title: "完全免费",
-                        detail: "没有内购、订阅或广告。所有功能都可以直接使用。"
+                        title: L10n.string("onboarding.free.title"),
+                        detail: L10n.string("onboarding.free.detail")
                     )
                     feature(
                         icon: "checkmark.seal",
-                        title: "免费 Apple ID 侧载",
-                        detail: "通过 Xcode 或 SideStore/AltStore 安装时，需要每 7 天用免费 Apple ID 重新签名；重新签名不会清除资料库。"
+                        title: L10n.string("onboarding.sideload.title"),
+                        detail: L10n.string("onboarding.sideload.detail")
                     )
                 }
             }

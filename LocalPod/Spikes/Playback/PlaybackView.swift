@@ -36,7 +36,7 @@ struct PlaybackView: View {
                         playDemo(
                             name: "demo-audio",
                             fileExtension: "m4a",
-                            title: "内置音频测试",
+                            title: L10n.string("playback.demo.audioTitle"),
                             kind: .audio
                         )
                     } label: {
@@ -48,7 +48,7 @@ struct PlaybackView: View {
                         playDemo(
                             name: "demo-long-audio",
                             fileExtension: "m4a",
-                            title: "内置长音频",
+                            title: L10n.string("playback.demo.longAudioTitle"),
                             kind: .audio
                         )
                     } label: {
@@ -83,7 +83,7 @@ struct PlaybackView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(item.title)
                                             .fixedSize(horizontal: false, vertical: true)
-                                        Text("\(item.kind.displayName) · \(item.folderName ?? "资料库")")
+                                        Text("\(item.kind.displayName) · \(item.folderName ?? L10n.string("playback.libraryFallback"))")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                             .fixedSize(horizontal: false, vertical: true)
@@ -105,7 +105,7 @@ struct PlaybackView: View {
                     }
                 }
             }
-            .navigationTitle("播放")
+            .navigationTitle(L10n.string("tab.playback"))
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if !session.queue.isEmpty {
@@ -477,16 +477,14 @@ struct PlaybackView: View {
 
     private var sleepTimerStatus: String {
         switch session.sleepTimer.mode {
-        case .off:
-            "关闭"
+        case .off, .endOfEpisode:
+            session.sleepTimer.mode.displayName
         case .minutes:
             if let remaining = session.sleepTimer.remainingText {
                 "\(session.sleepTimer.mode.displayName) · \(remaining)"
             } else {
                 session.sleepTimer.mode.displayName
             }
-        case .endOfEpisode:
-            "本集结束"
         }
     }
 
@@ -515,7 +513,7 @@ struct PlaybackView: View {
                                 .foregroundStyle(.secondary)
                                 .frame(width: 22, alignment: .trailing)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(item?.title ?? "已删除条目")
+                                Text(item?.title ?? L10n.string("common.deletedItem"))
                                     .fixedSize(horizontal: false, vertical: true)
                                 if entry.itemID == session.queue.currentItemID {
                                     Text("当前")
@@ -643,13 +641,13 @@ struct PlaybackView: View {
     private func playDemo(name: String, fileExtension ext: String, title: String, kind: MediaKind) {
         localError = nil
         guard let url = Bundle.main.url(forResource: name, withExtension: ext) else {
-            localError = "找不到内置资源 \(name).\(ext)。"
+            localError = L10n.format("error.playback.missingDemo", "\(name).\(ext)")
             return
         }
         session.queue.clear()
         let item = PlaybackItem(
             title: title,
-            subtitle: "内置测试媒体",
+            subtitle: L10n.string("playback.builtInSubtitle"),
             fileURL: url,
             kind: kind
         )
@@ -659,7 +657,10 @@ struct PlaybackView: View {
     private func playLibraryItem(_ item: MediaItem) {
         localError = nil
         guard item.fileURL != nil, !item.isMissing else {
-            localError = "无法解析文件路径：\(item.relativePath)"
+            localError = L10n.format(
+                "error.playback.resolveFile",
+                item.relativePath
+            )
             return
         }
         session.play(item: item)

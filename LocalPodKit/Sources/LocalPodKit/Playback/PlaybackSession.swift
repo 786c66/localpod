@@ -78,7 +78,10 @@ public final class PlaybackSession {
     public func play(item: MediaItem) {
         queue.setQueue(itemIDs: [item.id], current: item.id)
         if !loadItem(id: item.id, autoplay: true) {
-            lastError = "媒体文件不存在：\(item.title)"
+            lastError = LocalPodLocalization.format(
+                "playback.error.missingFileNamed",
+                item.title
+            )
         }
     }
 
@@ -96,7 +99,10 @@ public final class PlaybackSession {
             shuffle: shuffle
         )
         if !loadItem(id: items[safeIndex].id, autoplay: true) {
-            lastError = "媒体文件不存在：\(items[safeIndex].title)"
+            lastError = LocalPodLocalization.format(
+                "playback.error.missingFileNamed",
+                items[safeIndex].title
+            )
         }
     }
 
@@ -119,7 +125,7 @@ public final class PlaybackSession {
     public func playQueueItem(itemID: UUID) {
         queue.setCurrent(itemID)
         if !loadItem(id: itemID, autoplay: true) {
-            lastError = "媒体文件不存在或已删除。"
+            lastError = LocalPodLocalization.string("playback.error.missingFile")
         }
     }
 
@@ -268,7 +274,8 @@ public final class PlaybackSession {
         }
         return PlaybackItem(
             title: item.title,
-            subtitle: item.folderName ?? "资料库",
+            subtitle: item.folderName
+                ?? LocalPodLocalization.string("playback.librarySubtitle"),
             fileURL: url,
             kind: item.kind,
             durationHint: item.durationSeconds,

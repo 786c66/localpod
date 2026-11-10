@@ -66,7 +66,14 @@ final class SampleContentTests: XCTestCase {
         let env = try makeEnvironment()
         XCTAssertEqual(MediaSource.sample.rawValue, "sample")
         XCTAssertEqual(MediaSource(rawValue: "sample"), .sample)
-        XCTAssertEqual(MediaSource.sample.displayName, "示例")
+        XCTAssertEqual(
+            MediaSource.sample.displayName(locale: Locale(identifier: "zh-Hans")),
+            "示例"
+        )
+        XCTAssertEqual(
+            MediaSource.sample.displayName(locale: Locale(identifier: "en")),
+            "Sample"
+        )
 
         env.context.insert(MediaItem(
             title: "持久化示例",
@@ -84,7 +91,10 @@ final class SampleContentTests: XCTestCase {
         )
         XCTAssertEqual(stored.sourceRaw, "sample")
         XCTAssertEqual(stored.source, .sample)
-        XCTAssertEqual(stored.source.displayName, "示例")
+        XCTAssertEqual(
+            stored.source.displayName(locale: Locale(identifier: "zh-Hans")),
+            "示例"
+        )
         XCTAssertEqual(stored.sourceName, ImportSample.collectionName)
     }
 

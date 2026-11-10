@@ -237,7 +237,7 @@ final class M5DeliveryUITests: XCTestCase {
     private func makeApp(_ arguments: [String]) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = arguments
-        app.launch()
+        app.launchPinned()
         return app
     }
 

@@ -7,7 +7,7 @@ public enum ChunkedFileCopierError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .cannotCreateDestination(let url):
-            "无法创建目标文件：\(url.path)"
+            LocalPodLocalization.format("error.copy.cannotCreateDestination", url.path)
         }
     }
 }

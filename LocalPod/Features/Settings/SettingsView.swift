@@ -92,7 +92,7 @@ struct SettingsView: View {
                         .accessibilityIdentifier("settingsAutoNextPicker")
                     }
                 } header: {
-                    Text("播放")
+                    Text(L10n.string("settings.section.playback"))
                 } footer: {
                     Text("所有设置立即保存，重启 App 后仍然生效。")
                 }
@@ -148,7 +148,10 @@ struct SettingsView: View {
 
                 Section("关于") {
                     LabeledContent("版本", value: appVersion)
-                    LabeledContent("播放范围", value: "仅音频")
+                    LabeledContent(
+                        "播放范围",
+                        value: L10n.string("settings.audioOnly")
+                    )
                     Text("LocalPod 只播放音频。视频文件可以导入并读取音轨，但不显示画面，也不支持旋转或画中画。完全免费，无内购、无订阅。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -261,12 +264,21 @@ struct SettingsView: View {
         do {
             let summary = try LibraryService().reconcile(in: modelContext)
             if summary.hasChanges {
-                maintenanceSummary = "缺失标记 \(summary.missingMarked) · 恢复 \(summary.restored) · 清理媒体 \(summary.orphanMediaFilesRemoved) · 清理封面 \(summary.orphanArtworkFilesRemoved)"
+                maintenanceSummary = L10n.format(
+                    "settings.maintenance.changed",
+                    summary.missingMarked,
+                    summary.restored,
+                    summary.orphanMediaFilesRemoved,
+                    summary.orphanArtworkFilesRemoved
+                )
             } else {
-                maintenanceSummary = "维护完成：没有需要清理的内容。"
+                maintenanceSummary = L10n.string("settings.maintenance.clean")
             }
         } catch {
-            maintenanceSummary = "维护失败：\(error.localizedDescription)"
+            maintenanceSummary = L10n.format(
+                "settings.maintenance.failed",
+                error.localizedDescription
+            )
         }
     }
 
@@ -284,9 +296,21 @@ struct SettingsView: View {
                 fromByteCount: result.freedBytes,
                 countStyle: .file
             )
-            sampleDeleteSummary = "已删除 \(result.deletedCount) 条示例（\(freed)），同时清理进度 \(result.removedPlaybackStates) · 队列 \(result.removedQueueEntries) · 播放列表 \(result.removedPlaylistEntries) · 媒体 \(result.removedMediaFiles) · 封面 \(result.removedArtworkFiles)。"
+            sampleDeleteSummary = L10n.format(
+                "settings.samples.deleted",
+                result.deletedCount,
+                freed,
+                result.removedPlaybackStates,
+                result.removedQueueEntries,
+                result.removedPlaylistEntries,
+                result.removedMediaFiles,
+                result.removedArtworkFiles
+            )
         } catch {
-            sampleDeleteSummary = "删除示例失败：\(error.localizedDescription)"
+            sampleDeleteSummary = L10n.format(
+                "settings.samples.deleteFailed",
+                error.localizedDescription
+            )
         }
     }
 }

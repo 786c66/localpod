@@ -163,9 +163,9 @@ struct ImportView: View {
     private var progressSection: some View {
         Section("进度") {
             HStack {
-                Text(coordinator.currentKind?.displayName ?? "导入")
+                Text(coordinator.currentKind?.displayName ?? L10n.string("common.import"))
                 Spacer()
-                Text(coordinator.isCancelling ? "正在取消…" : coordinator.phase.displayName)
+                Text(coordinator.isCancelling ? L10n.string("正在取消…") : coordinator.phase.displayName)
                     .foregroundStyle(.secondary)
             }
 
@@ -244,7 +244,10 @@ struct ImportView: View {
                 LabeledContent("失败", value: "\(summary.failedCount) 个")
             }
             LabeledContent("复制", value: formatBytes(summary.copiedBytes))
-            LabeledContent("耗时", value: String(format: "%.1f 秒", summary.duration))
+            LabeledContent(
+                "耗时",
+                value: L10n.format("import.durationSeconds", summary.duration)
+            )
             if let reportPath = summary.reportPath {
                 Text("报告：\(reportPath)")
                     .font(.caption2.monospaced())
@@ -304,9 +307,18 @@ struct ImportReportView: View {
                         }
                     }
 
-                    issueSection("重复", issues: report.duplicateIssues)
-                    issueSection("不支持", issues: report.unsupportedIssues)
-                    issueSection("失败", issues: report.failureIssues)
+                    issueSection(
+                        L10n.string("import.issue.section.duplicates"),
+                        issues: report.duplicateIssues
+                    )
+                    issueSection(
+                        L10n.string("import.issue.section.unsupported"),
+                        issues: report.unsupportedIssues
+                    )
+                    issueSection(
+                        L10n.string("import.issue.section.failures"),
+                        issues: report.failureIssues
+                    )
                 } else {
                     ContentUnavailableView(
                         "没有报告",
@@ -331,7 +343,11 @@ struct ImportReportView: View {
             Section("\(title) · \(issues.count)") {
                 ForEach(issues) { issue in
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(issue.relativePath.isEmpty ? "（整体）" : issue.relativePath)
+                        Text(
+                            issue.relativePath.isEmpty
+                                ? L10n.string("import.issue.wholeRun")
+                                : issue.relativePath
+                        )
                             .font(.callout)
                         Text(issue.message)
                             .font(.caption)

@@ -23,10 +23,16 @@ struct SigningInfo {
     }
 
     var statusText: String {
-        if isExpired { return "描述文件已过期，App 将无法启动；请重新签名。" }
-        guard let daysRemaining else { return "无法读取到期时间。" }
-        if daysRemaining <= 2 { return "即将过期（\(daysRemaining) 天），请准备重签。" }
-        return "有效（剩余 \(daysRemaining) 天）。"
+        if isExpired {
+            return L10n.string("signing.status.expired")
+        }
+        guard let daysRemaining else {
+            return L10n.string("signing.status.unknownExpiry")
+        }
+        if daysRemaining <= 2 {
+            return L10n.format("signing.status.expiringSoon", daysRemaining)
+        }
+        return L10n.format("signing.status.valid", daysRemaining)
     }
 
     /// Parses the plist embedded in the CMS/PKCS#7 mobileprovision payload.

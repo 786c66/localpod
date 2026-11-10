@@ -2,7 +2,15 @@
 
 本地播客式播放器（iPhone / iOS 17+）。核心区别：从文件 App 选择一个**文件夹**，递归导入其中所有音频/视频，之后像播客一样管理、播放。
 
-当前处于 **M4「当前渠道导入」**阶段：打开方式/收件箱/Finder 与文件夹导入统一走同一流水线；资料库、播放核心与播客式消费闭环已可用；仅播放音频，不渲染视频画面。
+当前处于 **M5「打磨与侧载交付」**阶段：简体中文/英文界面与 LocalPodKit 文案、引导与无障碍已可用；打开方式/收件箱/Finder 与文件夹导入统一走同一流水线；仅播放音频，不渲染视频画面。
+
+## 已实现（M5 本地化）
+
+- **简体中文 + 英文**：App 界面与 LocalPodKit 生成的显示名/错误文案均随系统语言切换；源语言为 `zh-Hans`，英文资源在 `en.lproj`。
+- **文案覆盖**：引导、标签栏、资料库、导入、收件箱、播放/队列、播放列表、睡眠定时、设置、诊断、签名提醒、空状态、错误、无障碍标签/提示/值。
+- **用户内容不翻译**：文件名、媒体标题、文件夹/合集名、播放列表名、路径保持原样；内置示例合集 `示例内容` 与示例文件名也作为已持久化用户数据保留中文。
+- **测试固定语言**：所有既有 UI 测试通过 `launchPinned()` 固定 `-AppleLanguages (zh-Hans)`；新增 `M5LocalizationUITests` 固定英文并验证 App 与 LocalPodKit 文案。
+- 机制、键数量、未翻译例外与新增语言步骤见 [docs/M5-LOCALIZATION.md](docs/M5-LOCALIZATION.md)。
 
 ## 已实现（M4）
 
@@ -49,11 +57,11 @@
 
 ## 验证
 
-- `LocalPodKit`：**110 个单元/集成测试，0 失败**；5000 文件导入峰值内存增量 100.3 MB（阈值 200 MB）。
-- UI 测试：**M0 4 个 + M1 5 个 + M2 5 个 + M3 6 个 + M4 3 个，共 23 个，0 失败**（iOS 27.1 模拟器）。
-- M4 详细结果、截图与待真机项见 [docs/M4-REPORT.md](docs/M4-REPORT.md)；M3 见 [docs/M3-REPORT.md](docs/M3-REPORT.md)；M2 见 [docs/M2-REPORT.md](docs/M2-REPORT.md)。
+- `LocalPodKit`：**128 个单元/集成测试，0 失败**；5000 文件导入峰值内存增量 100.3 MB（阈值 200 MB）。
+- UI 测试：**M0 4 个 + M1 5 个 + M2 5 个 + M3 6 个 + M4 3 个 + M5 7 个 + 交付 3 个 + 签名 2 个 + 性能 2 个 + 本地化 3 个，共 40 个，0 失败**（iOS 27.1 模拟器）。
+- M5 完整结果、截图与待真机项见 [docs/M5-REPORT.md](docs/M5-REPORT.md)；本地化机制见 [docs/M5-LOCALIZATION.md](docs/M5-LOCALIZATION.md)；性能基线见 [docs/M5-PERFORMANCE.md](docs/M5-PERFORMANCE.md)；安装/重签/备份见 [docs/M5-INSTALL-RESIGN-BACKUP.md](docs/M5-INSTALL-RESIGN-BACKUP.md)。M4 详细结果见 [docs/M4-REPORT.md](docs/M4-REPORT.md)；M3 见 [docs/M3-REPORT.md](docs/M3-REPORT.md)；M2 见 [docs/M2-REPORT.md](docs/M2-REPORT.md)。
 - M1 结果见 [docs/M1-REPORT.md](docs/M1-REPORT.md)；M0 报告与免费账号签名步骤见 [docs/M0-REPORT.md](docs/M0-REPORT.md)、[docs/M0-SIGNING.md](docs/M0-SIGNING.md)。
-- **未计为通过**：锁屏/控制中心、来电打断、拔耳机、AirPlay 音频、睡眠定时后台到点、拖拽手感、2 小时长播内存、真实文件夹选择器、真实 iCloud 下载/断网重试、最老真机性能；清单见 [docs/M0-DEVICE-CHECKLIST.md](docs/M0-DEVICE-CHECKLIST.md) 与 M1/M2/M3/M4 报告。
+- **未计为通过**：锁屏/控制中心、来电打断、拔耳机、AirPlay 音频、睡眠定时后台到点、拖拽手感、2 小时长播内存、真实文件夹选择器、真实 iCloud 下载/断网重试、最老真机性能、真机语言切换、RTL 布局与 App Store 本地化元数据；清单见 [docs/M0-DEVICE-CHECKLIST.md](docs/M0-DEVICE-CHECKLIST.md) 与 M1/M2/M3/M4 报告。
 
 ## 打开工程
 
@@ -113,6 +121,9 @@ localpod/
     Spikes/Benchmark/           # SwiftData 5k
     Spikes/Diagnostics/         # 签名/路径/数据/维护诊断
     Resources/                  # 内置测试音频（20s/5min）与视频容器（仅导入/音轨测试）
+      en.lproj/                 # 英文本地化
+      zh-Hans.lproj/            # 简体中文本地化（源语言）
+    Support/                    # L10n 语义键辅助
   LocalPodKit/                  # 可复用核心
     Sources/LocalPodKit/
       Persistence/              # SwiftData V1–V4 + migration
@@ -120,8 +131,12 @@ localpod/
       Import/                   # 扫描/复制/下载/probe/引擎/报告
       Library/                  # 资料库提交/删除/对账、播放列表服务
       Media/                    # AVFoundation 元数据与缩略图
+      Support/                  # 本地化辅助
+      Resources/                # en.lproj / zh-Hans.lproj
     Tests/LocalPodKitTests/
-  LocalPodUITests/              # M0/M1/M2/M3 UI 测试
+  LocalPodUITests/              # M0–M5 UI 测试（含 M5LocalizationUITests）
+  Tools/
+    generate_localization.py    # 从编译器提取键生成两份 App .strings
   docs/
     M0-REPORT.md
     M0-SIGNING.md
@@ -130,6 +145,10 @@ localpod/
     M2-REPORT.md
     M3-REPORT.md
     M4-REPORT.md
+    M5-REPORT.md
+    M5-LOCALIZATION.md
+    M5-PERFORMANCE.md
+    M5-INSTALL-RESIGN-BACKUP.md
     screenshots/
 ```
 

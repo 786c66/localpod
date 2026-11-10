@@ -108,7 +108,9 @@ public final class LibraryService {
         in context: ModelContext
     ) throws -> MediaCollection {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let displayName = trimmed.isEmpty ? "单文件" : trimmed
+        let displayName = trimmed.isEmpty
+            ? LocalPodLocalization.string("library.collection.singleFile")
+            : trimmed
         let key = MediaCollection.normalizedKey(for: displayName)
         var descriptor = FetchDescriptor<MediaCollection>(
             predicate: #Predicate { $0.nameKey == key }
@@ -129,7 +131,9 @@ public final class LibraryService {
     ) throws -> LibraryCommitResult {
         let resolvedName = (collectionName ?? report.rootName)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let displayName = resolvedName.isEmpty ? "单文件" : resolvedName
+        let displayName = resolvedName.isEmpty
+            ? LocalPodLocalization.string("library.collection.singleFile")
+            : resolvedName
         let hasImports = !report.importedFiles.isEmpty
         guard hasImports else {
             return LibraryCommitResult(
@@ -429,7 +433,10 @@ public final class LibraryService {
                     try fileManager.removeItem(at: url)
                     summary.stagingSessionsRemoved += 1
                 } catch {
-                    summary.failures.append("清理 staging 失败：\(url.lastPathComponent)")
+                    summary.failures.append(LocalPodLocalization.format(
+                        "error.maintenance.staging",
+                        url.lastPathComponent
+                    ))
                 }
             }
         }
@@ -447,7 +454,10 @@ public final class LibraryService {
                         try fileManager.removeItem(at: url)
                         summary.orphanMediaFilesRemoved += 1
                     } catch {
-                        summary.failures.append("清理孤儿媒体失败：\(url.lastPathComponent)")
+                        summary.failures.append(LocalPodLocalization.format(
+                            "error.maintenance.orphanMedia",
+                            url.lastPathComponent
+                        ))
                     }
                 }
             }
@@ -465,7 +475,10 @@ public final class LibraryService {
                         try fileManager.removeItem(at: url)
                         summary.orphanArtworkFilesRemoved += 1
                     } catch {
-                        summary.failures.append("清理孤儿封面失败：\(url.lastPathComponent)")
+                        summary.failures.append(LocalPodLocalization.format(
+                            "error.maintenance.orphanArtwork",
+                            url.lastPathComponent
+                        ))
                     }
                 }
             }

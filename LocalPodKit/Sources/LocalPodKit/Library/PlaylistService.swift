@@ -6,7 +6,9 @@ import SwiftData
 /// consistent.
 @MainActor
 public final class PlaylistService {
-    public static let defaultName = "新建播放列表"
+    public static var defaultName: String {
+        LocalPodLocalization.string("playlist.defaultName")
+    }
 
     @ObservationIgnored private var context: ModelContext?
 

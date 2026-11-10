@@ -9,7 +9,7 @@ final class M3UITests: XCTestCase {
     private func makeApp(_ arguments: [String]) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = arguments
-        app.launch()
+        app.launchPinned()
         return app
     }
 
@@ -260,7 +260,7 @@ final class M3UITests: XCTestCase {
         app.terminate()
         let relaunched = XCUIApplication()
         relaunched.launchArguments = []
-        relaunched.launch()
+        relaunched.launchPinned()
         tapTab("播放", in: relaunched)
 
         let restoredTitle = element(relaunched, "currentPlaybackTitle")
@@ -338,7 +338,7 @@ final class M3UITests: XCTestCase {
         app.terminate()
         let relaunched = XCUIApplication()
         relaunched.launchArguments = []
-        relaunched.launch()
+        relaunched.launchPinned()
         tapTab("资料库", in: relaunched)
         XCTAssertTrue(element(relaunched, "libraryPlaylistsLink").waitForExistence(timeout: 15))
         element(relaunched, "libraryPlaylistsLink").tap()
@@ -504,7 +504,7 @@ final class M3UITests: XCTestCase {
         app.terminate()
         let relaunched = XCUIApplication()
         relaunched.launchArguments = ["--m3-open-settings"]
-        relaunched.launch()
+        relaunched.launchPinned()
 
         let restoredSpeed = element(relaunched, "settingsDefaultSpeedValue")
         XCTAssertTrue(restoredSpeed.waitForExistence(timeout: 20))

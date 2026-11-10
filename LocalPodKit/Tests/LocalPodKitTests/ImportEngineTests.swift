@@ -35,6 +35,7 @@ final class ImportEngineTests: XCTestCase {
         scanner: (any FolderScanning)? = nil,
         retryCount: Int = 1,
         chunkDelay: Duration? = nil,
+        locale: Locale? = Locale(identifier: "zh-Hans"),
         progress: @escaping @Sendable (ImportProgress) -> Void = { _ in }
     ) async throws -> ImportRunResult {
         try await ImportEngine(scanner: scanner ?? FolderScanner()).importFolder(
@@ -49,7 +50,8 @@ final class ImportEngineTests: XCTestCase {
             options: ImportEngine.Options(
                 chunkSize: 64 * 1024,
                 chunkDelay: chunkDelay,
-                cloudRetryCount: retryCount
+                cloudRetryCount: retryCount,
+                locale: locale
             ),
             probe: probe,
             cloudDownloader: cloudDownloader,
@@ -115,6 +117,23 @@ final class ImportEngineTests: XCTestCase {
         XCTAssertEqual(result.totalCandidates, 2)
         XCTAssertEqual(result.importedFiles.count, 1)
         XCTAssertTrue(result.duplicateIssues[0].message.contains("内容重复"))
+    }
+
+    func testIssueMessagesFollowExplicitEnglishLocale() async throws {
+        let source = try TemporaryDirectory()
+        let roots = try Self.makeRoots()
+        try source.write("one.m4a", data: Data(repeating: 0x42, count: 128))
+        try source.write("two.m4a", data: Data(repeating: 0x42, count: 128))
+
+        let result = try await Self.importFolder(
+            source: source.url,
+            roots: roots,
+            locale: Locale(identifier: "en")
+        )
+
+        XCTAssertEqual(result.duplicateCount, 1)
+        XCTAssertTrue(result.duplicateIssues[0].message.contains("Duplicate content"))
+        XCTAssertFalse(result.duplicateIssues[0].message.contains("内容重复"))
     }
 
     func testUnsupportedFilesAreReportedAndProgressCountsAllCandidates() async throws {

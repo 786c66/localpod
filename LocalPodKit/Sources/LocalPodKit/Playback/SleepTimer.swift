@@ -16,10 +16,21 @@ public final class SleepTimer {
         public var isActive: Bool { self != .off }
 
         public var displayName: String {
+            displayName(locale: nil)
+        }
+
+        public func displayName(locale: Locale?) -> String {
             switch self {
-            case .off: "关闭"
-            case .minutes(let minutes): "\(minutes) 分钟"
-            case .endOfEpisode: "本集结束"
+            case .off:
+                LocalPodLocalization.string("sleep.mode.off", locale: locale)
+            case .minutes(let minutes):
+                LocalPodLocalization.format(
+                    "sleep.mode.minutes",
+                    locale: locale,
+                    minutes
+                )
+            case .endOfEpisode:
+                LocalPodLocalization.string("sleep.mode.endOfEpisode", locale: locale)
             }
         }
     }

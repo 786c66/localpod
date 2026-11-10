@@ -7,19 +7,25 @@ public struct ImportEngine: Sendable {
         public var chunkDelay: Duration?
         public var cloudRetryCount: Int
         public var generateArtwork: Bool
+        /// Locale used for user-facing issue messages. `nil` follows the
+        /// process language, which is what the app should use. Tests pass an
+        /// explicit locale so assertions do not depend on the host Mac.
+        public var locale: Locale?
 
         public init(
             limits: FolderScanner.Limits = FolderScanner.Limits(),
             chunkSize: Int = 1 << 20,
             chunkDelay: Duration? = nil,
             cloudRetryCount: Int = 1,
-            generateArtwork: Bool = true
+            generateArtwork: Bool = true,
+            locale: Locale? = nil
         ) {
             self.limits = limits
             self.chunkSize = chunkSize
             self.chunkDelay = chunkDelay
             self.cloudRetryCount = max(0, cloudRetryCount)
             self.generateArtwork = generateArtwork
+            self.locale = locale
         }
     }
 
@@ -88,14 +94,17 @@ public struct ImportEngine: Sendable {
             ImportIssue(
                 relativePath: $0.relativePath,
                 kind: .unsupported,
-                message: $0.message
+                message: $0.message(locale: options.locale)
             )
         }
         if scan.truncated {
             failureIssues.append(ImportIssue(
                 relativePath: "",
                 kind: .other,
-                message: "文件数量超过上限，已截断；请分批导入。"
+                message: LocalPodLocalization.string(
+                    "error.import.truncated",
+                    locale: options.locale
+                )
             ))
         }
 
@@ -243,7 +252,12 @@ public struct ImportEngine: Sendable {
                 failureIssues.append(ImportIssue(
                     relativePath: file.relativePath,
                     kind: .copyFailed,
-                    message: "源文件在导入期间发生变化（扫描大小 \(file.byteSize) 字节，实际复制 \(copyResult.byteCount) 字节），已跳过。"
+                    message: LocalPodLocalization.format(
+                        "error.import.sizeChanged",
+                        locale: options.locale,
+                        file.byteSize,
+                        copyResult.byteCount
+                    )
                 ))
                 completedFiles += 1
                 progress(Self.makeProgress(phase: .copying, totalFiles: totalCandidates, completedFiles: completedFiles, totalBytes: scan.totalBytes, copiedBytes: copiedBytes))
@@ -278,7 +292,11 @@ public struct ImportEngine: Sendable {
                 duplicateIssues.append(ImportIssue(
                     relativePath: file.relativePath,
                     kind: .duplicate,
-                    message: "内容重复，已跳过（SHA-256 前 12 位：\(fingerprint.prefix(12))）。"
+                    message: LocalPodLocalization.format(
+                        "error.import.duplicate",
+                        locale: options.locale,
+                        String(fingerprint.prefix(12))
+                    )
                 ))
                 completedFiles += 1
                 progress(Self.makeProgress(phase: .copying, totalFiles: totalCandidates, completedFiles: completedFiles, totalBytes: scan.totalBytes, copiedBytes: copiedBytes))

@@ -18,16 +18,20 @@ public enum PlaybackPhase: String, Sendable, Equatable {
     case failed
 
     public var statusText: String {
+        statusText(locale: nil)
+    }
+
+    public func statusText(locale: Locale?) -> String {
         switch self {
-        case .idle: "未播放"
-        case .preparing: "加载中"
-        case .ready: "就绪"
-        case .playing: "播放中"
-        case .paused: "已暂停"
-        case .buffering: "缓冲中"
-        case .interrupted: "已打断"
-        case .ended: "播放结束"
-        case .failed: "播放失败"
+        case .idle: LocalPodLocalization.string("playback.phase.idle", locale: locale)
+        case .preparing: LocalPodLocalization.string("playback.phase.preparing", locale: locale)
+        case .ready: LocalPodLocalization.string("playback.phase.ready", locale: locale)
+        case .playing: LocalPodLocalization.string("playback.phase.playing", locale: locale)
+        case .paused: LocalPodLocalization.string("playback.phase.paused", locale: locale)
+        case .buffering: LocalPodLocalization.string("playback.phase.buffering", locale: locale)
+        case .interrupted: LocalPodLocalization.string("playback.phase.interrupted", locale: locale)
+        case .ended: LocalPodLocalization.string("playback.phase.ended", locale: locale)
+        case .failed: LocalPodLocalization.string("playback.phase.failed", locale: locale)
         }
     }
 }
@@ -328,7 +332,10 @@ public final class PlaybackController {
                 .localizedDescription
             Task { @MainActor [weak self] in
                 guard let self, self.currentItem?.id == itemID else { return }
-                self.handleFailure(message: message ?? "播放中断")
+                self.handleFailure(
+                    message: message
+                        ?? LocalPodLocalization.string("playback.error.interrupted")
+                )
             }
         }
 
@@ -387,7 +394,10 @@ public final class PlaybackController {
                 }
             }
         case .failed:
-            handleFailure(message: error ?? "播放失败")
+            handleFailure(
+                message: error
+                    ?? LocalPodLocalization.string("playback.error.failed")
+            )
         case .unknown:
             phase = .preparing
         @unknown default:
@@ -563,7 +573,10 @@ public final class PlaybackController {
                 try session.setCategory(.playback, mode: .spokenAudio, options: [.allowAirPlay])
                 try session.setActive(true)
             } catch {
-                let message = "音频会话激活失败：\(error.localizedDescription)"
+                let message = LocalPodLocalization.format(
+                    "playback.error.audioSession",
+                    error.localizedDescription
+                )
                 await MainActor.run { [weak self] in
                     self?.errorMessage = message
                 }

@@ -65,7 +65,16 @@ final class ImportCoordinator {
         case openURL = "外部打开"
         case sample = "示例内容"
 
-        var displayName: String { rawValue }
+        var displayName: String {
+            switch self {
+            case .folder: L10n.string("import.run.folder")
+            case .demo: L10n.string("import.run.demo")
+            case .acceptance: L10n.string("import.run.acceptance")
+            case .inbox: L10n.string("import.run.inbox")
+            case .openURL: L10n.string("import.run.openURL")
+            case .sample: L10n.string("import.run.sample")
+            }
+        }
     }
 
     struct RunSummary: Sendable {
@@ -147,7 +156,10 @@ final class ImportCoordinator {
             let summary = try libraryService.reconcile(in: modelContext)
             lastCleanupSummary = lastCleanupSummary.map { $0.merging(summary) } ?? summary
         } catch {
-            lastErrorMessage = "启动清理失败：\(error.localizedDescription)"
+            lastErrorMessage = L10n.format(
+                "error.import.cleanupFailed",
+                error.localizedDescription
+            )
         }
     }
 
@@ -190,7 +202,7 @@ final class ImportCoordinator {
     func importDemoFolder(modelContext: ModelContext) {
         importBuiltInFolder(
             kind: .demo,
-            collectionName: "演示文件夹",
+            collectionName: L10n.string("collection.demo"),
             acceptance: false,
             modelContext: modelContext
         )
@@ -199,7 +211,7 @@ final class ImportCoordinator {
     func importAcceptanceFolder(modelContext: ModelContext) {
         importBuiltInFolder(
             kind: .acceptance,
-            collectionName: "验收文件夹",
+            collectionName: L10n.string("collection.acceptance"),
             acceptance: true,
             modelContext: modelContext
         )
@@ -229,7 +241,7 @@ final class ImportCoordinator {
         guard !isRunning else { return }
         guard let root = Self.sampleRootURL else {
             phase = .failed
-            lastErrorMessage = "找不到内置示例内容 SampleContent。请重新构建 App。"
+            lastErrorMessage = L10n.string("error.import.sampleMissing")
             return
         }
         beginRun(kind: .sample)
@@ -254,7 +266,7 @@ final class ImportCoordinator {
         guard !isRunning else { return }
         guard let template = Bundle.main.url(forResource: "demo-audio", withExtension: "m4a") else {
             phase = .failed
-            lastErrorMessage = "找不到内置演示音频 demo-audio.m4a。"
+            lastErrorMessage = L10n.string("error.import.demoMissing")
             return
         }
         let folderName = acceptance ? "AcceptanceInput" : "DemoInput"
@@ -318,7 +330,10 @@ final class ImportCoordinator {
             )
         } catch {
             phase = .failed
-            lastErrorMessage = "无法放入收件箱：\(error.localizedDescription)"
+            lastErrorMessage = L10n.format(
+                "error.import.stageFailed",
+                error.localizedDescription
+            )
         }
     }
 
@@ -430,7 +445,14 @@ final class ImportCoordinator {
             finish(
                 phase: report.cancelled ? .cancelled : .finished,
                 summary: summary,
-                issues: report.allIssues.map { "\($0.kind.displayName)：\($0.relativePath) — \($0.message)" },
+                issues: report.allIssues.map {
+                    L10n.format(
+                        "import.issue.line",
+                        $0.kind.displayName,
+                        $0.relativePath,
+                        $0.message
+                    )
+                },
                 modelContext: modelContext
             )
 
@@ -456,7 +478,9 @@ final class ImportCoordinator {
         modelContext: ModelContext
     ) async {
         let startedAt = Date()
-        let collectionName = kind == .openURL ? "外部打开" : "收件箱"
+        let collectionName = kind == .openURL
+            ? L10n.string("collection.openIn")
+            : L10n.string("collection.inbox")
         var importedCount = 0
         var relinkedCount = 0
         var duplicateCount = 0
@@ -481,7 +505,9 @@ final class ImportCoordinator {
                     rootURL: item.url,
                     source: item.source,
                     rootName: item.url.lastPathComponent,
-                    collectionName: item.source == .openIn ? "外部打开" : "收件箱",
+                    collectionName: item.source == .openIn
+                        ? L10n.string("collection.openIn")
+                        : L10n.string("collection.inbox"),
                     in: modelContext,
                     options: importOptions(),
                     progress: { [weak self] update in
@@ -501,7 +527,12 @@ final class ImportCoordinator {
                 totalCandidates += report.totalCandidates
                 supportedFiles += report.supportedFiles
                 messages.append(contentsOf: report.allIssues.map {
-                    "\($0.kind.displayName)：\($0.relativePath) — \($0.message)"
+                    L10n.format(
+                        "import.issue.line",
+                        $0.kind.displayName,
+                        $0.relativePath,
+                        $0.message
+                    )
                 })
                 urlReports.append(InboxURLReport(
                     fileName: item.url.lastPathComponent,
@@ -527,9 +558,11 @@ final class ImportCoordinator {
                     } catch {
                         hasPendingFailure = true
                         failedPaths.insert(item.url.standardizedFileURL.path)
-                        messages.append(
-                            "\(item.url.lastPathComponent)：无法从收件箱移除 — \(error.localizedDescription)"
-                        )
+                        messages.append(L10n.format(
+                            "error.inbox.removeFailed",
+                            item.url.lastPathComponent,
+                            error.localizedDescription
+                        ))
                     }
                 } else {
                     hasPendingFailure = true
@@ -543,7 +576,11 @@ final class ImportCoordinator {
                 failedCount += 1
                 hasPendingFailure = true
                 failedPaths.insert(item.url.standardizedFileURL.path)
-                let message = "\(item.url.lastPathComponent)：\(error.localizedDescription)"
+                let message = L10n.format(
+                    "error.inbox.fileFailed",
+                    item.url.lastPathComponent,
+                    error.localizedDescription
+                )
                 messages.append(message)
                 urlReports.append(InboxURLReport(
                     fileName: item.url.lastPathComponent,
@@ -634,7 +671,12 @@ final class ImportCoordinator {
             duration: duration,
             cancelled: report.cancelled,
             messages: report.allIssues.map {
-                "\($0.kind.displayName)：\($0.relativePath) — \($0.message)"
+                L10n.format(
+                    "import.issue.line",
+                    $0.kind.displayName,
+                    $0.relativePath,
+                    $0.message
+                )
             },
             reportPath: reportPath
         )
@@ -644,7 +686,9 @@ final class ImportCoordinator {
         var options = ImportEngine.Options()
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--m1-slow-copy") {
-            options.chunkDelay = .milliseconds(30)
+            // Slow enough that UI tests can observe progress and tap cancel
+            // before a small acceptance fixture finishes on fast simulators.
+            options.chunkDelay = .milliseconds(150)
             options.chunkSize = 64 * 1024
         }
         #endif
@@ -728,7 +772,10 @@ final class ImportCoordinator {
                 skippedCount: skipped,
                 unsupportedStableURLs: [],
                 performedStabilityCheck: false,
-                failureMessage: "扫描收件箱失败：\(error.localizedDescription)"
+                failureMessage: L10n.format(
+                    "error.inbox.scanFailed",
+                    error.localizedDescription
+                )
             )
         }
     }
@@ -836,7 +883,10 @@ final class ImportCoordinator {
                 withIntermediateDirectories: true
             )
         } catch {
-            lastErrorMessage = "无法创建隔离目录：\(error.localizedDescription)"
+            lastErrorMessage = L10n.format(
+                "error.inbox.quarantineDirectory",
+                error.localizedDescription
+            )
             return []
         }
 
@@ -847,7 +897,10 @@ final class ImportCoordinator {
                 try FileManager.default.moveItem(at: url, to: destination)
                 moved.append(url)
             } catch {
-                lastErrorMessage = "无法隔离不支持的文件：\(url.lastPathComponent)"
+                lastErrorMessage = L10n.format(
+                    "error.inbox.quarantineFile",
+                    url.lastPathComponent
+                )
             }
         }
         return moved

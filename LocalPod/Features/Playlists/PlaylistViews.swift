@@ -101,8 +101,8 @@ struct PlaylistListView: View {
 
     private var dialogTitle: String {
         switch dialog {
-        case .rename: "重命名播放列表"
-        default: "新建播放列表"
+        case .rename: L10n.string("playlist.renameTitle")
+        default: L10n.string("playlist.createTitle")
         }
     }
 
@@ -197,7 +197,7 @@ struct PlaylistDetailView: View {
                                     .foregroundStyle(.secondary)
                                     .frame(width: 22, alignment: .trailing)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(item?.title ?? "已删除条目")
+                                    Text(item?.title ?? L10n.string("common.deletedItem"))
                                         .fixedSize(horizontal: false, vertical: true)
                                     Text(item?.durationText ?? "—")
                                         .font(.caption2)

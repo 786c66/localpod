@@ -276,10 +276,14 @@ public enum QueueRepeatMode: String, CaseIterable, Codable, Sendable {
     case one
 
     public var displayName: String {
+        displayName(locale: nil)
+    }
+
+    public func displayName(locale: Locale?) -> String {
         switch self {
-        case .off: "不循环"
-        case .all: "列表循环"
-        case .one: "单曲循环"
+        case .off: LocalPodLocalization.string("queue.repeat.off", locale: locale)
+        case .all: LocalPodLocalization.string("queue.repeat.all", locale: locale)
+        case .one: LocalPodLocalization.string("queue.repeat.one", locale: locale)
         }
     }
 

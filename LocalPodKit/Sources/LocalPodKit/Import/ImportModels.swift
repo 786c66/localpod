@@ -11,15 +11,19 @@ public enum ImportPhase: String, Sendable {
     case failed
 
     public var displayName: String {
+        displayName(locale: nil)
+    }
+
+    public func displayName(locale: Locale?) -> String {
         switch self {
-        case .idle: "空闲"
-        case .scanning: "扫描中"
-        case .downloading: "从 iCloud 下载"
-        case .copying: "复制中"
-        case .probing: "读取元数据"
-        case .finished: "完成"
-        case .cancelled: "已取消"
-        case .failed: "失败"
+        case .idle: LocalPodLocalization.string("import.phase.idle", locale: locale)
+        case .scanning: LocalPodLocalization.string("import.phase.scanning", locale: locale)
+        case .downloading: LocalPodLocalization.string("import.phase.downloading", locale: locale)
+        case .copying: LocalPodLocalization.string("import.phase.copying", locale: locale)
+        case .probing: LocalPodLocalization.string("import.phase.probing", locale: locale)
+        case .finished: LocalPodLocalization.string("import.phase.finished", locale: locale)
+        case .cancelled: LocalPodLocalization.string("import.phase.cancelled", locale: locale)
+        case .failed: LocalPodLocalization.string("import.phase.failed", locale: locale)
         }
     }
 }
@@ -80,16 +84,21 @@ public enum ImportIssueKind: String, Sendable, CaseIterable {
     case other
 
     public var displayName: String {
+        displayName(locale: nil)
+    }
+
+    public func displayName(locale: Locale?) -> String {
         switch self {
-        case .unsupported: "不支持"
-        case .duplicate: "重复"
-        case .copyFailed: "复制失败"
-        case .probeFailed: "无法读取"
-        case .cloudDownloadFailed: "iCloud 下载失败"
-        case .moveFailed: "入库失败"
-        case .scanError: "扫描错误"
-        case .databaseFailed: "数据库错误"
-        case .other: "其他"
+        case .unsupported: LocalPodLocalization.string("import.issue.unsupported", locale: locale)
+        case .duplicate: LocalPodLocalization.string("import.issue.duplicate", locale: locale)
+        case .copyFailed: LocalPodLocalization.string("import.issue.copyFailed", locale: locale)
+        case .probeFailed: LocalPodLocalization.string("import.issue.probeFailed", locale: locale)
+        case .cloudDownloadFailed:
+            LocalPodLocalization.string("import.issue.cloudDownloadFailed", locale: locale)
+        case .moveFailed: LocalPodLocalization.string("import.issue.moveFailed", locale: locale)
+        case .scanError: LocalPodLocalization.string("import.issue.scanError", locale: locale)
+        case .databaseFailed: LocalPodLocalization.string("import.issue.databaseFailed", locale: locale)
+        case .other: LocalPodLocalization.string("import.issue.other", locale: locale)
         }
     }
 }

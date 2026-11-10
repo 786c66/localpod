@@ -1,0 +1,95 @@
+/* LocalPodKit human-readable names. Keys are intentionally semantic so tests
+   can resolve them against an explicit Locale. */
+
+"source.imported" = "Imported";
+"source.files" = "Files";
+"source.iCloud" = "iCloud Drive";
+"source.openIn" = "Open In";
+"source.finder" = "Finder";
+"source.wifi" = "Wi-Fi";
+"source.share" = "Share";
+"source.rss" = "RSS";
+"source.benchmark" = "Benchmark";
+"source.sample" = "Sample";
+
+"kind.audio" = "Audio";
+"kind.video" = "Video";
+
+"import.phase.idle" = "Idle";
+"import.phase.scanning" = "Scanning";
+"import.phase.downloading" = "Downloading from iCloud";
+"import.phase.copying" = "Copying";
+"import.phase.probing" = "Reading Metadata";
+"import.phase.finished" = "Finished";
+"import.phase.cancelled" = "Cancelled";
+"import.phase.failed" = "Failed";
+
+"import.issue.unsupported" = "Unsupported";
+"import.issue.duplicate" = "Duplicate";
+"import.issue.copyFailed" = "Copy Failed";
+"import.issue.probeFailed" = "Unreadable";
+"import.issue.cloudDownloadFailed" = "iCloud Download Failed";
+"import.issue.moveFailed" = "Move Failed";
+"import.issue.scanError" = "Scan Error";
+"import.issue.databaseFailed" = "Database Error";
+"import.issue.other" = "Other";
+
+"queue.repeat.off" = "Repeat Off";
+"queue.repeat.all" = "Repeat All";
+"queue.repeat.one" = "Repeat One";
+
+"playback.phase.idle" = "Not Playing";
+"playback.phase.preparing" = "Loading";
+"playback.phase.ready" = "Ready";
+"playback.phase.playing" = "Playing";
+"playback.phase.paused" = "Paused";
+"playback.phase.buffering" = "Buffering";
+"playback.phase.interrupted" = "Interrupted";
+"playback.phase.ended" = "Playback Ended";
+"playback.phase.failed" = "Playback Failed";
+
+"sleep.mode.off" = "Off";
+"sleep.mode.minutes" = "%lld min";
+"sleep.mode.endOfEpisode" = "End of Episode";
+
+"playlist.defaultName" = "New Playlist";
+"library.collection.singleFile" = "Single File";
+"playback.librarySubtitle" = "Library";
+
+"error.mediaStorage.missingApplicationSupport" = "Unable to locate the Application Support directory.";
+"error.mediaStorage.missingCaches" = "Unable to locate the Caches directory.";
+"error.mediaStorage.outsideApplicationSupport" = "File is outside Application Support: %@";
+"error.mediaStorage.invalidRelativePath" = "Invalid relative path: %@";
+"error.mediaStorage.cannotCreateDirectory" = "Unable to create directory: %@";
+
+"error.probe.notPlayable" = "AVFoundation cannot play: %@";
+"error.probe.noTracks" = "No decodable audio/video tracks: %@";
+"error.probe.thumbnail" = "Unable to generate a video thumbnail";
+
+"error.cloud.notDownloaded" = "iCloud file has not been downloaded: %@";
+"error.cloud.providerUnavailable" = "Unable to download from iCloud: %@ (%@)";
+"error.cloud.providerFallback" = "network or provider unavailable";
+"error.cloud.timedOut" = "iCloud download timed out: %@";
+"error.cloud.cancelled" = "iCloud download cancelled";
+
+"error.scanner.cannotEnumerate" = "Unable to enumerate folder: %@";
+"error.scanner.notAFile" = "Not an importable file: %@";
+"unsupported.format.withType" = "Unsupported format: %@";
+"unsupported.format" = "Unsupported format";
+
+"error.copy.cannotCreateDestination" = "Unable to create destination file: %@";
+"error.inbox.missingDocuments" = "Unable to locate the Documents directory.";
+
+"error.import.truncated" = "The file limit was exceeded; the import was truncated. Import in smaller batches.";
+"error.import.sizeChanged" = "The source file changed during import (scanned %lld bytes, copied %lld bytes); skipped.";
+"error.import.duplicate" = "Duplicate content; skipped (first 12 SHA-256 characters: %@).";
+
+"error.maintenance.staging" = "Failed to clean staging: %@";
+"error.maintenance.orphanMedia" = "Failed to clean orphaned media: %@";
+"error.maintenance.orphanArtwork" = "Failed to clean orphaned artwork: %@";
+
+"playback.error.interrupted" = "Playback interrupted";
+"playback.error.failed" = "Playback failed";
+"playback.error.audioSession" = "Failed to activate audio session: %@";
+"playback.error.missingFileNamed" = "Media file not found: %@";
+"playback.error.missingFile" = "The media file is missing or was deleted.";

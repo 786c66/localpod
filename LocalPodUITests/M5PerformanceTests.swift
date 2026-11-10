@@ -16,7 +16,7 @@ final class M5PerformanceTests: XCTestCase {
         let options = XCTMeasureOptions()
         options.iterationCount = 3
         measure(metrics: [XCTApplicationLaunchMetric()], options: options) {
-            app.launch()
+            app.launchPinned()
             app.terminate()
         }
     }
@@ -28,7 +28,7 @@ final class M5PerformanceTests: XCTestCase {
             "--m5-skip-onboarding",
             "--m1-seed-library-5000"
         ]
-        app.launch()
+        app.launchPinned()
 
         let stats = app.descendants(matching: .any)["libraryStatsText"]
         XCTAssertTrue(

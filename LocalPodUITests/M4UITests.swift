@@ -9,7 +9,7 @@ final class M4UITests: XCTestCase {
     private func makeApp(_ arguments: [String]) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = arguments
-        app.launch()
+        app.launchPinned()
         return app
     }
 
@@ -79,7 +79,7 @@ final class M4UITests: XCTestCase {
 
         // Same launch argument without reset: content dedup, no second item.
         app.launchArguments = ["--m4-auto-open-in"]
-        app.launch()
+        app.launchPinned()
         let secondSummary = waitForLabel(
             app,
             identifier: "inboxCategorySummary",
@@ -192,7 +192,7 @@ final class M4UITests: XCTestCase {
         // Relaunch without reset: .Skipped is hidden and must stay unimported.
         app.terminate()
         app.launchArguments = []
-        app.launch()
+        app.launchPinned()
         let relaunchedStats = waitForLabel(
             app,
             identifier: "libraryStatsText",

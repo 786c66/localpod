@@ -9,7 +9,7 @@ final class M1UITests: XCTestCase {
     private func makeApp(_ arguments: [String]) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = arguments
-        app.launch()
+        app.launchPinned()
         return app
     }
 
@@ -90,6 +90,7 @@ final class M1UITests: XCTestCase {
         let progress = app.descendants(matching: .any)["importProgressText"]
         XCTAssertTrue(progress.waitForExistence(timeout: 30))
         let cancel = app.descendants(matching: .any)["cancelImportButton"]
+        reveal(cancel, in: app)
         XCTAssertTrue(cancel.waitForExistence(timeout: 10))
         cancel.tap()
 

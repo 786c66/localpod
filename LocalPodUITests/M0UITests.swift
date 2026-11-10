@@ -9,28 +9,26 @@ final class M0UITests: XCTestCase {
     func testImport100Files() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--m0-reset-data"]
-        app.launch()
+        app.launchPinned()
         app.buttons["导入"].tap()
 
         let importButton = app.descendants(matching: .any)["importDemoFolderButton"]
         XCTAssertTrue(importButton.waitForExistence(timeout: 20))
         importButton.tap()
 
-        let progressText = app.staticTexts
-            .matching(NSPredicate(format: "label CONTAINS %@", "文件 100/100"))
-            .firstMatch
-        XCTAssertTrue(progressText.waitForExistence(timeout: 120))
-        attachScreenshot(app, name: "M0-import-100-result")
-
+        // Progress is transient and can be off screen by the time XCUITest
+        // regains control, so assert the completed summary instead. Progress
+        // and cancellation UI are covered by the M1 slow-copy tests.
         let resultText = app.descendants(matching: .any)["importCategorySummary"]
-        XCTAssertTrue(resultText.waitForExistence(timeout: 20))
+        XCTAssertTrue(resultText.waitForExistence(timeout: 120))
         XCTAssertTrue(resultText.label.contains("导入 100"))
+        attachScreenshot(app, name: "M0-import-100-result")
     }
 
     func testAudioPlaybackFromLaunchArgument() throws {
         let playbackApp = XCUIApplication()
         playbackApp.launchArguments = ["--m0-reset-data", "--m0-auto-play-audio"]
-        playbackApp.launch()
+        playbackApp.launchPinned()
 
         let title = playbackApp.descendants(matching: .any)["currentPlaybackTitle"]
         XCTAssertTrue(title.waitForExistence(timeout: 20))
@@ -45,7 +43,7 @@ final class M0UITests: XCTestCase {
     func testBenchmarkInsertAndList() throws {
         let app = XCUIApplication()
         app.launchArguments = ["--m0-reset-data", "--m0-auto-benchmark"]
-        app.launch()
+        app.launchPinned()
 
         let benchmarkLink = app.descendants(matching: .any)["benchmarkLink"]
         XCTAssertTrue(benchmarkLink.waitForExistence(timeout: 20))
@@ -84,7 +82,7 @@ final class M0UITests: XCTestCase {
             "--m0-seed-inbox",
             "--m0-auto-inbox"
         ]
-        app.launch()
+        app.launchPinned()
 
         let result = app.descendants(matching: .any)["inboxCategorySummary"]
         XCTAssertTrue(result.waitForExistence(timeout: 40))

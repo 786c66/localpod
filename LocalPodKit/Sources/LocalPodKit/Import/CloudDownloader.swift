@@ -9,13 +9,17 @@ public enum CloudDownloadError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .notDownloaded(let url):
-            "iCloud 文件尚未下载：\(url.lastPathComponent)"
+            LocalPodLocalization.format("error.cloud.notDownloaded", url.lastPathComponent)
         case .providerUnavailable(let url, let message):
-            "无法从 iCloud 下载 \(url.lastPathComponent)：\(message ?? "网络或 provider 不可用")"
+            LocalPodLocalization.format(
+                "error.cloud.providerUnavailable",
+                url.lastPathComponent,
+                message ?? LocalPodLocalization.string("error.cloud.providerFallback")
+            )
         case .timedOut(let url):
-            "从 iCloud 下载超时：\(url.lastPathComponent)"
+            LocalPodLocalization.format("error.cloud.timedOut", url.lastPathComponent)
         case .cancelled:
-            "iCloud 下载已取消"
+            LocalPodLocalization.string("error.cloud.cancelled")
         }
     }
 }

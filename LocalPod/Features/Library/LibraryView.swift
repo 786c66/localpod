@@ -9,6 +9,12 @@ struct LibraryView: View {
         case items = "条目"
         case collections = "合集"
         var id: String { rawValue }
+        var displayName: String {
+            switch self {
+            case .items: L10n.string("library.scope.items")
+            case .collections: L10n.string("library.scope.collections")
+            }
+        }
     }
 
     private enum ItemFilter: String, CaseIterable, Identifiable {
@@ -17,6 +23,14 @@ struct LibraryView: View {
         case video = "视频"
         case missing = "缺失"
         var id: String { rawValue }
+        var displayName: String {
+            switch self {
+            case .all: L10n.string("library.filter.all")
+            case .audio: L10n.string("library.filter.audio")
+            case .video: L10n.string("library.filter.video")
+            case .missing: L10n.string("library.filter.missing")
+            }
+        }
     }
 
     private enum ItemSort: String, CaseIterable, Identifiable {
@@ -25,6 +39,14 @@ struct LibraryView: View {
         case size = "大小"
         case duration = "时长"
         var id: String { rawValue }
+        var displayName: String {
+            switch self {
+            case .recent: L10n.string("library.sort.recent")
+            case .title: L10n.string("library.sort.title")
+            case .size: L10n.string("library.sort.size")
+            case .duration: L10n.string("library.sort.duration")
+            }
+        }
     }
 
     @Environment(PlaybackSession.self) private var session
@@ -158,7 +180,7 @@ struct LibraryView: View {
                 Section {
                     Picker("视图", selection: $scope) {
                         ForEach(Scope.allCases) { scope in
-                            Text(scope.rawValue).tag(scope)
+                            Text(scope.displayName).tag(scope)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -192,13 +214,13 @@ struct LibraryView: View {
                     Menu {
                         Picker("筛选", selection: $filter) {
                             ForEach(ItemFilter.allCases) { filter in
-                                Text(filter.rawValue).tag(filter)
+                                Text(filter.displayName).tag(filter)
                             }
                         }
                         Divider()
                         Picker("排序", selection: $sort) {
                             ForEach(ItemSort.allCases) { sort in
-                                Text(sort.rawValue).tag(sort)
+                                Text(sort.displayName).tag(sort)
                             }
                         }
                     } label: {
@@ -507,7 +529,7 @@ struct LibraryItemDetailView: View {
 
                 Button {
                     session.playNext(itemID: item.id)
-                    infoMessage = "已加入「播放下一首」。"
+                    infoMessage = L10n.string("library.queue.nextAdded")
                 } label: {
                     Label("播放下一首", systemImage: "text.line.first.and.arrowtriangle.forward")
                 }
@@ -515,7 +537,7 @@ struct LibraryItemDetailView: View {
 
                 Button {
                     session.enqueue(itemID: item.id)
-                    infoMessage = "已加入队列末尾。"
+                    infoMessage = L10n.string("library.queue.enqueued")
                 } label: {
                     Label("加入队列", systemImage: "text.append")
                 }
@@ -565,9 +587,15 @@ struct LibraryItemDetailView: View {
                 List(playlists) { playlist in
                     Button(playlist.name) {
                         if session.playlists.add(itemID: item.id, to: playlist) {
-                            infoMessage = "已加入播放列表「\(playlist.name)」。"
+                            infoMessage = L10n.format(
+                                "library.playlist.added",
+                                playlist.name
+                            )
                         } else {
-                            infoMessage = "「\(playlist.name)」已包含此条目。"
+                            infoMessage = L10n.format(
+                                "library.playlist.alreadyContains",
+                                playlist.name
+                            )
                         }
                         showPlaylistPicker = false
                     }
@@ -597,7 +625,10 @@ struct LibraryItemDetailView: View {
     private func play() -> Bool {
         guard let url = item.fileURL,
               FileManager.default.fileExists(atPath: url.path) else {
-            errorMessage = "媒体文件不存在：\(item.relativePath)"
+            errorMessage = L10n.format(
+                "error.library.fileMissing",
+                item.relativePath
+            )
             return false
         }
         session.play(item: item)
@@ -616,7 +647,10 @@ struct LibraryItemDetailView: View {
             session.handleDeletedItem(itemID)
             dismiss()
         } catch {
-            errorMessage = "删除失败：\(error.localizedDescription)"
+            errorMessage = L10n.format(
+                "error.library.deleteFailed",
+                error.localizedDescription
+            )
         }
     }
 }
@@ -675,7 +709,7 @@ private func formatDuration(_ seconds: Double) -> String {
     let hours = total / 3600
     let minutes = (total % 3600) / 60
     if hours > 0 {
-        return "\(hours) 小时 \(minutes) 分"
+        return L10n.format("duration.hoursMinutes", hours, minutes)
     }
-    return "\(minutes) 分 \(total % 60) 秒"
+    return L10n.format("duration.minutesSeconds", minutes, total % 60)
 }

@@ -13,7 +13,7 @@ final class M2UITests: XCTestCase {
             "--m2-auto-play-long-audio",
             "--m2-no-autoplay"
         ]
-        app.launch()
+        app.launchPinned()
 
         let title = app.descendants(matching: .any)["currentPlaybackTitle"]
         XCTAssertTrue(title.waitForExistence(timeout: 20))
@@ -69,7 +69,7 @@ final class M2UITests: XCTestCase {
             "--m2-no-autoplay",
             "--m2-seek-to", "120"
         ]
-        first.launch()
+        first.launchPinned()
 
         let firstTitle = first.descendants(matching: .any)["currentPlaybackTitle"]
         XCTAssertTrue(firstTitle.waitForExistence(timeout: 20))
@@ -85,7 +85,7 @@ final class M2UITests: XCTestCase {
             "--m2-auto-play-long-audio",
             "--m2-no-autoplay"
         ]
-        second.launch()
+        second.launchPinned()
 
         let secondTitle = second.descendants(matching: .any)["currentPlaybackTitle"]
         XCTAssertTrue(secondTitle.waitForExistence(timeout: 20))
@@ -109,7 +109,7 @@ final class M2UITests: XCTestCase {
             "--m2-auto-play-long-audio",
             "--m2-seek-to", "297.5"
         ]
-        first.launch()
+        first.launchPinned()
 
         let title = first.descendants(matching: .any)["currentPlaybackTitle"]
         XCTAssertTrue(title.waitForExistence(timeout: 20))
@@ -122,7 +122,7 @@ final class M2UITests: XCTestCase {
             "--m2-auto-play-long-audio",
             "--m2-no-autoplay"
         ]
-        second.launch()
+        second.launchPinned()
 
         let secondTitle = second.descendants(matching: .any)["currentPlaybackTitle"]
         XCTAssertTrue(secondTitle.waitForExistence(timeout: 20))
@@ -145,7 +145,7 @@ final class M2UITests: XCTestCase {
             "--m0-reset-data",
             "--m2-auto-play-long-audio"
         ]
-        first.launch()
+        first.launchPinned()
 
         let title = first.descendants(matching: .any)["currentPlaybackTitle"]
         XCTAssertTrue(title.waitForExistence(timeout: 20))
@@ -163,7 +163,7 @@ final class M2UITests: XCTestCase {
             "--m2-auto-play-long-audio",
             "--m2-no-autoplay"
         ]
-        second.launch()
+        second.launchPinned()
 
         let secondTitle = second.descendants(matching: .any)["currentPlaybackTitle"]
         XCTAssertTrue(secondTitle.waitForExistence(timeout: 20))
@@ -186,7 +186,7 @@ final class M2UITests: XCTestCase {
             "--m0-reset-data",
             "--m2-auto-play-long-audio"
         ]
-        app.launch()
+        app.launchPinned()
 
         let title = app.descendants(matching: .any)["currentPlaybackTitle"]
         XCTAssertTrue(title.waitForExistence(timeout: 20))

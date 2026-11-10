@@ -10,15 +10,24 @@ public enum MediaStorageError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .missingApplicationSupport:
-            "无法定位 Application Support 目录。"
+            LocalPodLocalization.string("error.mediaStorage.missingApplicationSupport")
         case .missingCaches:
-            "无法定位 Caches 目录。"
+            LocalPodLocalization.string("error.mediaStorage.missingCaches")
         case .outsideApplicationSupport(let url):
-            "文件不在 Application Support 内：\(url.path)"
+            LocalPodLocalization.format(
+                "error.mediaStorage.outsideApplicationSupport",
+                url.path
+            )
         case .invalidRelativePath(let path):
-            "无效的相对路径：\(path)"
+            LocalPodLocalization.format(
+                "error.mediaStorage.invalidRelativePath",
+                path
+            )
         case .cannotCreateDirectory(let url):
-            "无法创建目录：\(url.path)"
+            LocalPodLocalization.format(
+                "error.mediaStorage.cannotCreateDirectory",
+                url.path
+            )
         }
     }
 }

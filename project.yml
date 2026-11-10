@@ -60,6 +60,12 @@ targets:
       properties:
         CFBundleDisplayName: LocalPod
         CFBundleDevelopmentRegion: zh-Hans
+        # en.lproj and zh-Hans.lproj are picked up as localized resources;
+        # XcodeGen derives knownRegions from those folders. Declaring the
+        # localizations here also keeps the bundle metadata explicit.
+        CFBundleLocalizations:
+          - en
+          - zh-Hans
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}

@@ -132,7 +132,9 @@ struct DiagnosticsView: View {
                         if let days = info.daysRemaining {
                             LabeledContent(
                                 "剩余",
-                                value: days >= 0 ? "\(days) 天" : "已过期 \(-days) 天"
+                                value: days >= 0
+                                    ? L10n.format("diagnostics.daysRemaining", days)
+                                    : L10n.format("diagnostics.daysExpired", -days)
                             )
                         }
                         if let deviceCount = info.provisionedDeviceCount {
@@ -214,43 +216,49 @@ struct DiagnosticsView: View {
 
     private var diagnosticText: String {
         var lines = [
-            "LocalPod 诊断",
-            "Bundle ID: \(bundleIdentifier)",
-            "版本: \(appVersion)",
-            "设备: \(deviceDescription)",
-            "资料库: \(importedCount) 条",
-            "缺失: \(missingCount) 条",
-            "合集: \(collectionCount) 个",
-            "导入会话: \(sessionCount) 次",
-            "资料库大小: \(ByteCountFormatter.string(fromByteCount: libraryBytes, countStyle: .file))",
-            "基准: \(benchmarkCount) 条",
-            "收件箱: \(inboxPath)",
-            "媒体库: \(mediaPath)"
+            L10n.string("diagnostics.title"),
+            L10n.format("diagnostics.line.bundleID", bundleIdentifier),
+            L10n.format("diagnostics.line.version", appVersion),
+            L10n.format("diagnostics.line.device", deviceDescription),
+            L10n.format("diagnostics.line.library", importedCount),
+            L10n.format("diagnostics.line.missing", missingCount),
+            L10n.format("diagnostics.line.collections", collectionCount),
+            L10n.format("diagnostics.line.sessions", sessionCount),
+            L10n.format(
+                "diagnostics.line.librarySize",
+                ByteCountFormatter.string(fromByteCount: libraryBytes, countStyle: .file)
+            ),
+            L10n.format("diagnostics.line.benchmark", benchmarkCount),
+            L10n.format("diagnostics.line.inbox", inboxPath),
+            L10n.format("diagnostics.line.media", mediaPath)
         ]
         if let info = signingInfo {
-            lines.append("描述文件: \(info.name ?? "—")")
-            lines.append("Team: \(info.teamIdentifier ?? "—")")
-            lines.append("App ID: \(info.appIdentifier ?? "—")")
+            lines.append(L10n.format("diagnostics.line.profile", info.name ?? "—"))
+            lines.append(L10n.format("diagnostics.line.team", info.teamIdentifier ?? "—"))
+            lines.append(L10n.format("diagnostics.line.appID", info.appIdentifier ?? "—"))
             if let expiration = info.expirationDate {
-                lines.append("到期: \(expiration.formatted(date: .abbreviated, time: .shortened))")
+                lines.append(L10n.format(
+                    "diagnostics.line.expiration",
+                    expiration.formatted(date: .abbreviated, time: .shortened)
+                ))
             }
             if let days = info.daysRemaining {
-                lines.append("剩余: \(days) 天")
+                lines.append(L10n.format("diagnostics.line.remaining", days))
             }
         } else {
-            lines.append("描述文件: 未发现（模拟器/未签名）")
+            lines.append(L10n.string("diagnostics.line.profileMissing"))
         }
         return lines.joined(separator: "\n")
     }
 
     private func signingBannerText(days: Int) -> String {
         if days < 0 {
-            return "签名已过期 \(-days) 天，请用同一 Bundle ID 重签；重签不会清除资料库"
+            return L10n.format("diagnostics.signing.expired", -days)
         }
         if days == 0 {
-            return "签名将在今天到期，建议在到期前用同一 Bundle ID 重签；重签不会清除资料库"
+            return L10n.string("diagnostics.signing.today")
         }
-        return "签名将在 \(days) 天后到期，建议在到期前用同一 Bundle ID 重签；重签不会清除资料库"
+        return L10n.format("diagnostics.signing.days", days)
     }
 
     private func refresh() {

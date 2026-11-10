@@ -6,7 +6,7 @@ public enum ImportInboxError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .missingDocumentsDirectory:
-            "无法定位 Documents 目录。"
+            LocalPodLocalization.string("error.inbox.missingDocuments")
         }
     }
 }

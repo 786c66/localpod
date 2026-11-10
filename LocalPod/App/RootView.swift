@@ -28,7 +28,7 @@ struct RootView: View {
                 .tag(1)
 
             PlaybackView(onGoToLibrary: { selectedTab = 0 })
-                .tabItem { Label("播放", systemImage: "play.circle") }
+                .tabItem { Label(L10n.string("tab.playback"), systemImage: "play.circle") }
                 .tag(2)
 
             InboxView()
@@ -176,8 +176,8 @@ struct RootView: View {
             if let url = Bundle.main.url(forResource: "demo-audio", withExtension: "m4a") {
                 playback.load(
                     PlaybackItem(
-                        title: "自动播放音频",
-                        subtitle: "启动参数",
+                        title: L10n.string("playback.demo.autoTitle"),
+                        subtitle: L10n.string("playback.demo.launchArgumentSubtitle"),
                         fileURL: url,
                         kind: .audio
                     ),
@@ -218,8 +218,8 @@ struct RootView: View {
             ) {
                 playback.load(
                     PlaybackItem(
-                        title: "长音频测试",
-                        subtitle: "启动参数",
+                        title: L10n.string("playback.demo.longAudioTitle"),
+                        subtitle: L10n.string("playback.demo.launchArgumentSubtitle"),
                         fileURL: url,
                         kind: .audio,
                         libraryItemID: Self.m2LongAudioLibraryID

@@ -25,10 +25,18 @@ public struct UnsupportedFile: Identifiable, Sendable, Hashable {
     }
 
     public var message: String {
+        message(locale: nil)
+    }
+
+    public func message(locale: Locale?) -> String {
         if let contentTypeIdentifier {
-            "不支持的格式：\(contentTypeIdentifier)"
+            LocalPodLocalization.format(
+                "unsupported.format.withType",
+                locale: locale,
+                contentTypeIdentifier
+            )
         } else {
-            "不支持的格式"
+            LocalPodLocalization.string("unsupported.format", locale: locale)
         }
     }
 }
@@ -119,9 +127,9 @@ public enum FolderScannerError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .cannotEnumerate(let url):
-            "无法枚举文件夹：\(url.path)"
+            LocalPodLocalization.format("error.scanner.cannotEnumerate", url.path)
         case .notAFile(let url):
-            "不是可导入的文件：\(url.path)"
+            LocalPodLocalization.format("error.scanner.notAFile", url.path)
         }
     }
 }

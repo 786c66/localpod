@@ -14,17 +14,23 @@ public enum MediaSource: String, Codable, Sendable, CaseIterable {
     case sample
 
     public var displayName: String {
+        displayName(locale: nil)
+    }
+
+    /// Resolve the source label against an explicit locale. Passing `nil` uses
+    /// the process/language environment, which is what the app displays.
+    public func displayName(locale: Locale?) -> String {
         switch self {
-        case .imported: "导入"
-        case .files: "文件"
-        case .iCloud: "iCloud Drive"
-        case .openIn: "外部打开"
-        case .finder: "Finder"
-        case .wifi: "Wi-Fi"
-        case .share: "分享"
-        case .rss: "RSS"
-        case .benchmark: "基准"
-        case .sample: "示例"
+        case .imported: LocalPodLocalization.string("source.imported", locale: locale)
+        case .files: LocalPodLocalization.string("source.files", locale: locale)
+        case .iCloud: LocalPodLocalization.string("source.iCloud", locale: locale)
+        case .openIn: LocalPodLocalization.string("source.openIn", locale: locale)
+        case .finder: LocalPodLocalization.string("source.finder", locale: locale)
+        case .wifi: LocalPodLocalization.string("source.wifi", locale: locale)
+        case .share: LocalPodLocalization.string("source.share", locale: locale)
+        case .rss: LocalPodLocalization.string("source.rss", locale: locale)
+        case .benchmark: LocalPodLocalization.string("source.benchmark", locale: locale)
+        case .sample: LocalPodLocalization.string("source.sample", locale: locale)
         }
     }
 }

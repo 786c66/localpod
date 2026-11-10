@@ -12,11 +12,11 @@ public enum MediaProbeError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .notPlayable(let url):
-            "AVFoundation 无法播放：\(url.lastPathComponent)"
+            LocalPodLocalization.format("error.probe.notPlayable", url.lastPathComponent)
         case .noMediaTracks(let url):
-            "没有可解码的音频/视频轨：\(url.lastPathComponent)"
+            LocalPodLocalization.format("error.probe.noTracks", url.lastPathComponent)
         case .thumbnailUnavailable:
-            "无法生成视频缩略图"
+            LocalPodLocalization.string("error.probe.thumbnail")
         }
     }
 }

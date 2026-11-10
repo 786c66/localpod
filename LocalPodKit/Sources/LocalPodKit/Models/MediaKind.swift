@@ -5,9 +5,13 @@ public enum MediaKind: String, Codable, Sendable, CaseIterable {
     case video
 
     public var displayName: String {
+        displayName(locale: nil)
+    }
+
+    public func displayName(locale: Locale?) -> String {
         switch self {
-        case .audio: "音频"
-        case .video: "视频"
+        case .audio: LocalPodLocalization.string("kind.audio", locale: locale)
+        case .video: LocalPodLocalization.string("kind.video", locale: locale)
         }
     }
 

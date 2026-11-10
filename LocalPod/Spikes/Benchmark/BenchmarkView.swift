@@ -11,7 +11,7 @@ struct BenchmarkView: View {
     @State private var insertSeconds: Double?
     @State private var querySeconds: Double?
     @State private var cleanupSeconds: Double?
-    @State private var status = "未运行"
+    @State private var status = L10n.string("benchmark.status.idle")
     @State private var isWorking = false
     @State private var errorMessage: String?
 
@@ -71,7 +71,12 @@ struct BenchmarkView: View {
                 Section("结果") {
                     LabeledContent("插入 5000 条", value: format(insertSeconds))
                     LabeledContent("查询 100 条 + 总数", value: format(querySeconds))
-                    LabeledContent("列表本次读取", value: lastPageCount == 0 ? "—" : "\(lastPageCount) 条")
+                    LabeledContent(
+                        "列表本次读取",
+                        value: lastPageCount == 0
+                            ? "—"
+                            : L10n.format("benchmark.lastPageCount", lastPageCount)
+                    )
                     LabeledContent("清理", value: format(cleanupSeconds))
                 }
 
@@ -96,7 +101,7 @@ struct BenchmarkView: View {
     private func runInsert() {
         guard !isWorking, benchmarkCount == 0 else { return }
         isWorking = true
-        status = "插入中…"
+        status = L10n.string("benchmark.status.inserting")
         errorMessage = nil
         Task { @MainActor in
             await Task.yield()
@@ -115,10 +120,13 @@ struct BenchmarkView: View {
             do {
                 try modelContext.save()
                 insertSeconds = Date().timeIntervalSince(started)
-                status = "插入完成"
+                status = L10n.string("benchmark.status.inserted")
             } catch {
-                errorMessage = "插入失败：\(error.localizedDescription)"
-                status = "失败"
+                errorMessage = L10n.format(
+                    "benchmark.error.insert",
+                    error.localizedDescription
+                )
+                status = L10n.string("benchmark.status.failed")
             }
             refreshCount()
             isWorking = false
@@ -128,7 +136,7 @@ struct BenchmarkView: View {
     private func runQuery() {
         guard !isWorking, benchmarkCount > 0 else { return }
         isWorking = true
-        status = "查询中…"
+        status = L10n.string("benchmark.status.querying")
         errorMessage = nil
         Task { @MainActor in
             await Task.yield()
@@ -143,10 +151,13 @@ struct BenchmarkView: View {
                 let page = try modelContext.fetch(descriptor)
                 querySeconds = Date().timeIntervalSince(started)
                 lastPageCount = page.count
-                status = "查询完成（总数 \(count)）"
+                status = L10n.format("benchmark.status.queried", count)
             } catch {
-                errorMessage = "查询失败：\(error.localizedDescription)"
-                status = "失败"
+                errorMessage = L10n.format(
+                    "benchmark.error.query",
+                    error.localizedDescription
+                )
+                status = L10n.string("benchmark.status.failed")
             }
             isWorking = false
         }
@@ -155,7 +166,7 @@ struct BenchmarkView: View {
     private func runCleanup() {
         guard !isWorking, benchmarkCount > 0 else { return }
         isWorking = true
-        status = "清理中…"
+        status = L10n.string("benchmark.status.cleaning")
         errorMessage = nil
         Task { @MainActor in
             await Task.yield()
@@ -168,10 +179,13 @@ struct BenchmarkView: View {
                 try modelContext.save()
                 cleanupSeconds = Date().timeIntervalSince(started)
                 lastPageCount = 0
-                status = "清理完成"
+                status = L10n.string("benchmark.status.cleaned")
             } catch {
-                errorMessage = "清理失败：\(error.localizedDescription)"
-                status = "失败"
+                errorMessage = L10n.format(
+                    "benchmark.error.cleanup",
+                    error.localizedDescription
+                )
+                status = L10n.string("benchmark.status.failed")
             }
             refreshCount()
             isWorking = false

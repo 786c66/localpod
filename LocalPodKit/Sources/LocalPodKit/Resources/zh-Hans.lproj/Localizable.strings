@@ -1,0 +1,94 @@
+/* LocalPodKit 中文界面文案。键为语义键，方便测试显式指定语言。 */
+
+"source.imported" = "导入";
+"source.files" = "文件";
+"source.iCloud" = "iCloud Drive";
+"source.openIn" = "外部打开";
+"source.finder" = "Finder";
+"source.wifi" = "Wi-Fi";
+"source.share" = "分享";
+"source.rss" = "RSS";
+"source.benchmark" = "基准";
+"source.sample" = "示例";
+
+"kind.audio" = "音频";
+"kind.video" = "视频";
+
+"import.phase.idle" = "空闲";
+"import.phase.scanning" = "扫描中";
+"import.phase.downloading" = "从 iCloud 下载";
+"import.phase.copying" = "复制中";
+"import.phase.probing" = "读取元数据";
+"import.phase.finished" = "完成";
+"import.phase.cancelled" = "已取消";
+"import.phase.failed" = "失败";
+
+"import.issue.unsupported" = "不支持";
+"import.issue.duplicate" = "重复";
+"import.issue.copyFailed" = "复制失败";
+"import.issue.probeFailed" = "无法读取";
+"import.issue.cloudDownloadFailed" = "iCloud 下载失败";
+"import.issue.moveFailed" = "入库失败";
+"import.issue.scanError" = "扫描错误";
+"import.issue.databaseFailed" = "数据库错误";
+"import.issue.other" = "其他";
+
+"queue.repeat.off" = "不循环";
+"queue.repeat.all" = "列表循环";
+"queue.repeat.one" = "单曲循环";
+
+"playback.phase.idle" = "未播放";
+"playback.phase.preparing" = "加载中";
+"playback.phase.ready" = "就绪";
+"playback.phase.playing" = "播放中";
+"playback.phase.paused" = "已暂停";
+"playback.phase.buffering" = "缓冲中";
+"playback.phase.interrupted" = "已打断";
+"playback.phase.ended" = "播放结束";
+"playback.phase.failed" = "播放失败";
+
+"sleep.mode.off" = "关闭";
+"sleep.mode.minutes" = "%lld 分钟";
+"sleep.mode.endOfEpisode" = "本集结束";
+
+"playlist.defaultName" = "新建播放列表";
+"library.collection.singleFile" = "单文件";
+"playback.librarySubtitle" = "资料库";
+
+"error.mediaStorage.missingApplicationSupport" = "无法定位 Application Support 目录。";
+"error.mediaStorage.missingCaches" = "无法定位 Caches 目录。";
+"error.mediaStorage.outsideApplicationSupport" = "文件不在 Application Support 内：%@";
+"error.mediaStorage.invalidRelativePath" = "无效的相对路径：%@";
+"error.mediaStorage.cannotCreateDirectory" = "无法创建目录：%@";
+
+"error.probe.notPlayable" = "AVFoundation 无法播放：%@";
+"error.probe.noTracks" = "没有可解码的音频/视频轨：%@";
+"error.probe.thumbnail" = "无法生成视频缩略图";
+
+"error.cloud.notDownloaded" = "iCloud 文件尚未下载：%@";
+"error.cloud.providerUnavailable" = "无法从 iCloud 下载 %@：%@";
+"error.cloud.providerFallback" = "网络或 provider 不可用";
+"error.cloud.timedOut" = "从 iCloud 下载超时：%@";
+"error.cloud.cancelled" = "iCloud 下载已取消";
+
+"error.scanner.cannotEnumerate" = "无法枚举文件夹：%@";
+"error.scanner.notAFile" = "不是可导入的文件：%@";
+"unsupported.format.withType" = "不支持的格式：%@";
+"unsupported.format" = "不支持的格式";
+
+"error.copy.cannotCreateDestination" = "无法创建目标文件：%@";
+"error.inbox.missingDocuments" = "无法定位 Documents 目录。";
+
+"error.import.truncated" = "文件数量超过上限，已截断；请分批导入。";
+"error.import.sizeChanged" = "源文件在导入期间发生变化（扫描大小 %lld 字节，实际复制 %lld 字节），已跳过。";
+"error.import.duplicate" = "内容重复，已跳过（SHA-256 前 12 位：%@）。";
+
+"error.maintenance.staging" = "清理 staging 失败：%@";
+"error.maintenance.orphanMedia" = "清理孤儿媒体失败：%@";
+"error.maintenance.orphanArtwork" = "清理孤儿封面失败：%@";
+
+"playback.error.interrupted" = "播放中断";
+"playback.error.failed" = "播放失败";
+"playback.error.audioSession" = "音频会话激活失败：%@";
+"playback.error.missingFileNamed" = "媒体文件不存在：%@";
+"playback.error.missingFile" = "媒体文件不存在或已删除。";

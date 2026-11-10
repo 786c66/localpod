@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "LocalPodKit",
+    defaultLocalization: "zh-Hans",
     platforms: [
         .iOS(.v17),
         .macOS(.v14)
@@ -11,7 +12,10 @@ let package = Package(
         .library(name: "LocalPodKit", targets: ["LocalPodKit"])
     ],
     targets: [
-        .target(name: "LocalPodKit"),
+        .target(
+            name: "LocalPodKit",
+            resources: [.process("Resources")]
+        ),
         .testTarget(
             name: "LocalPodKitTests",
             dependencies: ["LocalPodKit"],

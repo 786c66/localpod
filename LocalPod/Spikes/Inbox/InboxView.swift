@@ -105,9 +105,9 @@ struct InboxView: View {
                 if coordinator.isRunning {
                     Section("当前任务") {
                         HStack {
-                            Text(coordinator.currentKind?.displayName ?? "导入")
+                            Text(coordinator.currentKind?.displayName ?? L10n.string("common.import"))
                             Spacer()
-                            Text(coordinator.isCancelling ? "正在取消…" : coordinator.phase.displayName)
+                            Text(coordinator.isCancelling ? L10n.string("正在取消…") : coordinator.phase.displayName)
                                 .foregroundStyle(.secondary)
                         }
                         if let progress = coordinator.progress {
