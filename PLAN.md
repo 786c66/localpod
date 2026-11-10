@@ -939,10 +939,12 @@ idle → preparing → ready → playing ⇄ paused
 
 **验收标准**
 
-- [ ] “用 LocalPod 打开”/AirDrop 到 Files：能进入导入并成功。
-- [ ] Finder 拖入 `Documents/Import`：前台自动导入；复制中的文件不会被半截导入。
-- [ ] 所有 MVP 渠道统一去重/进度/报告。
-- [ ] 免费账号签名/安装不因缺少 App Group entitlement 失败。
+- [x] “用 LocalPod 打开”/AirDrop 到 Files：能进入导入并成功。**（自动化通过：`M4UITests.testOpenInImportAndDedup` 走真实 `onOpenURL` 路径、来源标记与去重；真实 AirDrop/Files 界面需真机）**
+- [x] Finder 拖入 `Documents/Import`：前台自动导入；复制中的文件不会被半截导入。**（自动化通过：`M4UITests.testForegroundInboxWaitsForStableFile`、`ImportInboxStabilityTests` 12 个、`ImportInboxTests` 暂存/清理用例、`ImportEngineTests` 字节校验；真实 Finder 数据线拖入需真机）**
+- [x] 所有 MVP 渠道统一去重/进度/报告。**（自动化/集成通过：文件夹、收件箱、外部打开共用 `FolderImportService`/`ImportEngine`；运行级聚合 JSON 报告含各 URL `reportPaths`）**
+- [x] 免费账号签名/安装不因缺少 App Group entitlement 失败。**（结构验证：无 entitlements/App Group，`generic/platform=iOS` 不签名构建通过；实际免费账号安装属真机步骤）**
+
+> M4 执行结果与证据见 [`docs/M4-REPORT.md`](docs/M4-REPORT.md)。真实 AirDrop、文件 App 打开、Finder 拖入、iCloud 占位文件与真机签名安装仍列入“待真机”，未计为已通过。
 
 ### 5.7 M5 打磨与侧载交付（第 8–9 周）
 
@@ -983,8 +985,8 @@ idle → preparing → ready → playing ⇄ paused
 | 层级 | 覆盖 |
 |---|---|
 | 单元测试 | 扫描过滤（隐藏/包/符号链接/深度/数量）、UTType 分类、自然排序、SHA-256、进度计算、完成阈值、队列前进/随机/循环、睡眠定时截止、路径清洗、磁盘预检、bookmark stale 处理（mock） |
-| 集成测试 | 临时 fixture 文件夹导入、取消/强杀恢复、批量 DB 提交、iCloud 状态（手工）、打开方式/本地 Inbox、Finder 扫描（Wi-Fi 上传属 P1，不在 MVP 回归） |
-| UI 测试 | 引导 → 导入（注入测试文件）→ 资料库 → 播放 → 队列 → 播放列表 → 睡眠定时；删除/存储 |
+| 集成测试 | 临时 fixture 文件夹导入、取消/强杀恢复、批量 DB 提交、iCloud 状态（手工）、打开方式/本地 Inbox、Finder 扫描与稳定性/隔离（Wi-Fi 上传属 P1，不在 MVP 回归） |
+| UI 测试 | 导入（文件夹/收件箱/打开方式/稳定性/隔离）→ 资料库 → 播放 → 队列 → 播放列表 → 睡眠定时；删除/存储 |
 | 手工测试 | 锁屏/控制中心、来电/闹钟、拔耳机/蓝牙、AirPlay 音频、低电量、低存储 |
 
 ### 6.2 设备与素材矩阵

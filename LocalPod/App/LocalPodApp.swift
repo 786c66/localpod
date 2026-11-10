@@ -24,6 +24,9 @@ struct LocalPodApp: App {
         if ProcessInfo.processInfo.arguments.contains("--m0-seed-inbox") {
             Self.seedDebugInbox()
         }
+        if ProcessInfo.processInfo.arguments.contains("--m4-seed-unsupported-inbox") {
+            M4DebugSupport.seedUnsupportedInbox()
+        }
         #endif
     }
 
@@ -50,12 +53,10 @@ struct LocalPodApp: App {
             at: MediaStorage.live.cachesRoot.appendingPathComponent("Artwork", isDirectory: true)
         )
         AppSettingsStore.clearStoredValues()
+        // Removing the whole inbox also clears `.Skipped` quarantine items and
+        // any hidden `.localpod-stage-*` leftovers from an interrupted run.
+        try? FileManager.default.removeItem(at: ImportInbox.live.directoryURL)
         _ = try? ImportInbox.live.ensureExists()
-        if let pending = try? ImportInbox.live.pendingURLs() {
-            for url in pending {
-                try? ImportInbox.live.remove(url)
-            }
-        }
     }
     #endif
 

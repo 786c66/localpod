@@ -61,6 +61,17 @@ struct RootView: View {
                 break
             }
         }
+        .task(id: scenePhase) {
+            // Foreground inbox watcher: a Finder copy can finish while the app is
+            // already active, so scan periodically in addition to launch/active.
+            // The coordinator de-duplicates overlapping observations and imports
+            // only files whose size has stopped changing.
+            guard scenePhase == .active else { return }
+            while !Task.isCancelled {
+                importCoordinator.importInboxIfNeeded(modelContext: modelContext)
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
         .onOpenURL { url in
             importCoordinator.handleOpenURL(url, modelContext: modelContext)
         }
@@ -158,6 +169,26 @@ struct RootView: View {
                     playback.seek(to: seek)
                 }
             }
+        }
+
+        if arguments.contains("--m4-auto-open-in") {
+            selectedTab = 3
+            // Exercise the real open-in path with an external (non-inbox) copy.
+            if let sourceURL = M4DebugSupport.makeOpenInSourceURL() {
+                importCoordinator.handleOpenURL(sourceURL, modelContext: modelContext)
+                M4DebugSupport.removeOpenInSource(sourceURL)
+            }
+        }
+
+        if arguments.contains("--m4-foreground-write-inbox") {
+            selectedTab = 3
+            // Simulates a Finder copy that finishes after launch. The inbox
+            // watcher must keep it pending until its size is stable.
+            M4DebugSupport.startSlowInboxWriter()
+        }
+
+        if arguments.contains("--m4-seed-unsupported-inbox") {
+            selectedTab = 3
         }
         #endif
     }

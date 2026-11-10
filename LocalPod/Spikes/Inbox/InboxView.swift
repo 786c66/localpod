@@ -22,13 +22,33 @@ struct InboxView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("inboxPendingCount")
+                    LabeledContent("未稳定", value: "\(coordinator.inboxUnstableCount) 个")
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("inboxStabilityText")
+                    LabeledContent("已隔离不支持文件", value: "\(coordinator.inboxSkippedCount) 个")
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("inboxSkippedCount")
                     Button {
-                        coordinator.refreshInboxPendingCount()
-                        coordinator.importInboxIfNeeded(modelContext: modelContext)
+                        coordinator.scanInboxNow(modelContext: modelContext)
                     } label: {
                         Label("立即扫描并导入收件箱", systemImage: "arrow.clockwise")
                     }
                     .disabled(coordinator.isRunning)
+
+                    if coordinator.inboxHasPendingFailures {
+                        Button {
+                            coordinator.retryInboxFailures(modelContext: modelContext)
+                        } label: {
+                            Label("重试失败", systemImage: "arrow.clockwise.circle")
+                        }
+                        .disabled(coordinator.isRunning)
+                        .accessibilityIdentifier("inboxRetryButton")
+
+                        Text("自动重试已暂停；重试失败或放入新文件后会继续。")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                            .accessibilityIdentifier("inboxAutoRetrySuspendedText")
+                    }
 
                     Button {
                         showFilePicker = true
@@ -39,7 +59,7 @@ struct InboxView: View {
                 } header: {
                     Text("收件箱")
                 } footer: {
-                    Text("收件箱是 Documents/Import。App 启动、回到前台或收到外部文件时会自动扫描；导入成功后会移除来源文件。")
+                    Text("收件箱是 Documents/Import。App 启动、回到前台以及前台运行期间会每 2 秒扫描一次；只有文件大小稳定后才会导入，不支持的文件会移入隐藏的 .Skipped 隔离目录。")
                 }
 
                 if coordinator.isRunning {
@@ -86,6 +106,14 @@ struct InboxView: View {
                             fromByteCount: summary.copiedBytes,
                             countStyle: .file
                         ))
+                        if let reportPath = summary.reportPath {
+                            Text("运行报告：\(reportPath)")
+                                .font(.caption2.monospaced())
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .accessibilityIdentifier("inboxRunReportPath")
+                        }
                         if summary.cancelled {
                             Text("任务已取消")
                                 .font(.caption)

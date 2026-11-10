@@ -2,9 +2,17 @@
 
 本地播客式播放器（iPhone / iOS 17+）。核心区别：从文件 App 选择一个**文件夹**，递归导入其中所有音频/视频，之后像播客一样管理、播放。
 
-当前处于 **M3「队列、播放列表、睡眠定时、设置」**阶段：文件夹递归导入、资料库、播放核心与播客式消费闭环已可用；仅播放音频，不渲染视频画面。
+当前处于 **M4「当前渠道导入」**阶段：打开方式/收件箱/Finder 与文件夹导入统一走同一流水线；资料库、播放核心与播客式消费闭环已可用；仅播放音频，不渲染视频画面。
 
-## 已实现（M3）
+## 已实现（M4）
+
+- **打开方式 / AirDrop**：文档类型覆盖音频、视频容器与文件夹；外部打开先原子暂存再导入，来源标记“外部打开”。
+- **Finder 收件箱**：`Documents/Import` 在启动、回前台及前台运行期间自动扫描；文件需连续观察稳定后才导入，复制中的文件不会半截入库。
+- **统一导入流水线**：所有渠道共享扫描、SHA-256 去重、进度、错误分类与报告；一次运行生成聚合 JSON 报告。
+- **失败重试 / 隔离**：失败项保留并提供“重试失败”；顶层不支持文件移入隐藏 `.Skipped`，不会反复重扫或导入。
+- **签名边界**：无 App Group/entitlements，免费账号签名不受影响。
+
+## 已实现（M3，保留）
 
 - **播放队列**：播放替换队列、下一首播放插入当前项之后、加入队列追加到末尾；自动下一集可关；随机顺序持久化；单曲/列表循环；队列与当前项重启后恢复为暂停状态。
 - **播放列表**：新建/重命名/删除、加入/移除条目、拖拽及上移/下移排序、播放全部/随机播放；排序与内容持久化。
@@ -41,11 +49,11 @@
 
 ## 验证
 
-- `LocalPodKit`：**94 个单元/集成测试，0 失败**；5000 文件导入峰值内存增量 100.3 MB（阈值 200 MB）。
-- UI 测试：**M0 4 个 + M1 5 个 + M2 5 个 + M3 6 个，0 失败**（iOS 27.1 模拟器）。
-- M3 详细结果、截图与待真机项见 [docs/M3-REPORT.md](docs/M3-REPORT.md)；M2 见 [docs/M2-REPORT.md](docs/M2-REPORT.md)。
+- `LocalPodKit`：**110 个单元/集成测试，0 失败**；5000 文件导入峰值内存增量 100.3 MB（阈值 200 MB）。
+- UI 测试：**M0 4 个 + M1 5 个 + M2 5 个 + M3 6 个 + M4 3 个，共 23 个，0 失败**（iOS 27.1 模拟器）。
+- M4 详细结果、截图与待真机项见 [docs/M4-REPORT.md](docs/M4-REPORT.md)；M3 见 [docs/M3-REPORT.md](docs/M3-REPORT.md)；M2 见 [docs/M2-REPORT.md](docs/M2-REPORT.md)。
 - M1 结果见 [docs/M1-REPORT.md](docs/M1-REPORT.md)；M0 报告与免费账号签名步骤见 [docs/M0-REPORT.md](docs/M0-REPORT.md)、[docs/M0-SIGNING.md](docs/M0-SIGNING.md)。
-- **未计为通过**：锁屏/控制中心、来电打断、拔耳机、AirPlay 音频、睡眠定时后台到点、拖拽手感、2 小时长播内存、真实文件夹选择器、真实 iCloud 下载/断网重试、最老真机性能；清单见 [docs/M0-DEVICE-CHECKLIST.md](docs/M0-DEVICE-CHECKLIST.md) 与 M1/M2/M3 报告。
+- **未计为通过**：锁屏/控制中心、来电打断、拔耳机、AirPlay 音频、睡眠定时后台到点、拖拽手感、2 小时长播内存、真实文件夹选择器、真实 iCloud 下载/断网重试、最老真机性能；清单见 [docs/M0-DEVICE-CHECKLIST.md](docs/M0-DEVICE-CHECKLIST.md) 与 M1/M2/M3/M4 报告。
 
 ## 打开工程
 
@@ -121,6 +129,7 @@ localpod/
     M1-REPORT.md
     M2-REPORT.md
     M3-REPORT.md
+    M4-REPORT.md
     screenshots/
 ```
 
@@ -147,6 +156,9 @@ localpod/
 | `--m3-no-auto-next` | 关闭“自动下一集”，使长时间队列 UI 测试不因 20 秒素材自动前进 |
 | `--m3-auto-play-first` | 打开播放页并播放队列当前项 |
 | `--m3-open-settings` | 启动后打开设置页 |
+| `--m4-auto-open-in` | 从沙盒外临时副本走真实开放方式导入路径 |
+| `--m4-foreground-write-inbox` | 分块写入收件箱约 5.6 秒，验证稳定性检测 |
+| `--m4-seed-unsupported-inbox` | 向收件箱写入不支持文件，验证隔离 |
 | `--m0-auto-benchmark` | 打开 SwiftData 基准页 |
 | `--m0-auto-inbox` | 打开收件箱页 |
 | `--m0-seed-inbox` | 把内置音频复制到 `Documents/Import`，模拟 Finder 投递 |
@@ -165,4 +177,5 @@ xcrun simctl launch booted com.localpod.app --m0-reset-data --m1-auto-acceptance
 - 不做 CarPlay、StoreKit/IAP、订阅。
 - 导入需保持 App 前台；iCloud 下载进度为不确定进度，真实 iCloud 行为待真机验证。
 - 只播放音频，不显示视频画面；不支持旋转、PiP、全屏视频。视频文件仍可导入并读取音轨。
+- 真实 AirDrop、文件 App「用 LocalPod 打开」、Finder 数据线拖入、iCloud 占位文件、超大文件夹打开方式与免费账号真机安装尚未确认，不计为通过。
 - 锁屏/控制中心样式、来电打断、拔耳机、AirPlay 音频、睡眠定时后台到点、2 小时长播内存等真机项尚未确认，不计为通过。

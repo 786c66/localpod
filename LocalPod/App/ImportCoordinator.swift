@@ -6,6 +6,54 @@ import LocalPodKit
 import UIKit
 #endif
 
+/// A snapshot of `Documents/Import` produced off the main actor.
+private struct InboxObservation: Sendable {
+    var pendingURLs: [URL]
+    var stableURLs: [URL]
+    var unstableCount: Int
+    var skippedCount: Int
+    var unsupportedStableURLs: [URL]
+    var performedStabilityCheck: Bool
+    var failureMessage: String?
+}
+
+private struct InboxRunItem: Sendable {
+    let url: URL
+    let source: MediaSource
+}
+
+private struct InboxURLReport: Codable, Sendable {
+    let fileName: String
+    let source: String
+    let reportPath: String?
+    let importedCount: Int
+    let relinkedCount: Int
+    let duplicateCount: Int
+    let unsupportedCount: Int
+    let failedCount: Int
+    let errorMessage: String?
+}
+
+private struct InboxRunReport: Codable, Sendable {
+    let runID: UUID
+    let kind: String
+    let collectionName: String
+    let startedAt: Date
+    let finishedAt: Date
+    let durationSeconds: Double
+    let totalCandidates: Int
+    let supportedFiles: Int
+    let importedCount: Int
+    let relinkedCount: Int
+    let duplicateCount: Int
+    let unsupportedCount: Int
+    let failedCount: Int
+    let copiedBytes: Int64
+    let cancelled: Bool
+    let reportPaths: [String]
+    let items: [InboxURLReport]
+}
+
 @MainActor
 @Observable
 final class ImportCoordinator {
@@ -46,21 +94,42 @@ final class ImportCoordinator {
     private(set) var currentKind: RunKind?
     private(set) var lastErrorMessage: String?
     private(set) var inboxPendingCount = 0
+    private(set) var inboxUnstableCount = 0
+    private(set) var inboxSkippedCount = 0
+    private(set) var inboxHasPendingFailures = false
+    private(set) var isInboxAutoRetrySuspended = false
     private(set) var lastCleanupSummary: LibraryCleanupSummary?
 
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var didBootstrap = false
     @ObservationIgnored private let storage = MediaStorage.live
     @ObservationIgnored private let inbox = ImportInbox.live
+    @ObservationIgnored private let stability = ImportInboxStability()
     @ObservationIgnored private let libraryService = LibraryService(storage: .live)
     @ObservationIgnored private lazy var importService = FolderImportService(
         storage: storage,
         library: libraryService
     )
 
+    /// Inbox scans are asynchronous; this flag prevents overlapping snapshots.
+    @ObservationIgnored private var isObservingInbox = false
+    /// Visible top-level paths seen by the previous inbox observation.
+    @ObservationIgnored private var knownInboxPaths: Set<String> = []
+    /// Open-in and picker items are copied atomically into the inbox, so they do
+    /// not need the size-stability gate. This remembers their intended source.
+    @ObservationIgnored private var stagedSourcesByPath: [String: MediaSource] = [:]
+    /// Items staged while another run was active; consumed when that run ends.
+    @ObservationIgnored private var queuedStagedItems: [InboxRunItem] = []
+    /// Paths that failed in the run which suspended auto-retry. They stay out
+    /// of automatic runs until the user asks for a retry or a newly appeared
+    /// item has been processed, so a repeatedly failing item cannot starve a
+    /// fresh drop.
+    @ObservationIgnored private var pausedFailurePaths: Set<String> = []
+
     func bootstrap(modelContext: ModelContext) {
         do {
             try inbox.ensureExists()
+            _ = try inbox.cleanupStaleStaging()
             refreshInboxPendingCount()
         } catch {
             lastErrorMessage = error.localizedDescription
@@ -83,13 +152,27 @@ final class ImportCoordinator {
 
     func refreshInboxPendingCount() {
         inboxPendingCount = (try? inbox.pendingURLs().count) ?? 0
+        inboxSkippedCount = Self.skippedCount(inbox: inbox)
     }
 
+    /// Foreground/launch scan. Respects the retry suspension so a failing item
+    /// cannot loop every two seconds.
     func importInboxIfNeeded(modelContext: ModelContext) {
         refreshInboxPendingCount()
-        guard !isRunning else { return }
-        guard let pending = try? inbox.pendingURLs(), !pending.isEmpty else { return }
-        startInboxImport(pending, kind: .inbox, modelContext: modelContext)
+        requestInboxScan(modelContext: modelContext)
+    }
+
+    /// Explicit user action: clears a suspended auto-retry and scans now.
+    func scanInboxNow(modelContext: ModelContext) {
+        isInboxAutoRetrySuspended = false
+        inboxHasPendingFailures = false
+        pausedFailurePaths.removeAll()
+        importInboxIfNeeded(modelContext: modelContext)
+    }
+
+    /// Explicit "重试失败" action for inbox/open-in failures.
+    func retryInboxFailures(modelContext: ModelContext) {
+        scanInboxNow(modelContext: modelContext)
     }
 
     func startFolderImport(_ url: URL, modelContext: ModelContext) {
@@ -161,25 +244,37 @@ final class ImportCoordinator {
                     modelContext: modelContext
                 )
             } catch {
-                self.finishWithError(error)
+                self.finishWithError(error, modelContext: modelContext)
             }
         }
     }
 
+    /// Stages an open-in/picker item and runs it immediately, or queues it when
+    /// another import is already active. Staging itself is atomic, so queued
+    /// items never expose a partially copied file to the inbox scanner.
     func stageAndImportFile(_ url: URL, kind: RunKind = .openURL, modelContext: ModelContext) {
-        guard !isRunning else {
-            lastErrorMessage = "已有导入任务在进行，请稍后再试。"
-            return
-        }
         guard url.isFileURL else { return }
+        let source: MediaSource = kind == .inbox ? .finder : .openIn
         let didStart = url.startAccessingSecurityScopedResource()
         defer {
             if didStart { url.stopAccessingSecurityScopedResource() }
         }
         do {
             let staged = try inbox.stage(url: url)
+            stagedSourcesByPath[staged.standardizedFileURL.path] = source
             refreshInboxPendingCount()
-            startInboxImport([staged], kind: kind, modelContext: modelContext)
+            if isRunning {
+                queuedStagedItems.append(InboxRunItem(url: staged, source: source))
+                return
+            }
+            // A new external item is a user signal to leave a suspended state.
+            isInboxAutoRetrySuspended = false
+            inboxHasPendingFailures = false
+            startInboxImport(
+                [InboxRunItem(url: staged, source: source)],
+                kind: kind == .inbox ? .inbox : .openURL,
+                modelContext: modelContext
+            )
         } catch {
             phase = .failed
             lastErrorMessage = "无法放入收件箱：\(error.localizedDescription)"
@@ -228,14 +323,14 @@ final class ImportCoordinator {
     }
 
     private func startInboxImport(
-        _ urls: [URL],
+        _ items: [InboxRunItem],
         kind: RunKind,
         modelContext: ModelContext
     ) {
-        guard !isRunning, !urls.isEmpty else { return }
+        guard !isRunning, !items.isEmpty else { return }
         beginRun(kind: kind)
         task = Task { [weak self] in
-            await self?.runInbox(urls, kind: kind, modelContext: modelContext)
+            await self?.runInbox(items, kind: kind, modelContext: modelContext)
         }
     }
 
@@ -294,7 +389,8 @@ final class ImportCoordinator {
             finish(
                 phase: report.cancelled ? .cancelled : .finished,
                 summary: summary,
-                issues: report.allIssues.map { "\($0.kind.displayName)：\($0.relativePath) — \($0.message)" }
+                issues: report.allIssues.map { "\($0.kind.displayName)：\($0.relativePath) — \($0.message)" },
+                modelContext: modelContext
             )
 
             if removeSourceAfterSuccess,
@@ -305,20 +401,21 @@ final class ImportCoordinator {
             }
             refreshInboxPendingCount()
         } catch is CancellationError {
-            finish(phase: .cancelled, summary: nil, issues: [])
+            finish(phase: .cancelled, summary: nil, issues: [], modelContext: modelContext)
         } catch {
-            finishWithError(error)
+            finishWithError(error, modelContext: modelContext)
         }
     }
 
+    /// Imports every stable inbox item plus queued open-in items in one run and
+    /// produces one aggregated summary/report.
     private func runInbox(
-        _ urls: [URL],
+        _ items: [InboxRunItem],
         kind: RunKind,
         modelContext: ModelContext
     ) async {
         let startedAt = Date()
-        let collectionName = kind == .inbox ? "收件箱" : "外部打开"
-        let source: MediaSource = kind == .inbox ? .finder : .openIn
+        let collectionName = kind == .openURL ? "外部打开" : "收件箱"
         var importedCount = 0
         var relinkedCount = 0
         var duplicateCount = 0
@@ -328,20 +425,22 @@ final class ImportCoordinator {
         var totalCandidates = 0
         var supportedFiles = 0
         var messages: [String] = []
+        var urlReports: [InboxURLReport] = []
         var cancelled = false
-        var lastReportPath: String?
+        var hasPendingFailure = false
+        var failedPaths: Set<String> = []
 
-        for url in urls {
+        for item in items {
             if Task.isCancelled {
                 cancelled = true
                 break
             }
             do {
                 let result = try await importService.importFolder(
-                    rootURL: url,
-                    source: source,
-                    rootName: url.lastPathComponent,
-                    collectionName: collectionName,
+                    rootURL: item.url,
+                    source: item.source,
+                    rootName: item.url.lastPathComponent,
+                    collectionName: item.source == .openIn ? "外部打开" : "收件箱",
                     in: modelContext,
                     options: importOptions(),
                     progress: { [weak self] update in
@@ -352,7 +451,6 @@ final class ImportCoordinator {
                 )
                 let report = result.report
                 lastResult = result
-                lastReportPath = result.reportPath
                 importedCount += report.importedCount
                 relinkedCount += report.relinkedCount
                 duplicateCount += report.duplicateCount
@@ -364,23 +462,92 @@ final class ImportCoordinator {
                 messages.append(contentsOf: report.allIssues.map {
                     "\($0.kind.displayName)：\($0.relativePath) — \($0.message)"
                 })
+                urlReports.append(InboxURLReport(
+                    fileName: item.url.lastPathComponent,
+                    source: item.source.displayName,
+                    reportPath: result.reportPath,
+                    importedCount: report.importedCount,
+                    relinkedCount: report.relinkedCount,
+                    duplicateCount: report.duplicateCount,
+                    unsupportedCount: report.unsupportedCount,
+                    failedCount: report.failedCount,
+                    errorMessage: nil
+                ))
+
                 if report.cancelled {
                     cancelled = true
+                    failedPaths.insert(item.url.standardizedFileURL.path)
                     break
                 }
                 if report.failedCount == 0, report.unsupportedCount == 0 {
-                    try? inbox.remove(url)
+                    do {
+                        try inbox.remove(item.url)
+                        forgetStagedSource(for: item.url)
+                    } catch {
+                        hasPendingFailure = true
+                        failedPaths.insert(item.url.standardizedFileURL.path)
+                        messages.append(
+                            "\(item.url.lastPathComponent)：无法从收件箱移除 — \(error.localizedDescription)"
+                        )
+                    }
+                } else {
+                    hasPendingFailure = true
+                    failedPaths.insert(item.url.standardizedFileURL.path)
                 }
             } catch is CancellationError {
                 cancelled = true
+                failedPaths.insert(item.url.standardizedFileURL.path)
                 break
             } catch {
                 failedCount += 1
-                messages.append("\(url.lastPathComponent)：\(error.localizedDescription)")
+                hasPendingFailure = true
+                failedPaths.insert(item.url.standardizedFileURL.path)
+                let message = "\(item.url.lastPathComponent)：\(error.localizedDescription)"
+                messages.append(message)
+                urlReports.append(InboxURLReport(
+                    fileName: item.url.lastPathComponent,
+                    source: item.source.displayName,
+                    reportPath: nil,
+                    importedCount: 0,
+                    relinkedCount: 0,
+                    duplicateCount: 0,
+                    unsupportedCount: 0,
+                    failedCount: 1,
+                    errorMessage: error.localizedDescription
+                ))
             }
         }
 
         refreshInboxPendingCount()
+        let hasRemainingItems = inboxPendingCount > 0
+        if (hasPendingFailure || cancelled) && hasRemainingItems {
+            // Do not loop every poll; a new item or the retry button releases this.
+            isInboxAutoRetrySuspended = true
+            pausedFailurePaths.formUnion(failedPaths)
+        } else if !hasPendingFailure, !cancelled {
+            // A clean run clears the previous pause so older failures get one
+            // more automatic attempt after the new item has been handled.
+            pausedFailurePaths.removeAll()
+        }
+        inboxHasPendingFailures = hasPendingFailure && hasRemainingItems
+
+        let finishedAt = Date()
+        let reportPath = writeRunReport(
+            kind: kind,
+            collectionName: collectionName,
+            startedAt: startedAt,
+            finishedAt: finishedAt,
+            totalCandidates: totalCandidates,
+            supportedFiles: supportedFiles,
+            importedCount: importedCount,
+            relinkedCount: relinkedCount,
+            duplicateCount: duplicateCount,
+            unsupportedCount: unsupportedCount,
+            failedCount: failedCount,
+            copiedBytes: copiedBytes,
+            cancelled: cancelled,
+            items: urlReports
+        )
         let summary = RunSummary(
             kind: kind,
             collectionName: collectionName,
@@ -392,12 +559,17 @@ final class ImportCoordinator {
             unsupportedCount: unsupportedCount,
             failedCount: failedCount,
             copiedBytes: copiedBytes,
-            duration: Date().timeIntervalSince(startedAt),
+            duration: finishedAt.timeIntervalSince(startedAt),
             cancelled: cancelled,
             messages: messages,
-            reportPath: lastReportPath
+            reportPath: reportPath
         )
-        finish(phase: cancelled ? .cancelled : .finished, summary: summary, issues: messages)
+        finish(
+            phase: cancelled ? .cancelled : .finished,
+            summary: summary,
+            issues: messages,
+            modelContext: modelContext
+        )
     }
 
     private func makeSummary(
@@ -443,10 +615,303 @@ final class ImportCoordinator {
         phase = update.phase
     }
 
+    // MARK: - Inbox stability, quarantine, and queued runs
+
+    /// Evaluates the inbox off the main actor. While auto-retry is suspended we
+    /// only list top-level items, so a large failing folder is not rescanned on
+    /// every poll.
+    private func requestInboxScan(modelContext: ModelContext) {
+        guard !isRunning, !isObservingInbox else { return }
+        isObservingInbox = true
+        let inbox = self.inbox
+        let stability = self.stability
+        let lightweight = isInboxAutoRetrySuspended
+        Task { [weak self] in
+            let observation = await Task.detached(priority: .utility) {
+                Self.observeInbox(inbox: inbox, stability: stability, lightweight: lightweight)
+            }.value
+            guard let self else { return }
+            self.isObservingInbox = false
+            if let failure = observation.failureMessage, !self.isRunning {
+                self.lastErrorMessage = failure
+            } else {
+                self.apply(observation, modelContext: modelContext)
+            }
+        }
+    }
+
+    nonisolated private static func observeInbox(
+        inbox: ImportInbox,
+        stability: ImportInboxStability,
+        lightweight: Bool
+    ) -> InboxObservation {
+        let skipped = skippedCount(inbox: inbox)
+        do {
+            try inbox.ensureExists()
+            let pending = try inbox.pendingURLs()
+            guard !lightweight else {
+                return InboxObservation(
+                    pendingURLs: pending,
+                    stableURLs: [],
+                    unstableCount: 0,
+                    skippedCount: skipped,
+                    unsupportedStableURLs: [],
+                    performedStabilityCheck: false,
+                    failureMessage: nil
+                )
+            }
+
+            let result = try stability.evaluate(in: inbox.directoryURL)
+            var unsupported: [URL] = []
+            for url in result.stableURLs {
+                let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isDirectoryKey])
+                guard values?.isRegularFile == true else { continue }
+                if SupportedMedia.kind(for: url) == nil {
+                    unsupported.append(url)
+                }
+            }
+            return InboxObservation(
+                pendingURLs: pending,
+                stableURLs: result.stableURLs,
+                unstableCount: result.unstableCount,
+                skippedCount: skipped,
+                unsupportedStableURLs: unsupported,
+                performedStabilityCheck: true,
+                failureMessage: nil
+            )
+        } catch {
+            return InboxObservation(
+                pendingURLs: [],
+                stableURLs: [],
+                unstableCount: 0,
+                skippedCount: skipped,
+                unsupportedStableURLs: [],
+                performedStabilityCheck: false,
+                failureMessage: "扫描收件箱失败：\(error.localizedDescription)"
+            )
+        }
+    }
+
+    private func apply(_ observation: InboxObservation, modelContext: ModelContext) {
+        guard observation.failureMessage == nil else { return }
+
+        var pending = observation.pendingURLs
+        var stable = observation.stableURLs
+        inboxPendingCount = pending.count
+        inboxSkippedCount = observation.skippedCount
+        if observation.performedStabilityCheck {
+            inboxUnstableCount = observation.unstableCount
+        }
+
+        // Top-level unsupported items must never enter the import pipeline.
+        if observation.performedStabilityCheck, !observation.unsupportedStableURLs.isEmpty {
+            let quarantined = quarantine(observation.unsupportedStableURLs)
+            if !quarantined.isEmpty {
+                let movedPaths = Set(quarantined.map { $0.standardizedFileURL.path })
+                pending.removeAll { movedPaths.contains($0.standardizedFileURL.path) }
+                stable.removeAll { movedPaths.contains($0.standardizedFileURL.path) }
+                for url in quarantined {
+                    let key = url.standardizedFileURL.path
+                    pausedFailurePaths.remove(key)
+                    forgetStagedSource(for: url)
+                }
+                inboxPendingCount = pending.count
+                inboxSkippedCount += quarantined.count
+            }
+        }
+
+        let currentPaths = Set(pending.map { $0.standardizedFileURL.path })
+        pausedFailurePaths.formIntersection(currentPaths)
+        var discoveredNewItem = false
+        if !knownInboxPaths.isEmpty {
+            let added = currentPaths.subtracting(knownInboxPaths)
+            if !added.isEmpty {
+                // A recreated path (same name, different file) is not the old
+                // failure; let it through while keeping genuinely old paths out.
+                pausedFailurePaths.subtract(added)
+                discoveredNewItem = true
+                isInboxAutoRetrySuspended = false
+            }
+        }
+        knownInboxPaths = currentPaths
+
+        if pending.isEmpty {
+            isInboxAutoRetrySuspended = false
+            inboxHasPendingFailures = false
+            pausedFailurePaths.removeAll()
+            return
+        }
+
+        guard observation.performedStabilityCheck else {
+            if discoveredNewItem {
+                requestInboxScan(modelContext: modelContext)
+            }
+            return
+        }
+
+        guard !isInboxAutoRetrySuspended, !isRunning, !isCancelling else { return }
+
+        var items: [InboxRunItem] = []
+        var seen = Set<String>()
+
+        for queued in queuedStagedItems {
+            let key = queued.url.standardizedFileURL.path
+            guard !pausedFailurePaths.contains(key),
+                  currentPaths.contains(key),
+                  seen.insert(key).inserted else { continue }
+            let source = stagedSourcesByPath[key] ?? queued.source
+            items.append(InboxRunItem(url: queued.url, source: source))
+        }
+
+        // Staged open-in/picker items are complete copies; retry them without
+        // waiting for the stability tracker (e.g. after a relaunch).
+        for url in pending {
+            let key = url.standardizedFileURL.path
+            guard !pausedFailurePaths.contains(key),
+                  let source = stagedSourcesByPath[key],
+                  seen.insert(key).inserted else { continue }
+            items.append(InboxRunItem(url: url, source: source))
+        }
+
+        for url in stable {
+            let key = url.standardizedFileURL.path
+            guard !pausedFailurePaths.contains(key),
+                  seen.insert(key).inserted else { continue }
+            items.append(InboxRunItem(url: url, source: .finder))
+        }
+
+        guard !items.isEmpty else { return }
+        queuedStagedItems.removeAll()
+        let kind: RunKind = items.contains { $0.source == .finder } ? .inbox : .openURL
+        startInboxImport(items, kind: kind, modelContext: modelContext)
+    }
+
+    private func quarantine(_ urls: [URL]) -> [URL] {
+        guard !urls.isEmpty else { return [] }
+        let directory = inbox.directoryURL.appendingPathComponent(".Skipped", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true
+            )
+        } catch {
+            lastErrorMessage = "无法创建隔离目录：\(error.localizedDescription)"
+            return []
+        }
+
+        var moved: [URL] = []
+        for url in urls {
+            let destination = Self.uniqueQuarantineDestination(for: url, in: directory)
+            do {
+                try FileManager.default.moveItem(at: url, to: destination)
+                moved.append(url)
+            } catch {
+                lastErrorMessage = "无法隔离不支持的文件：\(url.lastPathComponent)"
+            }
+        }
+        return moved
+    }
+
+    nonisolated private static func uniqueQuarantineDestination(
+        for url: URL,
+        in directory: URL
+    ) -> URL {
+        let fileManager = FileManager.default
+        let name = PathSanitizer.sanitizeRelativePath(url.lastPathComponent)
+        var destination = directory.appendingPathComponent(name)
+        let ext = destination.pathExtension
+        let stem = destination.deletingPathExtension().lastPathComponent
+        var index = 2
+        while fileManager.fileExists(atPath: destination.path) {
+            let candidate = ext.isEmpty ? "\(stem)-\(index)" : "\(stem)-\(index).\(ext)"
+            destination = directory.appendingPathComponent(candidate)
+            index += 1
+        }
+        return destination
+    }
+
+    nonisolated private static func skippedCount(inbox: ImportInbox) -> Int {
+        let directory = inbox.directoryURL.appendingPathComponent(".Skipped", isDirectory: true)
+        return (try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ))?.count ?? 0
+    }
+
+    private func forgetStagedSource(for url: URL) {
+        let key = url.standardizedFileURL.path
+        stagedSourcesByPath.removeValue(forKey: key)
+        queuedStagedItems.removeAll { $0.url.standardizedFileURL.path == key }
+        pausedFailurePaths.remove(key)
+    }
+
+    /// Writes one aggregated JSON report for the whole inbox/open-in run. It
+    /// lists the per-URL report emitted by `FolderImportService`.
+    private func writeRunReport(
+        kind: RunKind,
+        collectionName: String,
+        startedAt: Date,
+        finishedAt: Date,
+        totalCandidates: Int,
+        supportedFiles: Int,
+        importedCount: Int,
+        relinkedCount: Int,
+        duplicateCount: Int,
+        unsupportedCount: Int,
+        failedCount: Int,
+        copiedBytes: Int64,
+        cancelled: Bool,
+        items: [InboxURLReport]
+    ) -> String? {
+        let directory = storage.applicationSupportRoot
+            .appendingPathComponent("ImportReports", isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true
+            )
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "yyyyMMdd-HHmmss"
+            let runID = UUID()
+            let url = directory.appendingPathComponent(
+                "\(formatter.string(from: startedAt))-run-\(runID.uuidString).json"
+            )
+            let report = InboxRunReport(
+                runID: runID,
+                kind: kind.rawValue,
+                collectionName: collectionName,
+                startedAt: startedAt,
+                finishedAt: finishedAt,
+                durationSeconds: finishedAt.timeIntervalSince(startedAt),
+                totalCandidates: totalCandidates,
+                supportedFiles: supportedFiles,
+                importedCount: importedCount,
+                relinkedCount: relinkedCount,
+                duplicateCount: duplicateCount,
+                unsupportedCount: unsupportedCount,
+                failedCount: failedCount,
+                copiedBytes: copiedBytes,
+                cancelled: cancelled,
+                reportPaths: items.compactMap(\.reportPath),
+                items: items
+            )
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.dateEncodingStrategy = .iso8601
+            try encoder.encode(report).write(to: url, options: .atomic)
+            return try? storage.relativePath(for: url)
+        } catch {
+            return nil
+        }
+    }
+
     private func finish(
         phase: ImportPhase,
         summary: RunSummary?,
-        issues: [String]
+        issues: [String],
+        modelContext: ModelContext
     ) {
         self.phase = phase
         self.summary = summary
@@ -459,9 +924,12 @@ final class ImportCoordinator {
         #if os(iOS)
         UIApplication.shared.isIdleTimerDisabled = false
         #endif
+        // Process items staged while this run was active, plus any newly stable
+        // inbox item (respecting the retry suspension).
+        requestInboxScan(modelContext: modelContext)
     }
 
-    private func finishWithError(_ error: Error) {
+    private func finishWithError(_ error: Error, modelContext: ModelContext) {
         phase = .failed
         lastErrorMessage = error.localizedDescription
         summary = nil
@@ -474,5 +942,6 @@ final class ImportCoordinator {
         #if os(iOS)
         UIApplication.shared.isIdleTimerDisabled = false
         #endif
+        requestInboxScan(modelContext: modelContext)
     }
 }
