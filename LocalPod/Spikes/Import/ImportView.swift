@@ -96,8 +96,20 @@ struct ImportView: View {
 
                 Section {
                     if importedItems.isEmpty {
-                        Text("还没有导入条目。")
-                            .foregroundStyle(.secondary)
+                        ContentUnavailableView {
+                            Label("还没有导入内容", systemImage: "tray.and.arrow.down")
+                                .accessibilityIdentifier("importRecentEmptyState")
+                        } description: {
+                            Text("点上方「选择文件夹」开始；子文件夹会被递归扫描。")
+                        } actions: {
+                            Button("选择文件夹") {
+                                activeSheet = .folder
+                            }
+                            .disabled(coordinator.isRunning)
+                            .accessibilityIdentifier("importEmptyChooseFolderButton")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .listRowBackground(Color.clear)
                     } else {
                         ForEach(Array(importedItems.prefix(5))) { item in
                             LibraryItemRow(item: item)
@@ -183,9 +195,18 @@ struct ImportView: View {
             }
 
             if let error = coordinator.lastErrorMessage {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("导入遇到问题。请确认文件仍在本机、格式受支持且存储空间充足，然后重试。")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("importErrorHeadline")
+                    Text(error)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("importErrorDetail")
+                }
             }
         }
     }

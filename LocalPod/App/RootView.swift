@@ -9,8 +9,12 @@ struct RootView: View {
     @Environment(PlaybackController.self) private var playback
     @Environment(PlaybackSession.self) private var session
 
+    @AppStorage(OnboardingStorage.completedKey) private var onboardingCompleted = false
+
     @State private var selectedTab = 0
     @State private var showSettings = false
+    @State private var showOnboarding = false
+    @State private var didResolveOnboarding = false
     @State private var didRunLaunchAutomation = false
 
     var body: some View {
@@ -23,7 +27,7 @@ struct RootView: View {
                 .tabItem { Label("导入", systemImage: "tray.and.arrow.down") }
                 .tag(1)
 
-            PlaybackView()
+            PlaybackView(onGoToLibrary: { selectedTab = 0 })
                 .tabItem { Label("播放", systemImage: "play.circle") }
                 .tag(2)
 
@@ -35,9 +39,19 @@ struct RootView: View {
                 .tabItem { Label("诊断", systemImage: "stethoscope") }
                 .tag(4)
         }
-        .tint(.indigo)
+        .tint(Color.accentColor)
         .sheet(isPresented: $showSettings) {
             SettingsView()
+        }
+        .sheet(isPresented: $showOnboarding) {
+            OnboardingView(
+                onContinue: { finishOnboarding() },
+                onGoToImport: { finishOnboarding(selectingTab: 1) },
+                onSkip: { finishOnboarding() }
+            )
+            // A swipe-down dismissal is still a completed first run; do not
+            // nag on every launch.
+            .onDisappear { onboardingCompleted = true }
         }
         .task {
             session.attach(
@@ -48,6 +62,7 @@ struct RootView: View {
             seedDebugLibraryIfNeeded()
             seedM3FixturesIfNeeded()
             runLaunchAutomationIfNeeded()
+            resolveOnboardingIfNeeded()
         }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
@@ -75,12 +90,52 @@ struct RootView: View {
         .onOpenURL { url in
             importCoordinator.handleOpenURL(url, modelContext: modelContext)
         }
+        // Normal builds follow the system appearance. The iOS 27.1 simulator
+        // used by UI tests does not propagate XCUIDevice.appearance into the
+        // AUT, so a DEBUG-only launch switch lets M5 capture a real dark-mode
+        // screenshot through SwiftUI's color scheme.
+        .preferredColorScheme(debugColorSchemeOverride)
+    }
+
+    private var debugColorSchemeOverride: ColorScheme? {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--m5-force-dark-appearance") {
+            return .dark
+        }
+        #endif
+        return nil
     }
 
     /// Stable identity for the debug long-audio clip so progress resume can be
     /// exercised across app launches in UI tests.
     private static let m2LongAudioLibraryID =
         UUID(uuidString: "22222222-2222-4222-8222-222222222222")!
+
+    private func resolveOnboardingIfNeeded() {
+        guard !didResolveOnboarding else { return }
+        didResolveOnboarding = true
+
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--m5-show-onboarding") {
+            showOnboarding = true
+            return
+        }
+        if arguments.contains("--m5-skip-onboarding") {
+            return
+        }
+        #endif
+
+        showOnboarding = !onboardingCompleted
+    }
+
+    private func finishOnboarding(selectingTab tab: Int? = nil) {
+        onboardingCompleted = true
+        showOnboarding = false
+        if let tab {
+            selectedTab = tab
+        }
+    }
 
     /// Debug-only launch switches used by UI tests and manual simulator
     /// validation. They have no effect in Release builds.

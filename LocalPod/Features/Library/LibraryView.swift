@@ -222,6 +222,7 @@ struct LibraryView: View {
                     systemImage: "waveform",
                     description: Text(libraryItems.isEmpty ? "去「导入」选择一个文件夹开始。" : "调整搜索或筛选条件。")
                 )
+                .accessibilityIdentifier("libraryEmptyState")
             } else {
                 ForEach(displayedItems) { item in
                     NavigationLink {
@@ -268,6 +269,7 @@ struct LibraryView: View {
                     systemImage: "square.stack.3d.up",
                     description: Text("导入一个文件夹后会自动生成合集。")
                 )
+                .accessibilityIdentifier("collectionEmptyState")
             } else {
                 ForEach(collectionRows) { row in
                     NavigationLink {
@@ -275,15 +277,15 @@ struct LibraryView: View {
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "square.stack.3d.up.fill")
-                                .foregroundStyle(.indigo)
+                                .foregroundStyle(Color.accentColor)
                                 .frame(width: 28)
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(row.collection.name)
-                                    .lineLimit(1)
+                                    .fixedSize(horizontal: false, vertical: true)
                                 Text("\(row.itemCount) 条 · \(formatDuration(row.duration)) · \(ByteCountFormatter.string(fromByteCount: row.byteCount, countStyle: .file))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                    .lineLimit(1)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                     }
@@ -312,7 +314,7 @@ struct LibraryItemRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(item.title)
-                        .lineLimit(1)
+                        .fixedSize(horizontal: false, vertical: true)
                     if item.isMissing {
                         Text("缺失")
                             .font(.caption2.weight(.semibold))
@@ -322,7 +324,7 @@ struct LibraryItemRow: View {
                 Text(subtitle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 4)
             Text(item.durationText)
@@ -357,17 +359,19 @@ struct ContinueListeningRow: View {
             MediaArtworkView(item: item, size: 48)
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
-                    .lineLimit(1)
+                    .fixedSize(horizontal: false, vertical: true)
                 ProgressView(value: progress)
-                    .tint(.indigo)
+                    .tint(Color.accentColor)
                 Text("已听 \(Int(state.position)) 秒 / \(item.durationText)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
             Image(systemName: "play.circle.fill")
                 .font(.title3)
-                .foregroundStyle(.indigo)
+                .foregroundStyle(Color.accentColor)
+                .accessibilityHidden(true)
         }
     }
 }
@@ -542,7 +546,7 @@ struct LibraryItemDetailView: View {
                 Section {
                     Text(infoMessage)
                         .font(.caption)
-                        .foregroundStyle(.indigo)
+                        .foregroundStyle(Color.accentColor)
                         .accessibilityIdentifier("detailQueueInfoText")
                 }
             }
@@ -629,7 +633,7 @@ struct MediaArtworkView: View {
                     LinearGradient(
                         colors: item.kind.isVideo
                             ? [.orange.opacity(0.85), .red.opacity(0.65)]
-                            : [.indigo.opacity(0.85), .blue.opacity(0.6)],
+                            : [Color.accentColor.opacity(0.85), .blue.opacity(0.6)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -646,6 +650,7 @@ struct MediaArtworkView: View {
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: size > 60 ? 16 : 8, style: .continuous))
+        .accessibilityHidden(true)
         .task(id: item.artworkKey) {
             await loadImage()
         }

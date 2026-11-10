@@ -10,8 +10,16 @@ struct LocalPodApp: App {
 
     init() {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--m0-reset-data") {
+        let launchArguments = ProcessInfo.processInfo.arguments
+        if launchArguments.contains("--m0-reset-data") {
             Self.resetDebugData()
+        }
+        // First-run onboarding must not block the M0-M4 UI suites, which all
+        // reset app data. --m0-reset-data therefore marks onboarding done;
+        // only the dedicated M5 argument clears it again for the show-once
+        // test.
+        if launchArguments.contains("--m5-reset-onboarding") {
+            UserDefaults.standard.removeObject(forKey: OnboardingStorage.completedKey)
         }
         #endif
         do {
@@ -53,6 +61,9 @@ struct LocalPodApp: App {
             at: MediaStorage.live.cachesRoot.appendingPathComponent("Artwork", isDirectory: true)
         )
         AppSettingsStore.clearStoredValues()
+        // Keep UI-test resets onboarding-free: resetting media data is not a
+        // first install. `--m5-reset-onboarding` opts into first-run instead.
+        UserDefaults.standard.set(true, forKey: OnboardingStorage.completedKey)
         // Removing the whole inbox also clears `.Skipped` quarantine items and
         // any hidden `.localpod-stage-*` leftovers from an interrupted run.
         try? FileManager.default.removeItem(at: ImportInbox.live.directoryURL)

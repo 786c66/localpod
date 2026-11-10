@@ -32,6 +32,7 @@ struct PlaylistListView: View {
                         systemImage: "music.note.list",
                         description: Text("点右上角 + 创建一个，然后在资料库条目里加入。")
                     )
+                    .accessibilityIdentifier("playlistEmptyState")
                 }
             } else {
                 Section("播放列表 · \(playlists.count)") {
@@ -41,11 +42,11 @@ struct PlaylistListView: View {
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: "music.note.list")
-                                    .foregroundStyle(.indigo)
+                                    .foregroundStyle(Color.accentColor)
                                     .frame(width: 28)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(playlist.name)
-                                        .lineLimit(1)
+                                        .fixedSize(horizontal: false, vertical: true)
                                     Text("\(count(playlist)) 条")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
@@ -60,7 +61,7 @@ struct PlaylistListView: View {
                             } label: {
                                 Label("重命名", systemImage: "pencil")
                             }
-                            .tint(.indigo)
+                            .tint(Color.accentColor)
                         }
                         .swipeActions(edge: .trailing) {
                             Button(role: .destructive) {
@@ -197,7 +198,7 @@ struct PlaylistDetailView: View {
                                     .frame(width: 22, alignment: .trailing)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(item?.title ?? "已删除条目")
-                                        .lineLimit(1)
+                                        .fixedSize(horizontal: false, vertical: true)
                                     Text(item?.durationText ?? "—")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
@@ -217,7 +218,7 @@ struct PlaylistDetailView: View {
                             } label: {
                                 Label("上移", systemImage: "arrow.up")
                             }
-                            .tint(.indigo)
+                            .tint(Color.accentColor)
                             .disabled(index == 0)
 
                             Button {

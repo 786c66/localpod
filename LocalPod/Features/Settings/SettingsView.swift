@@ -42,29 +42,11 @@ struct SettingsView: View {
                             .accessibilityIdentifier("settingsDefaultSpeedValue")
                     }
 
-                    HStack(spacing: 8) {
-                        ForEach(PlaybackPolicy.featuredSpeedPresets, id: \.self) { rate in
-                            Button {
-                                settings.defaultRate = rate
-                            } label: {
-                                Text(PlaybackPolicy.speedLabel(rate))
-                                    .font(.caption.weight(
-                                        settings.defaultRate == rate ? .semibold : .regular
-                                    ))
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(
-                                        settings.defaultRate == rate
-                                            ? Color.indigo
-                                            : Color.secondary.opacity(0.12),
-                                        in: Capsule()
-                                    )
-                                    .foregroundStyle(
-                                        settings.defaultRate == rate ? .white : .primary
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("settingsSpeed-\(rate)")
+                    ViewThatFits(in: .horizontal) {
+                        speedPresetsRow(settings)
+                            .fixedSize(horizontal: true, vertical: false)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            speedPresetsRow(settings)
                         }
                     }
 
@@ -137,10 +119,11 @@ struct SettingsView: View {
                         ForEach(importSessions.prefix(5)) { session in
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(session.rootName)
-                                    .lineLimit(1)
+                                    .fixedSize(horizontal: false, vertical: true)
                                 Text("\(session.startedAt.formatted(date: .abbreviated, time: .shortened)) · 导入 \(session.importedCount) · 重复 \(session.duplicateCount) · 失败 \(session.failedCount)")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                     }
@@ -167,6 +150,42 @@ struct SettingsView: View {
             .onChange(of: settings.skipBackwardSeconds) { _, _ in session.applySettings() }
             .onChange(of: settings.resumeEnabled) { _, _ in session.applySettings() }
         }
+    }
+
+    private func speedPresetsRow(_ settings: AppSettingsStore) -> some View {
+        HStack(spacing: 8) {
+            ForEach(PlaybackPolicy.featuredSpeedPresets, id: \.self) { rate in
+                let isSelected = settings.defaultRate == rate
+                Button {
+                    settings.defaultRate = rate
+                } label: {
+                    Text(PlaybackPolicy.speedLabel(rate))
+                        .font(.caption.weight(isSelected ? .semibold : .regular))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(
+                            isSelected
+                                ? Color.accentColor.opacity(0.22)
+                                : Color.secondary.opacity(0.12),
+                            in: Capsule()
+                        )
+                        .overlay {
+                            Capsule()
+                                .strokeBorder(
+                                    Color.accentColor,
+                                    lineWidth: isSelected ? 1.5 : 0
+                                )
+                        }
+                        .foregroundStyle(Color.primary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settingsSpeed-\(rate)")
+                .accessibilityLabel("默认速度 \(PlaybackPolicy.speedLabel(rate))")
+                .accessibilityHint("把默认播放速度设为 \(PlaybackPolicy.speedLabel(rate))")
+                .accessibilityAddTraits(isSelected ? .isSelected : AccessibilityTraits())
+            }
+        }
+        .padding(.vertical, 2)
     }
 
     private func runMaintenance() {

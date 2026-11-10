@@ -10,6 +10,7 @@
 		037014D99F4F78316432A9A3 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C240AF67ECE4340E5C07A451 /* RootView.swift */; };
 		1FB3FE976CB8BCC2CA91E229 /* PlaybackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AECD17FBD53662BDB9FDFAC /* PlaybackView.swift */; };
 		2100AD8BE19A9E930EE004C2 /* ImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF0159A431873BBF57DF3694 /* ImportCoordinator.swift */; };
+		27085B42C4116AAEA272FA8F /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D803FA536A5958263A625E /* OnboardingView.swift */; };
 		289D7FB4F15C1D781C64222C /* LocalPodKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0FD9FD8B08DA934EFA2B4552 /* LocalPodKit */; };
 		2C750406DE2646C2DFC14B80 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 361F918E598EAD9C59C223E8 /* DiagnosticsView.swift */; };
 		3B0BBC9C9D130B6A867C27D0 /* demo-hevc.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = CC6EE4C4A13662596AFB63B0 /* demo-hevc.mp4 */; };
@@ -30,6 +31,7 @@
 		B47A8F974E5AF2E0CCB88A48 /* M3UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A1CFB6A6BD9067B93CA6FA /* M3UITests.swift */; };
 		B47C57FD19EBBE914893017A /* LocalPodApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BA0DF86D0C69BC29BE9F624 /* LocalPodApp.swift */; };
 		B509A743EB3CD7E141D27980 /* M2UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 562ADF714076DD62E7590544 /* M2UITests.swift */; };
+		B56B53B162D5DD51D04357AB /* M5UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BE5FFCCF1BFDDC0A7C14512 /* M5UITests.swift */; };
 		DC0F4714648A8F7C99E7DACC /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFD2D2A1E3D000812950E085 /* LibraryView.swift */; };
 		DE683B751E476EDC3FDDA784 /* demo-h264.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 87B68AB75FE621F1C3EC5A63 /* demo-h264.mp4 */; };
 		E88FB4648BE59E15C934CEE6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3DC41E9533AC5BE62B52E987 /* Assets.xcassets */; };
@@ -51,6 +53,7 @@
 		222D3B52B8184050320B4910 /* M4DebugSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M4DebugSupport.swift; sourceTree = "<group>"; };
 		2310D31581FEB3DC9E6D0B97 /* BenchmarkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchmarkView.swift; sourceTree = "<group>"; };
 		23346E600CEA4A18BA25978B /* demo-audio.m4a */ = {isa = PBXFileReference; path = "demo-audio.m4a"; sourceTree = "<group>"; };
+		2BE5FFCCF1BFDDC0A7C14512 /* M5UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M5UITests.swift; sourceTree = "<group>"; };
 		361F918E598EAD9C59C223E8 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		3DC41E9533AC5BE62B52E987 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4AECD17FBD53662BDB9FDFAC /* PlaybackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackView.swift; sourceTree = "<group>"; };
@@ -74,6 +77,7 @@
 		E02DE9E7DBFAAA5822D68D7F /* LocalPod.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LocalPod.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2C0FF2DD1CF8BA191DE2461 /* SigningInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningInfo.swift; sourceTree = "<group>"; };
 		F1D17F0BADA440FB407E46DA /* DocumentPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentPicker.swift; sourceTree = "<group>"; };
+		F7D803FA536A5958263A625E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -200,6 +204,7 @@
 			isa = PBXGroup;
 			children = (
 				2F0CE1E417222C5529E88593 /* Library */,
+				EA3F34276AF8269024C4AE0A /* Onboarding */,
 				2B1576B193385FA5B6E6CE73 /* Playlists */,
 				98FF33B6116B51CBFC3A3BD6 /* Settings */,
 			);
@@ -214,6 +219,7 @@
 				562ADF714076DD62E7590544 /* M2UITests.swift */,
 				B4A1CFB6A6BD9067B93CA6FA /* M3UITests.swift */,
 				DB42381B83497C220C5B45CB /* M4UITests.swift */,
+				2BE5FFCCF1BFDDC0A7C14512 /* M5UITests.swift */,
 			);
 			path = LocalPodUITests;
 			sourceTree = "<group>";
@@ -240,6 +246,14 @@
 				3DC41E9533AC5BE62B52E987 /* Assets.xcassets */,
 			);
 			path = LocalPod;
+			sourceTree = "<group>";
+		};
+		EA3F34276AF8269024C4AE0A /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				F7D803FA536A5958263A625E /* OnboardingView.swift */,
+			);
+			path = Onboarding;
 			sourceTree = "<group>";
 		};
 		EB1670D96A2376419FC9D5F0 /* Inbox */ = {
@@ -362,6 +376,7 @@
 				B47C57FD19EBBE914893017A /* LocalPodApp.swift in Sources */,
 				60156DF3AF1D096EE1D1EF55 /* M3DebugSeed.swift in Sources */,
 				7ADE606D3D7D40509C2CCE8A /* M4DebugSupport.swift in Sources */,
+				27085B42C4116AAEA272FA8F /* OnboardingView.swift in Sources */,
 				1FB3FE976CB8BCC2CA91E229 /* PlaybackView.swift in Sources */,
 				3E930D6A214511223DB90AC2 /* PlaylistViews.swift in Sources */,
 				037014D99F4F78316432A9A3 /* RootView.swift in Sources */,
@@ -379,6 +394,7 @@
 				B509A743EB3CD7E141D27980 /* M2UITests.swift in Sources */,
 				B47A8F974E5AF2E0CCB88A48 /* M3UITests.swift in Sources */,
 				3D9F253E7D1B5E9839CEDEEE /* M4UITests.swift in Sources */,
+				B56B53B162D5DD51D04357AB /* M5UITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

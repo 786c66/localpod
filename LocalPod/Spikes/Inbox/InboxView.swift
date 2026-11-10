@@ -13,6 +13,21 @@ struct InboxView: View {
         ImportInbox.live.directoryURL.path
     }
 
+    private var inboxSummary: ImportCoordinator.RunSummary? {
+        guard let summary = coordinator.summary,
+              summary.kind == .inbox || summary.kind == .openURL else {
+            return nil
+        }
+        return summary
+    }
+
+    private var showsEmptyState: Bool {
+        coordinator.inboxPendingCount == 0
+            && coordinator.inboxUnstableCount == 0
+            && coordinator.inboxSkippedCount == 0
+            && inboxSummary == nil
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -36,6 +51,12 @@ struct InboxView: View {
                     .disabled(coordinator.isRunning)
 
                     if coordinator.inboxHasPendingFailures {
+                        Text("有文件未能导入。请确认格式受支持、文件已下载，然后点「重试失败」。")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("inboxFailureHeadline")
+
                         Button {
                             coordinator.retryInboxFailures(modelContext: modelContext)
                         } label: {
@@ -62,6 +83,25 @@ struct InboxView: View {
                     Text("收件箱是 Documents/Import。App 启动、回到前台以及前台运行期间会每 2 秒扫描一次；只有文件大小稳定后才会导入，不支持的文件会移入隐藏的 .Skipped 隔离目录。")
                 }
 
+                if showsEmptyState {
+                    Section {
+                        ContentUnavailableView {
+                            Label("收件箱为空", systemImage: "tray")
+                                .accessibilityIdentifier("inboxEmptyState")
+                        } description: {
+                            Text("用 Finder 拖入文件，或在下方选择文件；导入完成后会出现在资料库。")
+                        } actions: {
+                            Button("选择文件") {
+                                showFilePicker = true
+                            }
+                            .disabled(coordinator.isRunning)
+                            .accessibilityIdentifier("inboxEmptyPickFileButton")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .listRowBackground(Color.clear)
+                    }
+                }
+
                 if coordinator.isRunning {
                     Section("当前任务") {
                         HStack {
@@ -82,6 +122,22 @@ struct InboxView: View {
                             Label("取消", systemImage: "xmark.circle")
                         }
                         .disabled(coordinator.isCancelling)
+                    }
+                }
+
+                if let error = coordinator.lastErrorMessage,
+                   !coordinator.inboxHasPendingFailures {
+                    Section("需要处理") {
+                        Text("上一次操作未完成。请确认文件格式受支持且已下载，然后重试。")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("inboxErrorHeadline")
+                        Text(error)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("inboxErrorDetail")
                     }
                 }
 
