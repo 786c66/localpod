@@ -72,6 +72,13 @@ struct SettingsView: View {
     @State private var showBackupImportPicker = false
     @State private var pendingRestoreDocument: BackupDocument?
     @State private var pendingRestoreFileName: String?
+    // 通知 (local import notifications) state.
+    @State private var importNotificationsAuthorizationDenied = false
+    /// UI-test seam: ImportNotifier publishes its last decision here (DEBUG
+    /// builds only). @AppStorage refreshes the row when the import finishes
+    /// while Settings is already open.
+    @AppStorage(ImportNotifier.debugLastDecisionDefaultsKey)
+    private var lastImportNotificationText = ""
     /// Launch-argument automation (UI tests) force an immediate staleness
     /// check so the badge is visible without tapping anything first.
     @State private var didResolveStalenessOnAppear = false
@@ -205,6 +212,8 @@ struct SettingsView: View {
 
                 backupSection
 
+                importNotificationsSection(settings)
+
                 Section("导入历史") {
                     if importSessions.isEmpty {
                         Text("还没有导入记录。")
@@ -248,6 +257,9 @@ struct SettingsView: View {
             .onChange(of: settings.resumeEnabled) { _, _ in session.applySettings() }
             .onChange(of: settings.signingReminderEnabled) { _, enabled in
                 updateSigningReminder(enabled: enabled)
+            }
+            .onChange(of: settings.importNotificationsEnabled) { _, enabled in
+                updateImportNotifications(enabled: enabled)
             }
             .alert("删除示例内容？", isPresented: $showDeleteSamplesConfirmation) {
                 Button("删除", role: .destructive) {
@@ -457,6 +469,68 @@ struct SettingsView: View {
                 .accessibilityIdentifier("backupSection")
         } footer: {
             Text(L10n.string("backup.footer"))
+        }
+    }
+
+    /// 通知: local import finished/failed notifications. Appended after the
+    /// backup section and before 导入历史, per the P1 regression rule that new
+    /// settings UI never reorders existing sections.
+    @ViewBuilder
+    private func importNotificationsSection(_ settings: AppSettingsStore) -> some View {
+        @Bindable var settings = settings
+        Section {
+            Toggle(isOn: $settings.importNotificationsEnabled) {
+                Text(L10n.string("settings.notifications.toggle"))
+            }
+            .accessibilityIdentifier("importNotificationsToggle")
+
+            if importNotificationsAuthorizationDenied {
+                Text(L10n.string("settings.notifications.denied"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("importNotificationsDeniedHint")
+            }
+
+            #if DEBUG
+            if !lastImportNotificationText.isEmpty {
+                Text(lastImportNotificationText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("lastImportNotificationText")
+            }
+            #endif
+        } header: {
+            Text(L10n.string("settings.notifications.section"))
+                .accessibilityIdentifier("importNotificationsSection")
+        } footer: {
+            Text(L10n.string("settings.notifications.footer"))
+        }
+    }
+
+    private func updateImportNotifications(enabled: Bool) {
+        // Turning it off never needs system authorization; the didSet already
+        // persisted the value.
+        guard enabled else { return }
+
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--p2-enable-import-notifications") {
+            // The UI suite turns the setting on at launch; never prompt there.
+            return
+        }
+        #endif
+
+        Task {
+            let granted = await ImportNotifier.requestAuthorization()
+            if granted {
+                importNotificationsAuthorizationDenied = false
+            } else {
+                // Revert the toggle so the UI never claims notifications work
+                // when the system will drop them, and explain the fix.
+                session.settings.importNotificationsEnabled = false
+                importNotificationsAuthorizationDenied = true
+            }
         }
     }
 

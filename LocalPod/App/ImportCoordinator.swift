@@ -143,6 +143,16 @@ final class ImportCoordinator {
     /// running. They are staged safely on disk and consumed in order.
     @ObservationIgnored private var queuedWiFiImports: [WiFiCompletedUpload] = []
 
+    /// Delivery hook for the local "import finished/failed" notification. The
+    /// default schedules the real `UNNotificationRequest`; the coordinator
+    /// still owns the pure policy decision so all run exit points share it.
+    @ObservationIgnored var deliverImportNotification: ((ImportNotificationDecision) -> Void)? = {
+        decision in
+        Task { @MainActor in
+            await ImportNotifier.notify(decision: decision)
+        }
+    }
+
     func bootstrap(modelContext: ModelContext) {
         do {
             try inbox.ensureExists()
@@ -1344,6 +1354,7 @@ final class ImportCoordinator {
         self.task = nil
         self.pendingLinkedFolderSync = nil
         self.refreshInboxPendingCount()
+        sendImportNotification(phase: phase, summary: summary, errorMessage: nil)
         #if os(iOS)
         UIApplication.shared.isIdleTimerDisabled = false
         #endif
@@ -1364,10 +1375,62 @@ final class ImportCoordinator {
         task = nil
         pendingLinkedFolderSync = nil
         refreshInboxPendingCount()
+        sendImportNotification(
+            phase: .failed,
+            summary: nil,
+            errorMessage: error.localizedDescription
+        )
         #if os(iOS)
         UIApplication.shared.isIdleTimerDisabled = false
         #endif
         requestInboxScan(modelContext: modelContext)
         startNextQueuedWiFiImportIfNeeded(modelContext: modelContext)
+    }
+
+    /// Maps the run summary into the package value type, asks the pure policy,
+    /// and hands the decision to the delivery hook. `isEnabled` and foreground
+    /// gating live here; delivery only checks system authorization.
+    private func sendImportNotification(
+        phase: ImportPhase,
+        summary: RunSummary?,
+        errorMessage: String?
+    ) {
+        let snapshot = summary.map {
+            ImportNotificationSummary(
+                collectionName: $0.collectionName,
+                importedCount: $0.importedCount,
+                relinkedCount: $0.relinkedCount,
+                failedCount: $0.failedCount,
+                cancelled: $0.cancelled || phase == .cancelled,
+                firstIssueMessage: $0.messages.first
+            )
+        }
+        let decision = ImportNotificationPolicy.decision(
+            summary: snapshot,
+            errorMessage: errorMessage,
+            isAppActive: Self.isAppActiveForImportNotifications(),
+            isEnabled: AppSettingsStore().importNotificationsEnabled
+        )
+        // Always hand over the decision (including .none): the delivery hook
+        // is also the DEBUG seam that records foreground/disabled decisions.
+        deliverImportNotification?(decision)
+    }
+
+    /// Foreground imports already show their result in the import UI, so they
+    /// do not post a banner. The DEBUG switch lets the UI suite exercise the
+    /// real wiring while the app is technically active.
+    private static func isAppActiveForImportNotifications() -> Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains(
+            "--p2-force-inactive-for-notifications"
+        ) {
+            return false
+        }
+        #endif
+        #if os(iOS)
+        return UIApplication.shared.applicationState == .active
+        #else
+        return false
+        #endif
     }
 }

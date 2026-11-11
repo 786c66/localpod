@@ -114,7 +114,6 @@
 "导入遇到问题。请确认文件仍在本机、格式受支持且存储空间充足，然后重试。" = "导入遇到问题。请确认文件仍在本机、格式受支持且存储空间充足，然后重试。";
 "导入验收文件夹（100 文件，含 2 不支持 + 1 重复）" = "导入验收文件夹（100 文件，含 2 不支持 + 1 重复）";
 "将删除 %lld 条示例及其进度、队列和播放列表引用。你导入的内容不会受影响。" = "将删除 %lld 条示例及其进度、队列和播放列表引用。你导入的内容不会受影响。";
-"将删除资料库记录、媒体文件与封面，释放 %@。" = "将删除资料库记录、媒体文件与封面，释放 %@。";
 "尚未运行启动维护。" = "尚未运行启动维护。";
 "工具" = "工具";
 "左右滑动调整播放位置" = "左右滑动调整播放位置";
@@ -413,6 +412,10 @@
 "linkedFolders.section" = "链接的文件夹";
 "linkedFolders.staleBadge" = "链接失效";
 "linkedFolders.syncNow" = "立即同步";
+"notification.import.failure.body" = "请打开 LocalPod 查看详情。";
+"notification.import.failure.title" = "导入失败";
+"notification.import.success.body" = "「%@」：%lld 个条目";
+"notification.import.success.title" = "导入完成";
 "notification.signing.body" = "签名将在 2 天后到期，建议在到期前用同一 Bundle ID 重签；重签不会清除资料库。";
 "notification.signing.title" = "LocalPod 签名即将到期";
 "onboarding.audioOnly.detail" = "视频文件也可以导入，但只播放其中的音轨；不显示画面、不做旋转或画中画。";
@@ -436,6 +439,10 @@
 "settings.maintenance.changed" = "缺失标记 %lld · 恢复 %lld · 清理媒体 %lld · 清理封面 %lld";
 "settings.maintenance.clean" = "维护完成：没有需要清理的内容。";
 "settings.maintenance.failed" = "维护失败：%@";
+"settings.notifications.denied" = "通知权限已关闭。请在 iOS「设置」>「通知」>「LocalPod」中允许通知后再开启。";
+"settings.notifications.footer" = "只在 App 不在前台时提醒；导入失败也会提醒。";
+"settings.notifications.section" = "通知";
+"settings.notifications.toggle" = "导入完成提醒";
 "settings.samples.deleteFailed" = "删除示例失败：%@";
 "settings.samples.deleted" = "已删除 %lld 条示例（%@），同时清理进度 %lld · 队列 %lld · 播放列表 %lld · 媒体 %lld · 封面 %lld。";
 "settings.section.playback" = "播放";

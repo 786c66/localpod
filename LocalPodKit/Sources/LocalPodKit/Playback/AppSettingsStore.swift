@@ -14,6 +14,7 @@ public final class AppSettingsStore {
     public static let keyResumeEnabled = "resumeEnabled"
     public static let keyAutoPlayNext = "autoPlayNext"
     public static let keySigningReminderEnabled = "signingReminderEnabled"
+    public static let keyImportNotificationsEnabled = "importNotificationsEnabled"
 
     public var defaultRate: Float {
         didSet { defaults.set(Double(defaultRate), forKey: key(Self.keyDefaultRate)) }
@@ -44,6 +45,17 @@ public final class AppSettingsStore {
             )
         }
     }
+    /// Local "import finished/failed" notification. Defaults to off so a fresh
+    /// install never sees a permission prompt; enabling the Settings toggle is
+    /// the only path that requests notification authorization.
+    public var importNotificationsEnabled: Bool {
+        didSet {
+            defaults.set(
+                importNotificationsEnabled,
+                forKey: key(Self.keyImportNotificationsEnabled)
+            )
+        }
+    }
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let prefix: String
@@ -68,6 +80,9 @@ public final class AppSettingsStore {
         let storedSigningReminder = defaults.object(
             forKey: keyPrefix + Self.keySigningReminderEnabled
         ) as? Bool ?? true
+        let storedImportNotifications = defaults.object(
+            forKey: keyPrefix + Self.keyImportNotificationsEnabled
+        ) as? Bool ?? false
 
         defaultRate = PlaybackPolicy.clampedRate(Float(storedRate))
         skipForwardSeconds = Self.validSkip(storedForward)
@@ -75,6 +90,7 @@ public final class AppSettingsStore {
         resumeEnabled = storedResume
         autoPlayNext = storedAutoNext
         signingReminderEnabled = storedSigningReminder
+        importNotificationsEnabled = storedImportNotifications
     }
 
     public func reset() {
@@ -84,7 +100,8 @@ public final class AppSettingsStore {
             Self.keySkipBackward,
             Self.keyResumeEnabled,
             Self.keyAutoPlayNext,
-            Self.keySigningReminderEnabled
+            Self.keySigningReminderEnabled,
+            Self.keyImportNotificationsEnabled
         ] {
             defaults.removeObject(forKey: prefix + key)
         }
@@ -94,6 +111,7 @@ public final class AppSettingsStore {
         resumeEnabled = true
         autoPlayNext = true
         signingReminderEnabled = true
+        importNotificationsEnabled = false
     }
 
     public static func clearStoredValues(

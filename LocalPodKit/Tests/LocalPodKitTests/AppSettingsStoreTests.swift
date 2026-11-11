@@ -27,6 +27,7 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertTrue(store.resumeEnabled)
         XCTAssertTrue(store.autoPlayNext)
         XCTAssertTrue(store.signingReminderEnabled)
+        XCTAssertFalse(store.importNotificationsEnabled)
     }
 
     func testValuesPersistForANewStore() {
@@ -37,6 +38,7 @@ final class AppSettingsStoreTests: XCTestCase {
         store.resumeEnabled = false
         store.autoPlayNext = false
         store.signingReminderEnabled = false
+        store.importNotificationsEnabled = true
 
         let restored = AppSettingsStore(defaults: defaults, keyPrefix: prefix)
         XCTAssertEqual(restored.defaultRate, 1.5, accuracy: 0.001)
@@ -45,6 +47,7 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertFalse(restored.resumeEnabled)
         XCTAssertFalse(restored.autoPlayNext)
         XCTAssertFalse(restored.signingReminderEnabled)
+        XCTAssertTrue(restored.importNotificationsEnabled)
     }
 
     func testStoredOutOfRangeValuesAreClamped() {
@@ -64,6 +67,7 @@ final class AppSettingsStoreTests: XCTestCase {
         store.skipForwardSeconds = 45
         store.resumeEnabled = false
         store.signingReminderEnabled = false
+        store.importNotificationsEnabled = true
         store.reset()
 
         XCTAssertEqual(store.defaultRate, 1.0, accuracy: 0.001)
@@ -71,6 +75,7 @@ final class AppSettingsStoreTests: XCTestCase {
         XCTAssertTrue(store.resumeEnabled)
         XCTAssertTrue(store.autoPlayNext)
         XCTAssertTrue(store.signingReminderEnabled)
+        XCTAssertFalse(store.importNotificationsEnabled)
 
         store.defaultRate = 2.5
         AppSettingsStore.clearStoredValues(defaults: defaults, keyPrefix: prefix)

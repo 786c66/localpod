@@ -114,7 +114,6 @@
 "导入遇到问题。请确认文件仍在本机、格式受支持且存储空间充足，然后重试。" = "The import ran into a problem. Confirm the files are still on this device, the formats are supported, and there is enough storage, then try again.";
 "导入验收文件夹（100 文件，含 2 不支持 + 1 重复）" = "Import Acceptance Folder (100 files, including 2 unsupported + 1 duplicate)";
 "将删除 %lld 条示例及其进度、队列和播放列表引用。你导入的内容不会受影响。" = "This will delete %1$lld samples plus their progress, queue, and playlist references. Your own imports are unaffected.";
-"将删除资料库记录、媒体文件与封面，释放 %@。" = "This deletes the library records, media files, and artwork, freeing %@.";
 "尚未运行启动维护。" = "Startup maintenance has not run yet.";
 "工具" = "Tools";
 "左右滑动调整播放位置" = "Swipe left or right to seek";
@@ -413,6 +412,10 @@
 "linkedFolders.section" = "Linked Folders";
 "linkedFolders.staleBadge" = "Link Stale";
 "linkedFolders.syncNow" = "Sync Now";
+"notification.import.failure.body" = "Open LocalPod for details.";
+"notification.import.failure.title" = "Import Failed";
+"notification.import.success.body" = "“%@”: %lld items";
+"notification.import.success.title" = "Import Complete";
 "notification.signing.body" = "Your signing certificate expires in 2 days. Re-sign with the same Bundle ID before it expires; re-signing does not erase your library.";
 "notification.signing.title" = "LocalPod Signing Expires Soon";
 "onboarding.audioOnly.detail" = "Video files can be imported, but only their audio track plays. No picture is shown, and there is no rotation or picture-in-picture.";
@@ -436,6 +439,10 @@
 "settings.maintenance.changed" = "Missing marked %lld · Restored %lld · Media cleaned %lld · Artwork cleaned %lld";
 "settings.maintenance.clean" = "Maintenance complete: nothing needed cleaning.";
 "settings.maintenance.failed" = "Maintenance failed: %@";
+"settings.notifications.denied" = "Notification permission is off. Allow notifications for LocalPod in iOS Settings > Notifications, then enable this again.";
+"settings.notifications.footer" = "Only shown when the app is not in the foreground; failed imports are also reported.";
+"settings.notifications.section" = "Notifications";
+"settings.notifications.toggle" = "Import Completion Alerts";
 "settings.samples.deleteFailed" = "Failed to delete samples: %@";
 "settings.samples.deleted" = "Deleted %1$lld sample items (%2$@), and removed progress %3$lld · queue %4$lld · playlists %5$lld · media %6$lld · artwork %7$lld.";
 "settings.section.playback" = "Playback";

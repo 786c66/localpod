@@ -61,6 +61,7 @@ struct RootView: View {
             // P2 debug seeds must exist BEFORE bootstrap so the launch
             // maintenance (reconcile → purgeExpired) sees them — the expired
             // trash fixture specifically exercises purge-at-launch.
+            applyP2NotificationSettingsIfNeeded()
             seedP2FixturesIfNeeded()
             importCoordinator.bootstrap(modelContext: modelContext)
             seedDebugLibraryIfNeeded()
@@ -315,6 +316,19 @@ struct RootView: View {
         P2DebugSeed.addFileToLinkedFolderIfRequested(in: modelContext)
         P2DebugSeed.seedTrashIfRequested(in: modelContext)
         P2DebugSeed.seedExpiredTrashIfRequested(in: modelContext)
+        #endif
+    }
+
+    /// UI-test seam: turn the import notification setting on without going
+    /// through the Settings toggle, which would request system authorization
+    /// and show a springboard alert. Delivery still checks the real
+    /// authorization status, so no notification is posted in the simulator.
+    /// Must run before bootstrap so an inbox import cannot finish first.
+    private func applyP2NotificationSettingsIfNeeded() {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--p2-enable-import-notifications") {
+            session.settings.importNotificationsEnabled = true
+        }
         #endif
     }
 

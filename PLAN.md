@@ -142,7 +142,7 @@
 - **回收站/最近删除**：删除后保留 7–30 天，可恢复。**（已完成，见 5.12）**
 - **备份/导出**：播放列表、进度、库清单导出 JSON；支持从备份恢复。**（已完成，见 5.13）**
 - **Shortcuts / Siri**：继续播放、打开合集；小组件需 App Groups，当前免费账号不做（见条件性功能）。**（待做）**
-- **通知**：导入完成/失败通知。**（待做）**
+- **通知**：导入完成/失败通知。**（已完成，见 5.15）**
 
 **2026-11-11 裁剪决定**：P1 只做 Wi-Fi 上传、智能播放列表（已完成）+ 上述 6 项；**字幕、RSS 订阅、视频增强、音频增强（EQ/音量增强/跳过静音）不做**。
 
@@ -1059,6 +1059,23 @@ idle → preparing → ready → playing ⇄ paused
 - [x] 单元测试：fixture 加载 3 章、切换条目清空、无章节文件为空、seek 后索引跟随、加载前为 nil、边界语义、Codable、PlaybackItem 携带。LocalPodKit 224 个测试 0 失败。
 - [x] UI：章节区渲染、3 行、当前章指示、点击第 3 章跳转（进度标签 ≥2:00、指示移动）、截图（`P2ChapterUITests`，无跳过）。调试中发现并修复真实交互 bug：行内 `Spacer` 透明区域不参与命中测试，点击行中间空白无反应（XCUITest 点击 a11y frame 中心恰好命中该空隙）；给行加 `.contentShape(Rectangle())` 后点击恢复。先前误判为「iOS 27.1 模拟器合成点击缺陷」，已推翻并记录。
 - [ ] 真机项：真实手指点击章节行跳转；mp3（ID3 CHAP）与 m4b 章节的实际读取；长章节列表（>30 章）滚动性能。
+
+### 5.15 导入通知（P2，2026-11-11 完成）
+
+**交付**
+
+- 纯策略 `ImportNotificationPolicy`（LocalPodKit）：输入 `ImportNotificationSummary`（合集名、导入/重链/失败计数、取消标记、首条问题）、`errorMessage`、`isAppActive`、`isEnabled`，输出 `.notifySuccess` / `.notifyFailure` / `.none`。规则：开关关闭或 App 在前台 → 不通知（前台已有导入结果 UI）；取消 → 不通知；硬错误 → 失败；有导入或重链 → 成功（部分失败仍按成功，失败明细留在导入报告）；0 导入但有失败 → 失败；0 导入 0 失败（全重复/不支持）→ 不通知。
+- App 侧 `ImportNotifier`：复用 `SigningNotificationCenter` seam 与 `UNUserNotificationCenter` 本地通知通道（无推送 entitlement、无远程通知、无通知动作）；发送前检查 `authorizationStatus` 仅允许 authorized/provisional/ephemeral；`trigger: nil` 立即投递，每次唯一 identifier。权限只在设置开关打开时请求，启动永不请求。
+- `ImportCoordinator` 在 `finish` / `finishWithError` 统一决策并投递，映射 `RunSummary → ImportNotificationSummary`，不改既有 exit 签名；注入式 `deliverImportNotification` 闭包默认走真实 `ImportNotifier`。
+- 设置页「通知」区（备份与恢复之后、导入历史之前）：开关 `importNotificationsToggle`（默认关；首次开启请求权限；拒绝时开关回退并提示去 iOS 设置开启），footer 说明前台抑制。新增 `AppSettingsStore.importNotificationsEnabled`（UserDefaults，`reset`/`clearStoredValues` 覆盖），不改备份 schema。
+- 调试参数（仅 Debug）：`--p2-enable-import-notifications`（免权限直接置开）、`--p2-force-inactive-for-notifications`（强制按后台分支决策）、`--p2-print-import-notification`（决策写入 UserDefaults `p2.lastImportNotification` 并打印；设置页以 `lastImportNotificationText` 展示供 UI 断言）。
+- 本地化：App 8 个语义键（成功/失败标题正文 + 通知区标题/开关/footer/拒绝提示），中英 parity 541==541。
+
+**验收**
+
+- [x] 单元测试：`ImportNotificationPolicyTests` 11 个用例（关闭/前台/取消不通知、导入与重链成功、部分失败仍成功、0 导入有失败转失败、全重复不通知、硬错误优先、空白消息归一化）；`AppSettingsStoreTests` 增补新键默认/持久化/重置断言。LocalPodKit 235 个测试 0 失败。
+- [x] UI：`P2NotificationUITests` 1 个用例——收件箱真实导入 → 强制后台分支 → 设置页显示「导入完成：…1 个条目」决策文本、开关开启；关闭开关 → 重启 → 仍为关闭（持久化）。0 失败，41.4s。
+- [ ] 真机项：权限弹窗、后台导入实际送达、前台抑制、拒绝权限回退与 iOS 设置恢复路径（见 `docs/DEVICE-CHECKLIST-P1.md` §10）。注意：App 仅声明 audio 后台模式，长导入在系统挂起后可能暂停；只有 run 真正结束时才会发通知，回前台完成时按前台抑制处理。
 
 ### 5.9 估算假设
 
