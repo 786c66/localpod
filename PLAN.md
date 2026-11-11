@@ -136,7 +136,7 @@
 ### 2.2 第二阶段（P1）
 
 - **Wi-Fi 局域网网页上传**：浏览器拖文件夹上传、PIN、二维码。**（已完成，见 5.8）**
-- **链接文件夹 + 增量重扫**：持久化 security-scoped bookmark，重新扫描新增/删除文件。**（待做）**
+- **链接文件夹 + 增量重扫**：持久化 security-scoped bookmark，重新扫描新增/删除文件。**（已完成，见 5.10）**
 - **智能播放列表**：继续播放、未播完、最近添加、已播完、按合集筛选。**（已完成，见 5.8）**
 - **章节**：内嵌章节（m4a/mp3 等），播放页章节列表与跳转。**（待做）**
 - **回收站/最近删除**：删除后保留 7–30 天，可恢复。**（待做）**
@@ -990,6 +990,24 @@ idle → preparing → ready → playing ⇄ paused
 - [ ] 真机项：真实电脑浏览器上传、本地网络权限弹窗、二维码扫描、公共 Wi-Fi/AP 隔离、VPN、大文件、上传中锁屏前后台行为。**（保持未通过，见 `docs/P1-REPORT.md` 第 6 节）**
 
 > P1 执行结果与证据见 [`docs/P1-REPORT.md`](docs/P1-REPORT.md)。模拟器自动化通过的部分计为通过；真实浏览器/权限/网络环境真机项未计为已通过。
+
+### 5.10 链接文件夹 + 增量重扫（2026-11-11 完成）
+
+**交付**
+
+- Schema V5：`LinkedFolder` 实体（bookmarkData、rootName、同步记录、isStale、enabled），V4→V5 轻量迁移。
+- `LinkedFolderStore`：bookmark 创建/解析（`withAccess` 保证 stop 配对）、过期检测（本运行时 stale 标志不可靠：目录删除后解析抛错但 `bookmarkDataIsStale` 不置位，故抛错/文件缺失/stale 三者都按过期处理）、增量 diff 纯函数（键 = `relativeFolderPath + "/" + originalFileName`；改名=新增+删除；未变更文件绝不重复导入）。
+- `ImportCoordinator`：链接即首次同步、立即同步、重选、移除；复用现有导入流水线（进度/报告/SHA-256 去重）；忙碌时拒绝；**源内删除只计数不删本地副本**；启动不自动重扫。
+- 设置页「链接的文件夹」区（新增/同步计数/过期徽标+重选/确认移除）；入口只在设置页，不触碰 ImportView（P1 回归教训）。
+- 调试参数 `--p2-seed-linked-folder` / `--p2-linked-folder-add-file` / `--p2-stale-linked-folder` / `--p2-check-stale-linked-folders`（仅 Debug）。
+- 本地化：kit 3 错误键 + App 16 语义键，中英 parity 488==488。
+
+**验收**
+
+- [x] 单元测试：bookmark 往返/过期、diff 全场景（新增/子目录/改名/删除/不变）、行记账、V4→V5 迁移。LocalPodKit 190 个测试 0 失败。
+- [x] UI：同步导入新文件、过期徽标+重选入口（`P2LinkedFolderUITests` 2 个用例）。
+- [x] 回归：全量 UI 46 个用例（含新 2 个）第四轮全部通过（0 失败，1155.8 秒）。
+- [ ] 真机项：通过文件 App 选择 iCloud Drive/第三方 provider 文件夹后的真实 bookmark 解析、provider 掉线（标记过期）后的重选流程。未计为通过。
 
 ### 5.9 估算假设
 

@@ -345,6 +345,7 @@
 "error.inbox.scanFailed" = "扫描收件箱失败：%@";
 "error.library.deleteFailed" = "删除失败：%@";
 "error.library.fileMissing" = "媒体文件不存在：%@";
+"error.linkedFolder.linkFailed" = "链接文件夹失败：%@";
 "error.playback.missingDemo" = "找不到内置资源 %@。";
 "error.playback.resolveFile" = "无法解析文件路径：%@";
 "error.wifi.cleanupFailed" = "清理 Wi-Fi 上传暂存失败：%@";
@@ -359,6 +360,7 @@
 "import.run.demo" = "演示文件夹";
 "import.run.folder" = "文件夹";
 "import.run.inbox" = "收件箱";
+"import.run.linkedFolder" = "链接文件夹";
 "import.run.openURL" = "外部打开";
 "import.run.sample" = "示例内容";
 "import.run.wifi" = "Wi-Fi 上传";
@@ -376,6 +378,20 @@
 "library.sort.recent" = "最近添加";
 "library.sort.size" = "大小";
 "library.sort.title" = "标题";
+"linkedFolders.add" = "添加链接文件夹";
+"linkedFolders.delete.cancel" = "取消";
+"linkedFolders.delete.confirm" = "移除链接";
+"linkedFolders.delete.message" = "只移除链接本身；已导入的本地副本和合集都会保留，之后可以重新链接或再次导入。";
+"linkedFolders.delete.title" = "移除链接的文件夹？";
+"linkedFolders.emptyFooter" = "选择一个文件夹建立链接后，可以随时在这里一键同步：只导入新增文件，源文件夹里的删除不会影响已导入的副本。";
+"linkedFolders.hint" = "同步只导入新增文件；在源文件夹中删除的文件，本地副本会保留。";
+"linkedFolders.lastScan" = "上次同步 %@ · 新增 %lld · 源内删除 %lld";
+"linkedFolders.neverSynced" = "从未同步";
+"linkedFolders.relink" = "重新选择文件夹";
+"linkedFolders.remove" = "移除链接";
+"linkedFolders.section" = "链接的文件夹";
+"linkedFolders.staleBadge" = "链接失效";
+"linkedFolders.syncNow" = "立即同步";
 "notification.signing.body" = "签名将在 2 天后到期，建议在到期前用同一 Bundle ID 重签；重签不会清除资料库。";
 "notification.signing.title" = "LocalPod 签名即将到期";
 "onboarding.audioOnly.detail" = "视频文件也可以导入，但只播放其中的音轨；不显示画面、不做旋转或画中画。";

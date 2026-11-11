@@ -62,6 +62,7 @@ struct RootView: View {
             seedDebugLibraryIfNeeded()
             seedM3FixturesIfNeeded()
             seedP1FixturesIfNeeded()
+            seedP2FixturesIfNeeded()
             runLaunchAutomationIfNeeded()
             resolveOnboardingIfNeeded()
             // Local-only expiry reminder. This never prompts at launch: it
@@ -283,6 +284,13 @@ struct RootView: View {
         if ProcessInfo.processInfo.arguments.contains("--p1-seed-smart-playlists") {
             P1DebugSeed.seedSmartPlaylists(in: modelContext)
         }
+        #endif
+    }
+
+    private func seedP2FixturesIfNeeded() {
+        #if DEBUG
+        P2DebugSeed.seedLinkedFolderIfRequested(in: modelContext)
+        P2DebugSeed.addFileToLinkedFolderIfRequested(in: modelContext)
         #endif
     }
 

@@ -401,18 +401,85 @@ public enum LocalPodSchemaV4: VersionedSchema {
     }
 }
 
+/// P2 "链接文件夹" adds the linked-folder registry. Rows hold only a
+/// security-scoped bookmark (never an absolute path) plus scan bookkeeping.
+/// All previous entities are reused unchanged.
+public enum LocalPodSchemaV5: VersionedSchema {
+    public static var versionIdentifier: Schema.Version { Schema.Version(5, 0, 0) }
+
+    public static var models: [any PersistentModel.Type] {
+        [
+            LocalPodSchemaV2.MediaItem.self,
+            LocalPodSchemaV2.MediaCollection.self,
+            LocalPodSchemaV2.ImportSession.self,
+            LocalPodSchemaV3.PlaybackState.self,
+            LocalPodSchemaV4.QueueEntry.self,
+            LocalPodSchemaV4.QueueState.self,
+            LocalPodSchemaV4.Playlist.self,
+            LocalPodSchemaV4.PlaylistEntry.self,
+            LinkedFolder.self
+        ]
+    }
+
+    @Model
+    public final class LinkedFolder: Hashable, Identifiable {
+        @Attribute(.unique) public var id: UUID = UUID()
+        /// Security-scoped bookmark of the linked source folder. Bookmarks are
+        /// stable across container-path changes; absolute paths are never stored.
+        public var bookmarkData: Data = Data()
+        /// Display name and import attribution key (folder name at link time).
+        public var rootName: String = ""
+        public var addedAt: Date = Date()
+        /// Last completed (not cancelled) rescan. `nil` until the first sync.
+        public var lastScannedAt: Date?
+        /// Files imported by the last completed rescan.
+        public var lastImportedCount: Int = 0
+        /// Files that disappeared from the source in the last rescan. Local
+        /// copies are intentionally kept; this count is informational only.
+        public var lastRemovedCount: Int = 0
+        /// True when the bookmark could not be resolved (folder moved,
+        /// renamed, or deleted). The user must re-pick the folder.
+        public var isStale: Bool = false
+        /// Reserved for a future "pause this link" toggle.
+        public var enabled: Bool = true
+
+        public init(
+            id: UUID = UUID(),
+            bookmarkData: Data,
+            rootName: String,
+            addedAt: Date = Date(),
+            lastScannedAt: Date? = nil,
+            lastImportedCount: Int = 0,
+            lastRemovedCount: Int = 0,
+            isStale: Bool = false,
+            enabled: Bool = true
+        ) {
+            self.id = id
+            self.bookmarkData = bookmarkData
+            self.rootName = rootName
+            self.addedAt = addedAt
+            self.lastScannedAt = lastScannedAt
+            self.lastImportedCount = lastImportedCount
+            self.lastRemovedCount = lastRemovedCount
+            self.isStale = isStale
+            self.enabled = enabled
+        }
+    }
+}
+
 public enum LocalPodMigrationPlan: SchemaMigrationPlan {
     public static var schemas: [any VersionedSchema.Type] {
         [
             LocalPodSchemaV1.self,
             LocalPodSchemaV2.self,
             LocalPodSchemaV3.self,
-            LocalPodSchemaV4.self
+            LocalPodSchemaV4.self,
+            LocalPodSchemaV5.self
         ]
     }
 
     public static var stages: [MigrationStage] {
-        [migrateV1toV2, migrateV2toV3, migrateV3toV4]
+        [migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5]
     }
 
     public static let migrateV1toV2 = MigrationStage.lightweight(
@@ -428,6 +495,11 @@ public enum LocalPodMigrationPlan: SchemaMigrationPlan {
     public static let migrateV3toV4 = MigrationStage.lightweight(
         fromVersion: LocalPodSchemaV3.self,
         toVersion: LocalPodSchemaV4.self
+    )
+
+    public static let migrateV4toV5 = MigrationStage.lightweight(
+        fromVersion: LocalPodSchemaV4.self,
+        toVersion: LocalPodSchemaV5.self
     )
 }
 
@@ -446,7 +518,7 @@ public enum LocalPodStore {
     }
 
     public static func makeContainer(inMemory: Bool = false) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: LocalPodSchemaV4.self)
+        let schema = Schema(versionedSchema: LocalPodSchemaV5.self)
         let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: inMemory

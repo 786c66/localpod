@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		037014D99F4F78316432A9A3 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C240AF67ECE4340E5C07A451 /* RootView.swift */; };
 		1FB3FE976CB8BCC2CA91E229 /* PlaybackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AECD17FBD53662BDB9FDFAC /* PlaybackView.swift */; };
+		1FCDB99CABF06B72C8FDAE31 /* P2LinkedFolderUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE6521D864694A9AE45802A6 /* P2LinkedFolderUITests.swift */; };
 		2100AD8BE19A9E930EE004C2 /* ImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF0159A431873BBF57DF3694 /* ImportCoordinator.swift */; };
 		21A28E89594C318417AF496D /* WiFiUploadStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A54E75216A376FF635D2C01 /* WiFiUploadStorage.swift */; };
 		27085B42C4116AAEA272FA8F /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D803FA536A5958263A625E /* OnboardingView.swift */; };
@@ -35,6 +36,7 @@
 		86ECCF1483AABDCC432F8B2E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A4706ACE075EC1F83E5A70 /* SettingsView.swift */; };
 		98187EE9B16597D503E25C56 /* M1UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 629BFC9FD7ECCD7B7A19C1CB /* M1UITests.swift */; };
 		9900645556FC372AFED8F47E /* DocumentPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D17F0BADA440FB407E46DA /* DocumentPicker.swift */; };
+		9908F428FF83B92D30A9D9BF /* P2DebugSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B6F713FE4FAE5DE8CFAEC5A /* P2DebugSeed.swift */; };
 		A43211C1E73DA0617B6D86FC /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 30F3A5C4AD486F7663F2D8E7 /* InfoPlist.strings */; };
 		ADBB7965B11E440241B1D17F /* M5DeliveryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9F0BC6809D1861746C7FAB /* M5DeliveryUITests.swift */; };
 		B17C1E4561DAAE88CF8C2828 /* M5PerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F7BF1A32BFD81852377C2A /* M5PerformanceTests.swift */; };
@@ -86,6 +88,7 @@
 		802390B4491E30D754B0FB2A /* demo-long-audio.m4a */ = {isa = PBXFileReference; path = "demo-long-audio.m4a"; sourceTree = "<group>"; };
 		82757C742777D6B85C64F8F4 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		8A56F4FDF7EA19CDA9FB2C07 /* M5SigningUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M5SigningUITests.swift; sourceTree = "<group>"; };
+		8B6F713FE4FAE5DE8CFAEC5A /* P2DebugSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P2DebugSeed.swift; sourceTree = "<group>"; };
 		8BA0DF86D0C69BC29BE9F624 /* LocalPodApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalPodApp.swift; sourceTree = "<group>"; };
 		978D426BBAE705D2442C2EB7 /* P1SmartPlaylistUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P1SmartPlaylistUITests.swift; sourceTree = "<group>"; };
 		A0528E3BA0C08A8F079E0F46 /* SigningReminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningReminder.swift; sourceTree = "<group>"; };
@@ -110,6 +113,7 @@
 		F1D17F0BADA440FB407E46DA /* DocumentPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentPicker.swift; sourceTree = "<group>"; };
 		F7D803FA536A5958263A625E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		F9EC746C6921546F589F55EE /* P1DebugSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P1DebugSeed.swift; sourceTree = "<group>"; };
+		FE6521D864694A9AE45802A6 /* P2LinkedFolderUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P2LinkedFolderUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -261,6 +265,7 @@
 				2BE5FFCCF1BFDDC0A7C14512 /* M5UITests.swift */,
 				978D426BBAE705D2442C2EB7 /* P1SmartPlaylistUITests.swift */,
 				6B4D8FF6A4D7021F44F506B3 /* P1WiFiUITests.swift */,
+				FE6521D864694A9AE45802A6 /* P2LinkedFolderUITests.swift */,
 				6A84D0E08C709973B8C7F00A /* UITestLaunchSupport.swift */,
 			);
 			path = LocalPodUITests;
@@ -274,6 +279,7 @@
 				BB622C565ECF037091092A17 /* M3DebugSeed.swift */,
 				222D3B52B8184050320B4910 /* M4DebugSupport.swift */,
 				F9EC746C6921546F589F55EE /* P1DebugSeed.swift */,
+				8B6F713FE4FAE5DE8CFAEC5A /* P2DebugSeed.swift */,
 				C240AF67ECE4340E5C07A451 /* RootView.swift */,
 				A0528E3BA0C08A8F079E0F46 /* SigningReminder.swift */,
 				4CE94FF4BAD0EADD4805E30B /* WiFiUploadController.swift */,
@@ -436,6 +442,7 @@
 				7ADE606D3D7D40509C2CCE8A /* M4DebugSupport.swift in Sources */,
 				27085B42C4116AAEA272FA8F /* OnboardingView.swift in Sources */,
 				D2067038FF83560B1419068C /* P1DebugSeed.swift in Sources */,
+				9908F428FF83B92D30A9D9BF /* P2DebugSeed.swift in Sources */,
 				1FB3FE976CB8BCC2CA91E229 /* PlaybackView.swift in Sources */,
 				3E930D6A214511223DB90AC2 /* PlaylistViews.swift in Sources */,
 				037014D99F4F78316432A9A3 /* RootView.swift in Sources */,
@@ -465,6 +472,7 @@
 				B56B53B162D5DD51D04357AB /* M5UITests.swift in Sources */,
 				427307DA6CB9184B92644F0A /* P1SmartPlaylistUITests.swift in Sources */,
 				2C410E36941974F5361139F8 /* P1WiFiUITests.swift in Sources */,
+				1FCDB99CABF06B72C8FDAE31 /* P2LinkedFolderUITests.swift in Sources */,
 				D62989147790BA638BBD6ED8 /* UITestLaunchSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

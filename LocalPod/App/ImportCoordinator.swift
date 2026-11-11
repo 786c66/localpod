@@ -65,6 +65,7 @@ final class ImportCoordinator {
         case openURL = "外部打开"
         case sample = "示例内容"
         case wifi = "Wi-Fi 上传"
+        case linkedFolder = "链接文件夹"
 
         var displayName: String {
             switch self {
@@ -75,6 +76,7 @@ final class ImportCoordinator {
             case .openURL: L10n.string("import.run.openURL")
             case .sample: L10n.string("import.run.sample")
             case .wifi: L10n.string("import.run.wifi")
+            case .linkedFolder: L10n.string("import.run.linkedFolder")
             }
         }
     }
@@ -204,6 +206,248 @@ final class ImportCoordinator {
             modelContext: modelContext
         )
     }
+
+    // MARK: - Linked folders (链接文件夹 + 增量重扫)
+
+    /// Identifies the row a sync run is recording into, so the completion
+    /// handler can find the LinkedFolder even if SwiftData's context state
+    /// moved on during the import.
+    private struct PendingLinkedFolderSync {
+        let folderID: UUID
+        let rootName: String
+    }
+
+    /// Runs whose completion must update a LinkedFolder row. Keyed by the
+    /// linked folder's id; at most one runs at a time (guarded by isRunning).
+    @ObservationIgnored private var pendingLinkedFolderSync: PendingLinkedFolderSync?
+
+    /// Links a picked folder and immediately runs the first sync. The first
+    /// sync reuses the normal folder-import pipeline, so SHA-256 dedup makes
+    /// it a no-op for files already imported from the same content, and the
+    /// full pipeline (progress UI, report, ImportSession row) applies.
+    ///
+    /// The security scope from the document picker is only needed long enough
+    /// to create the bookmark; later syncs regain access by resolving it.
+    func linkFolder(
+        _ url: URL,
+        modelContext: ModelContext
+    ) {
+        guard !isRunning else { return }
+        let didStart = url.startAccessingSecurityScopedResource()
+        defer {
+            if didStart { url.stopAccessingSecurityScopedResource() }
+        }
+        do {
+            let bookmark = try LinkedFolderStore.makeBookmark(for: url)
+            let folder = LinkedFolder(
+                bookmarkData: bookmark,
+                rootName: url.lastPathComponent
+            )
+            modelContext.insert(folder)
+            try modelContext.save()
+            beginLinkedFolderSync(folder, resolvedURL: url, modelContext: modelContext)
+        } catch {
+            phase = .failed
+            lastErrorMessage = L10n.format(
+                "error.linkedFolder.linkFailed",
+                error.localizedDescription
+            )
+        }
+    }
+
+    /// Re-scans a linked folder. Resolves the bookmark first; a stale link is
+    /// flagged on the row (local copies are never touched) and reported. The
+    /// scan is incremental only for bookkeeping — the import itself still runs
+    /// the standard pipeline, where unchanged files skip as fingerprint
+    /// duplicates and only new files are copied. Files removed from the source
+    /// are reported in `lastRemovedCount` but their local copies are retained
+    /// (the user copied them intentionally; deletion stays a manual decision).
+    func rescanLinkedFolder(_ folder: LinkedFolder, modelContext: ModelContext) {
+        guard !isRunning else { return }
+        guard folder.enabled else { return }
+        switch LinkedFolderStore.resolve(folder.bookmarkData) {
+        case .failure(let error):
+            LinkedFolderStore.markStale(folder)
+            try? modelContext.save()
+            phase = .failed
+            lastErrorMessage = error.localizedDescription
+        case .success(let access):
+            access.withAccess { resolvedURL in
+                beginLinkedFolderSync(folder, resolvedURL: resolvedURL, modelContext: modelContext)
+            }
+        }
+    }
+
+    /// Replaces the bookmark after the user re-picked the folder and clears
+    /// the stale flag. Local media is untouched.
+    func relinkFolder(_ folder: LinkedFolder, newURL: URL, modelContext: ModelContext) {
+        let didStart = newURL.startAccessingSecurityScopedResource()
+        defer {
+            if didStart { newURL.stopAccessingSecurityScopedResource() }
+        }
+        do {
+            let bookmark = try LinkedFolderStore.makeBookmark(for: newURL)
+            LinkedFolderStore.relink(folder, bookmarkData: bookmark)
+            try modelContext.save()
+        } catch {
+            phase = .failed
+            lastErrorMessage = L10n.format(
+                "error.linkedFolder.linkFailed",
+                error.localizedDescription
+            )
+        }
+    }
+
+    /// Removes only the link row; imported media and collections stay.
+    func removeLinkedFolder(_ folder: LinkedFolder, modelContext: ModelContext) {
+        modelContext.delete(folder)
+        try? modelContext.save()
+    }
+
+    /// Shared tail of `linkFolder`/`rescanLinkedFolder`: start one folder
+    /// import through the standard run path, remembering which row to update
+    /// when it finishes.
+    private func beginLinkedFolderSync(
+        _ folder: LinkedFolder,
+        resolvedURL: URL,
+        modelContext: ModelContext
+    ) {
+        guard !isRunning else { return }
+        pendingLinkedFolderSync = PendingLinkedFolderSync(
+            folderID: folder.id,
+            rootName: folder.rootName
+        )
+        beginRun(kind: .linkedFolder)
+        task = Task { [weak self] in
+            await self?.runLinkedFolderSync(
+                resolvedURL: resolvedURL,
+                rootName: folder.rootName,
+                modelContext: modelContext
+            )
+            self?.pendingLinkedFolderSync = nil
+        }
+    }
+
+    /// One rescan = full folder import (dedup skips unchanged files) + diff
+    /// bookkeeping. Removal detection compares source-side keys so sandbox
+    /// copy paths never leak into the comparison.
+    private func runLinkedFolderSync(
+        resolvedURL: URL,
+        rootName: String,
+        modelContext: ModelContext
+    ) async {
+        let didStart = resolvedURL.startAccessingSecurityScopedResource()
+        defer {
+            if didStart { resolvedURL.stopAccessingSecurityScopedResource() }
+        }
+
+        // Snapshot the pre-sync state before the import mutates the library.
+        let folderID = pendingLinkedFolderSync?.folderID
+        let existingKeys = (try? LinkedFolderStore.existingSourceKeys(
+            forLinkedFolderNamed: rootName,
+            in: modelContext
+        )) ?? []
+
+        do {
+            let startedAt = Date()
+            let result = try await importService.importFolder(
+                rootURL: resolvedURL,
+                source: .files,
+                rootName: rootName,
+                collectionName: rootName,
+                in: modelContext,
+                options: importOptions(),
+                progress: { [weak self] update in
+                    Task { @MainActor [weak self] in
+                        self?.apply(update)
+                    }
+                }
+            )
+            let report = result.report
+            let summary = makeSummary(
+                kind: .linkedFolder,
+                collectionName: rootName,
+                report: report,
+                duration: Date().timeIntervalSince(startedAt),
+                reportPath: result.reportPath
+            )
+            lastResult = result
+            let issues = report.allIssues.map {
+                L10n.format(
+                    "import.issue.line",
+                    $0.kind.displayName,
+                    $0.relativePath,
+                    $0.message
+                )
+            }
+
+            recordLinkedFolderResult(
+                folderID: folderID,
+                report: report,
+                existingKeys: existingKeys,
+                scannedRootURL: resolvedURL,
+                modelContext: modelContext
+            )
+
+            finish(
+                phase: report.cancelled ? .cancelled : .finished,
+                summary: summary,
+                issues: issues,
+                modelContext: modelContext
+            )
+        } catch {
+            finishWithError(error, modelContext: modelContext)
+        }
+    }
+
+    /// Updates the LinkedFolder row after a sync: scanned-at, imported count,
+    /// removed count, and staleness. Bookkeeping must never fail the run.
+    private func recordLinkedFolderResult(
+        folderID: UUID?,
+        report: ImportRunResult,
+        existingKeys: Set<String>,
+        scannedRootURL: URL,
+        modelContext: ModelContext
+    ) {
+        guard let folderID else { return }
+        var descriptor = FetchDescriptor<LinkedFolder>(
+            predicate: #Predicate { $0.id == folderID }
+        )
+        descriptor.fetchLimit = 1
+        guard let folder = try? modelContext.fetch(descriptor).first else { return }
+        guard !report.cancelled else {
+            // A cancelled sync did not see the full folder; leave the old
+            // bookkeeping untouched.
+            return
+        }
+
+        if let scan = try? FolderScanner().scan(
+            rootURL: scannedRootURL,
+            limits: FolderScanner.Limits()
+        ) {
+            // Unchanged files never enter the import report, so removal and
+            // imported counts come from a fresh diff against the source.
+            let diff = LinkedFolderStore.diff(
+                existingSourceKeys: existingKeys,
+                scannedFiles: scan.files
+            )
+            LinkedFolderStore.recordScan(
+                folder,
+                importedCount: diff.newFiles.count,
+                removedCount: diff.removedPaths.count
+            )
+        } else if report.importedCount > 0 || report.relinkedCount > 0 {
+            // Fresh-scan fallback: the import report is the best available
+            // count when the source cannot be re-enumerated.
+            LinkedFolderStore.recordScan(
+                folder,
+                importedCount: report.importedCount,
+                removedCount: 0
+            )
+        }
+        try? modelContext.save()
+    }
+
 
     func importDemoFolder(modelContext: ModelContext) {
         importBuiltInFolder(
@@ -1098,6 +1342,7 @@ final class ImportCoordinator {
         self.isCancelling = false
         self.currentKind = nil
         self.task = nil
+        self.pendingLinkedFolderSync = nil
         self.refreshInboxPendingCount()
         #if os(iOS)
         UIApplication.shared.isIdleTimerDisabled = false
@@ -1117,6 +1362,7 @@ final class ImportCoordinator {
         isCancelling = false
         currentKind = nil
         task = nil
+        pendingLinkedFolderSync = nil
         refreshInboxPendingCount()
         #if os(iOS)
         UIApplication.shared.isIdleTimerDisabled = false

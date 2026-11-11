@@ -6,15 +6,25 @@ struct SettingsView: View {
     @Environment(PlaybackSession.self) private var session
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(ImportCoordinator.self) private var coordinator
 
     @Query(sort: \ImportSession.startedAt, order: .reverse)
     private var importSessions: [ImportSession]
+
+    @Query(sort: \LinkedFolder.addedAt, order: .reverse)
+    private var linkedFolders: [LinkedFolder]
 
     @Query private var allItems: [MediaItem]
 
     @State private var maintenanceSummary: String?
     @State private var showDeleteSamplesConfirmation = false
     @State private var sampleDeleteSummary: String?
+    @State private var showLinkedFolderPicker = false
+    @State private var pendingRelinkFolder: LinkedFolder?
+    @State private var folderPendingDelete: LinkedFolder?
+    /// Launch-argument automation (UI tests) force an immediate staleness
+    /// check so the badge is visible without tapping anything first.
+    @State private var didResolveStalenessOnAppear = false
 
     private var libraryItems: [MediaItem] {
         allItems.filter { $0.source != .benchmark }
@@ -141,6 +151,8 @@ struct SettingsView: View {
                     Text(L10n.string("settings.wifi.footer"))
                 }
 
+                linkedFoldersSection
+
                 Section("导入历史") {
                     if importSessions.isEmpty {
                         Text("还没有导入记录。")
@@ -194,12 +206,199 @@ struct SettingsView: View {
             } message: {
                 Text("将删除 \(sampleItems.count) 条示例及其进度、队列和播放列表引用。你导入的内容不会受影响。")
             }
+            .sheet(isPresented: $showLinkedFolderPicker) {
+                DocumentPicker(
+                    contentTypes: [.folder],
+                    onPick: { urls in
+                        showLinkedFolderPicker = false
+                        guard let url = urls.first else { return }
+                        coordinator.linkFolder(url, modelContext: modelContext)
+                    },
+                    onCancel: { showLinkedFolderPicker = false }
+                )
+            }
+            .sheet(item: $pendingRelinkFolder) { folder in
+                DocumentPicker(
+                    contentTypes: [.folder],
+                    onPick: { urls in
+                        pendingRelinkFolder = nil
+                        guard let url = urls.first else { return }
+                        coordinator.relinkFolder(folder, newURL: url, modelContext: modelContext)
+                    },
+                    onCancel: { pendingRelinkFolder = nil }
+                )
+            }
+            .confirmationDialog(
+                L10n.string("linkedFolders.delete.title"),
+                isPresented: showFolderDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button(L10n.string("linkedFolders.delete.confirm"), role: .destructive) {
+                    if let folder = folderPendingDelete {
+                        coordinator.removeLinkedFolder(folder, modelContext: modelContext)
+                    }
+                    folderPendingDelete = nil
+                }
+                .accessibilityIdentifier("linkedFolderDeleteConfirmButton")
+                Button(L10n.string("linkedFolders.delete.cancel"), role: .cancel) {
+                    folderPendingDelete = nil
+                }
+            } message: {
+                Text(L10n.string("linkedFolders.delete.message"))
+            }
+            .onAppear {
+                resolveStalenessOnAppearIfNeeded()
+            }
+        }
+    }
+
+    /// UI-test/launch automation hook: `--p2-check-stale-linked-folders`
+    /// resolves every bookmark once when the settings page appears and flags
+    /// rows whose folder is gone. Deliberately not part of normal launches:
+    /// resolving all bookmarks on every settings visit would wake up iCloud
+    /// placeholders for rows the user has not touched.
+    private func resolveStalenessOnAppearIfNeeded() {
+        #if DEBUG
+        guard !didResolveStalenessOnAppear,
+              ProcessInfo.processInfo.arguments.contains("--p2-check-stale-linked-folders") else {
+            return
+        }
+        didResolveStalenessOnAppear = true
+        for folder in linkedFolders {
+            guard !folder.isStale else { continue }
+            if case .failure = LinkedFolderStore.resolve(folder.bookmarkData) {
+                LinkedFolderStore.markStale(folder)
+            }
+        }
+        try? modelContext.save()
+        #endif
+    }
+
+    /// 链接的文件夹: rows for each linked source folder plus the add/sync
+    /// actions. All state lives in the coordinator/model; this view never
+    /// touches bookmarks directly. Placed in Settings (not ImportView) on
+    /// purpose — see the P1 regression note about top-of-ImportView UI.
+    @ViewBuilder
+    private var linkedFoldersSection: some View {
+        Section {
+            ForEach(linkedFolders) { folder in
+                linkedFolderRow(folder)
+            }
+
+            Button {
+                showLinkedFolderPicker = true
+            } label: {
+                Label(L10n.string("linkedFolders.add"), systemImage: "link.badge.plus")
+            }
+            .disabled(coordinator.isRunning)
+            .accessibilityIdentifier("linkedFolderAddButton")
+
+            if !linkedFolders.isEmpty {
+                Text(L10n.string("linkedFolders.hint"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("linkedFolderHintText")
+            }
+        } header: {
+            Text(L10n.string("linkedFolders.section"))
+                .accessibilityIdentifier("linkedFoldersSection")
+        } footer: {
+            if linkedFolders.isEmpty {
+                Text(L10n.string("linkedFolders.emptyFooter"))
+            }
         }
     }
 
     @ViewBuilder
-    private var sampleSection: some View {
-        Section {
+    private func linkedFolderRow(_ folder: LinkedFolder) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(folder.rootName)
+                    .font(.body)
+                    .accessibilityIdentifier("linkedFolderName-\(folder.rootName)")
+                Spacer()
+                if folder.isStale {
+                    Text(L10n.string("linkedFolders.staleBadge"))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.orange.opacity(0.15), in: Capsule())
+                        .accessibilityIdentifier("linkedFolderStaleBadge")
+                }
+            }
+
+            Text(lastScannedText(folder))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("linkedFolderSyncSummary-\(folder.rootName)")
+
+            if folder.isStale {
+                Button {
+                    pendingRelinkFolder = folder
+                } label: {
+                    Label(L10n.string("linkedFolders.relink"), systemImage: "arrow.triangle.2.circlepath")
+                }
+                .font(.callout)
+                .disabled(coordinator.isRunning)
+                .accessibilityIdentifier("linkedFolderRelinkButton")
+            } else {
+                Button {
+                    coordinator.rescanLinkedFolder(folder, modelContext: modelContext)
+                } label: {
+                    Label(L10n.string("linkedFolders.syncNow"), systemImage: "arrow.clockwise")
+                }
+                .font(.callout)
+                .disabled(coordinator.isRunning)
+                .accessibilityIdentifier(syncButtonIdentifier(folder))
+            }
+
+            Button(role: .destructive) {
+                folderPendingDelete = folder
+            } label: {
+                Label(L10n.string("linkedFolders.remove"), systemImage: "trash")
+            }
+            .font(.callout)
+            .accessibilityIdentifier("linkedFolderRemoveButton")
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func lastScannedText(_ folder: LinkedFolder) -> String {
+        guard let scannedAt = folder.lastScannedAt else {
+            return L10n.string("linkedFolders.neverSynced")
+        }
+        let date = scannedAt.formatted(date: .abbreviated, time: .shortened)
+        return L10n.format(
+            "linkedFolders.lastScan",
+            date,
+            folder.lastImportedCount,
+            folder.lastRemovedCount
+        )
+    }
+
+    /// Stable single id while only one folder is linked; suffixed when several
+    /// exist so UI tests can still target a specific row.
+    private func syncButtonIdentifier(_ folder: LinkedFolder) -> String {
+        linkedFolders.count <= 1
+            ? "linkedFolderSync"
+            : "linkedFolderSync-\(folder.rootName)"
+    }
+
+    /// confirmationDialog needs a concrete Bool binding; `folderPendingDelete`
+    /// is optional, so project it.
+    private var showFolderDeleteConfirmation: Binding<Bool> {
+        Binding(
+            get: { folderPendingDelete != nil },
+            set: { shown in
+                if !shown { folderPendingDelete = nil }
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var sampleSection: some View {        Section {
             HStack {
                 Text("示例条目")
                 Spacer()

@@ -345,6 +345,7 @@
 "error.inbox.scanFailed" = "Failed to scan the inbox: %@";
 "error.library.deleteFailed" = "Delete failed: %@";
 "error.library.fileMissing" = "Media file not found: %@";
+"error.linkedFolder.linkFailed" = "Failed to link the folder: %@";
 "error.playback.missingDemo" = "Built-in resource %@ was not found.";
 "error.playback.resolveFile" = "Unable to resolve the file path: %@";
 "error.wifi.cleanupFailed" = "Failed to clean up Wi-Fi upload staging: %@";
@@ -359,6 +360,7 @@
 "import.run.demo" = "Demo Folder";
 "import.run.folder" = "Folder";
 "import.run.inbox" = "Inbox";
+"import.run.linkedFolder" = "Linked Folder";
 "import.run.openURL" = "Open In";
 "import.run.sample" = "Sample Content";
 "import.run.wifi" = "Wi-Fi Upload";
@@ -376,6 +378,20 @@
 "library.sort.recent" = "Recently Added";
 "library.sort.size" = "Size";
 "library.sort.title" = "Title";
+"linkedFolders.add" = "Add Linked Folder";
+"linkedFolders.delete.cancel" = "Cancel";
+"linkedFolders.delete.confirm" = "Remove Link";
+"linkedFolders.delete.message" = "Only the link is removed; imported local copies and collections are kept. You can link the folder again or re-import it later.";
+"linkedFolders.delete.title" = "Remove the Linked Folder?";
+"linkedFolders.emptyFooter" = "Link a folder to sync it here any time: only new files are imported, and deletions in the source folder never touch the imported copies.";
+"linkedFolders.hint" = "Syncing imports only new files; files deleted from the source folder keep their local copies.";
+"linkedFolders.lastScan" = "Last synced %@ · New %lld · Removed at source %lld";
+"linkedFolders.neverSynced" = "Never Synced";
+"linkedFolders.relink" = "Pick Folder Again";
+"linkedFolders.remove" = "Remove Link";
+"linkedFolders.section" = "Linked Folders";
+"linkedFolders.staleBadge" = "Link Stale";
+"linkedFolders.syncNow" = "Sync Now";
 "notification.signing.body" = "Your signing certificate expires in 2 days. Re-sign with the same Bundle ID before it expires; re-signing does not erase your library.";
 "notification.signing.title" = "LocalPod Signing Expires Soon";
 "onboarding.audioOnly.detail" = "Video files can be imported, but only their audio track plays. No picture is shown, and there is no rotation or picture-in-picture.";
