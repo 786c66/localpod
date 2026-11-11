@@ -539,3 +539,16 @@
 "wifi.status.running" = "Listening on the local network";
 "wifi.stop" = "Stop Wi-Fi Upload";
 "wifi.title" = "Wi-Fi Upload";
+
+"快速导入" = "Quick Add";
+"把声音装进磁带盒" = "Pack sound into a cassette";
+"扫描文件夹及子文件夹；视频文件只取音轨，不显示画面。" = "Scans folders recursively; video files contribute audio only, no picture.";
+"重复内容会跳过；导入期间请保持 App 在前台。" = "Duplicates are skipped; keep the app in the foreground while importing.";
+"import.sample.title" = "Add Sample Content";
+"import.sample.subtitle" = "3 generated clips · delete anytime";
+"import.demo.title" = "Import Built-in Demo Folder";
+"import.demo.subtitle" = "100 files · 3 folder levels";
+"import.acceptance.title" = "Import Acceptance Folder";
+"import.acceptance.subtitle" = "100 files · 2 unsupported + 1 duplicate";
+"import.wifi.title" = "Upload over Wi-Fi";
+"import.wifi.subtitle" = "Send files from your browser";
