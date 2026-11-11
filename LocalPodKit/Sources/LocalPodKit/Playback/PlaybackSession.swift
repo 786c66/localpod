@@ -129,6 +129,33 @@ public final class PlaybackSession {
         }
     }
 
+    /// Shortcuts/Siri "continue playback". Prefers the persisted queue's
+    /// current item; when there is no playable queue item, falls back to the
+    /// most recently played unfinished item. Returns false when nothing can be
+    /// resumed so the caller can leave the UI untouched.
+    @discardableResult
+    public func resumeForShortcut() -> Bool {
+        if let currentItemID = queue.currentItemID,
+           let item = mediaItem(for: currentItemID),
+           itemBuilder(item) != nil {
+            playQueueItem(itemID: currentItemID)
+            return true
+        }
+
+        guard let context else { return false }
+        var descriptor = FetchDescriptor<PlaybackState>(
+            predicate: #Predicate { $0.playCount > 0 && !$0.isFinished },
+            sortBy: [SortDescriptor(\.lastPlayedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        guard let state = try? context.fetch(descriptor).first,
+              mediaItem(for: state.itemID) != nil else {
+            return false
+        }
+        queue.setQueue(itemIDs: [state.itemID], current: state.itemID)
+        return loadItem(id: state.itemID, autoplay: true)
+    }
+
     public func next(userInitiated: Bool = true) {
         let autoplay = userInitiated ? playback.isPlaying : true
         guard let nextID = queue.advance() else { return }

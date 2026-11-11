@@ -141,7 +141,7 @@
 - **章节**：内嵌章节（m4a/mp3 等），播放页章节列表与跳转。**（已完成，见 5.14）**
 - **回收站/最近删除**：删除后保留 7–30 天，可恢复。**（已完成，见 5.12）**
 - **备份/导出**：播放列表、进度、库清单导出 JSON；支持从备份恢复。**（已完成，见 5.13）**
-- **Shortcuts / Siri**：继续播放、打开合集；小组件需 App Groups，当前免费账号不做（见条件性功能）。**（待做）**
+- **Shortcuts / Siri**：继续播放、打开合集；小组件需 App Groups，当前免费账号不做（见条件性功能）。**（已完成，见 5.16）**
 - **通知**：导入完成/失败通知。**（已完成，见 5.15）**
 
 **2026-11-11 裁剪决定**：P1 只做 Wi-Fi 上传、智能播放列表（已完成）+ 上述 6 项；**字幕、RSS 订阅、视频增强、音频增强（EQ/音量增强/跳过静音）不做**。
@@ -1076,6 +1076,23 @@ idle → preparing → ready → playing ⇄ paused
 - [x] 单元测试：`ImportNotificationPolicyTests` 11 个用例（关闭/前台/取消不通知、导入与重链成功、部分失败仍成功、0 导入有失败转失败、全重复不通知、硬错误优先、空白消息归一化）；`AppSettingsStoreTests` 增补新键默认/持久化/重置断言。LocalPodKit 235 个测试 0 失败。
 - [x] UI：`P2NotificationUITests` 1 个用例——收件箱真实导入 → 强制后台分支 → 设置页显示「导入完成：…1 个条目」决策文本、开关开启；关闭开关 → 重启 → 仍为关闭（持久化）。0 失败，41.4s。
 - [ ] 真机项：权限弹窗、后台导入实际送达、前台抑制、拒绝权限回退与 iOS 设置恢复路径（见 `docs/DEVICE-CHECKLIST-P1.md` §10）。注意：App 仅声明 audio 后台模式，长导入在系统挂起后可能暂停；只有 run 真正结束时才会发通知，回前台完成时按前台抑制处理。
+
+### 5.16 快捷指令 / Siri（P2，2026-11-11 完成）
+
+**交付**
+
+- 两个 App Intent（无 entitlement、无 App Group）：`继续播放`（ContinuePlaybackIntent）与 `打开合集`（OpenCollectionIntent）。合集参数使用 `CollectionEntity`（AppEntity）：App Shortcut 短语只接受 AppEntity/AppEnum 参数，String 会被 AppIntents 元数据处理器拒绝。`LocalPodShortcuts: AppShortcutsProvider` 提供中文 Siri 短语，均含 `\(.applicationName)`；`openAppWhenRun = true`（iOS 26+ SDK 标记 deprecated，但仍为当前可用机制）。
+- 请求邮箱：`AppIntentLaunchRequestStore`（UserDefaults `p2.pendingAppIntentRequest`，值 `continue-playback` / `open-collection:<name>`，名字允许含冒号）。RootView 在播放会话 attach 且调试种子完成后消费（冷启动），并在 scenePhase 变为 active 时消费（热启动）；`localpod://play`、`localpod://collection?name=` 在 `onOpenURL` 中优先分流，其余 URL 仍走原文件导入。
+- `PlaybackSession.resumeForShortcut()`：优先播放队列当前项（autoplay，沿用已保存进度）；队列当前项不可用时回退到最近未听完的 `PlaybackState`（playCount>0 且未完成，按 lastPlayedAt 倒序）并以单项重建队列；无内容返回 false。
+- `AppIntentRouter`（@Observable，environment 注入）：RootView 设置待打开合集；LibraryView 按 `MediaCollection.normalizedKey(for:)` 匹配 `nameKey`，命中则 `navigationDestination(isPresented:)` push `LibraryCollectionDetailView`，未命中回退到合集范围 + 预填搜索词，处理后一次性消费请求。
+- 调试参数（仅 Debug）：`--p2-app-intent=continue-playback` / `--p2-app-intent=open-collection:<name>` 在 `LocalPodApp.init` 写入同一邮箱；`--m0-reset-data` 同时清除遗留请求，避免测试间串扰。
+- project.yml 增加 `CFBundleURLTypes`（scheme `localpod`），Info.plist 由 xcodegen 生成；无新增本地化键（intent 标题/描述为中文硬编码）。
+
+**验收**
+
+- [x] 单元测试：`AppIntentLaunchRequestTests` 7 个（编解码往返、含冒号/空格/中文名、非法值、URL 解析、一次性消费、peek/clear）；`PlaybackSessionTests` 新增 3 个（队列当前项开播、空队列回退最近未听完、无内容返回 false）。LocalPodKit 245 个测试 0 失败。
+- [x] UI：`P2ShortcutUITests` 2 个——冷启动 `--p2-app-intent=continue-playback` 自动播放队列条目 A 且播放时间前进；`open-collection:智能合集 B` 直接 push 合集详情。测试侧发现并修正：点击已选中的标签会把该标签页导航栈弹回根视图，误将刚 push 的详情弹掉（App 缺陷不存在，诊断标记确认命中并执行了 push）。全量回归第 9 轮 53/53 UI 测试通过、0 跳过。
+- [ ] 真机项：Shortcuts App 中发现并运行两个动作、Siri 中文短语、冷/热启动与前台调用、旧「打开方式」导入不受影响（见 `docs/DEVICE-CHECKLIST-P1.md` §11）。
 
 ### 5.9 估算假设
 

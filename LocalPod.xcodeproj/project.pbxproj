@@ -32,9 +32,11 @@
 		5E64D25A79DC6089D7319D82 /* SmartPlaylistViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 256667447715C45715C9759F /* SmartPlaylistViews.swift */; };
 		60156DF3AF1D096EE1D1EF55 /* M3DebugSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB622C565ECF037091092A17 /* M3DebugSeed.swift */; };
 		60F1E56C4F38270D9143225E /* ImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACB848B84419379A3691DB8D /* ImportView.swift */; };
+		69D7E32F2037A163D1276BBA /* AppIntentRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBD05E55C538F4BBAF5E3CC1 /* AppIntentRouter.swift */; };
 		7ADE606D3D7D40509C2CCE8A /* M4DebugSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 222D3B52B8184050320B4910 /* M4DebugSupport.swift */; };
 		80A51DA75F7704434827020C /* SigningInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2C0FF2DD1CF8BA191DE2461 /* SigningInfo.swift */; };
 		8397AC6B1CDC477596BA9AD7 /* M0UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06AE680CAD12BBEC847065DD /* M0UITests.swift */; };
+		848901FE1869A10151A037C8 /* P2ShortcutUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E1C727571C1A0358B09BE4E /* P2ShortcutUITests.swift */; };
 		84C2C5304B70ED8D1CFDBD2F /* demo-long-audio.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 802390B4491E30D754B0FB2A /* demo-long-audio.m4a */; };
 		86ECCF1483AABDCC432F8B2E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A4706ACE075EC1F83E5A70 /* SettingsView.swift */; };
 		98187EE9B16597D503E25C56 /* M1UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 629BFC9FD7ECCD7B7A19C1CB /* M1UITests.swift */; };
@@ -57,6 +59,7 @@
 		D62989147790BA638BBD6ED8 /* UITestLaunchSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A84D0E08C709973B8C7F00A /* UITestLaunchSupport.swift */; };
 		DB70393E86FDA4810F1D39A9 /* WiFiUploadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4D561A87F9A5B96AAF59B6F /* WiFiUploadView.swift */; };
 		DC0F4714648A8F7C99E7DACC /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFD2D2A1E3D000812950E085 /* LibraryView.swift */; };
+		DEAADBF21D5C8959AB495C7B /* LocalPodAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 745396A62F58C07F25DC60EA /* LocalPodAppIntents.swift */; };
 		E88FB4648BE59E15C934CEE6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3DC41E9533AC5BE62B52E987 /* Assets.xcassets */; };
 		F6B654BC1617FAFEE32EE536 /* TrashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CABF7BB71EBEF457E5FDF796 /* TrashView.swift */; };
 /* End PBXBuildFile section */
@@ -90,6 +93,7 @@
 		3DC41E9533AC5BE62B52E987 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4AECD17FBD53662BDB9FDFAC /* PlaybackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackView.swift; sourceTree = "<group>"; };
 		4CE94FF4BAD0EADD4805E30B /* WiFiUploadController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiUploadController.swift; sourceTree = "<group>"; };
+		4E1C727571C1A0358B09BE4E /* P2ShortcutUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P2ShortcutUITests.swift; sourceTree = "<group>"; };
 		54D4EEED27269F62571E13A6 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		55B5F8CDBB1EAFE09D6E336F /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
 		562ADF714076DD62E7590544 /* M2UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M2UITests.swift; sourceTree = "<group>"; };
@@ -97,6 +101,7 @@
 		629BFC9FD7ECCD7B7A19C1CB /* M1UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M1UITests.swift; sourceTree = "<group>"; };
 		6A84D0E08C709973B8C7F00A /* UITestLaunchSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestLaunchSupport.swift; sourceTree = "<group>"; };
 		6B4D8FF6A4D7021F44F506B3 /* P1WiFiUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P1WiFiUITests.swift; sourceTree = "<group>"; };
+		745396A62F58C07F25DC60EA /* LocalPodAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalPodAppIntents.swift; sourceTree = "<group>"; };
 		802390B4491E30D754B0FB2A /* demo-long-audio.m4a */ = {isa = PBXFileReference; path = "demo-long-audio.m4a"; sourceTree = "<group>"; };
 		82757C742777D6B85C64F8F4 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		8A56F4FDF7EA19CDA9FB2C07 /* M5SigningUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M5SigningUITests.swift; sourceTree = "<group>"; };
@@ -113,6 +118,7 @@
 		B4A1CFB6A6BD9067B93CA6FA /* M3UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M3UITests.swift; sourceTree = "<group>"; };
 		B4D561A87F9A5B96AAF59B6F /* WiFiUploadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiUploadView.swift; sourceTree = "<group>"; };
 		BB622C565ECF037091092A17 /* M3DebugSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M3DebugSeed.swift; sourceTree = "<group>"; };
+		BBD05E55C538F4BBAF5E3CC1 /* AppIntentRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppIntentRouter.swift; sourceTree = "<group>"; };
 		C240AF67ECE4340E5C07A451 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		C78C751F6184AADE403909F1 /* PlaylistViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistViews.swift; sourceTree = "<group>"; };
 		CABF7BB71EBEF457E5FDF796 /* TrashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrashView.swift; sourceTree = "<group>"; };
@@ -285,6 +291,7 @@
 				288C6C0A3C582E2573E75507 /* P2ChapterUITests.swift */,
 				FE6521D864694A9AE45802A6 /* P2LinkedFolderUITests.swift */,
 				57EDC2D7DBBC2FD80F44F716 /* P2NotificationUITests.swift */,
+				4E1C727571C1A0358B09BE4E /* P2ShortcutUITests.swift */,
 				064329BD11B40700985C8067 /* P2TrashUITests.swift */,
 				6A84D0E08C709973B8C7F00A /* UITestLaunchSupport.swift */,
 			);
@@ -294,9 +301,11 @@
 		CB15CADB6CE0D26D22BE0C11 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				BBD05E55C538F4BBAF5E3CC1 /* AppIntentRouter.swift */,
 				CF0159A431873BBF57DF3694 /* ImportCoordinator.swift */,
 				95698A3967BC57A71A9B89AB /* ImportNotifier.swift */,
 				8BA0DF86D0C69BC29BE9F624 /* LocalPodApp.swift */,
+				745396A62F58C07F25DC60EA /* LocalPodAppIntents.swift */,
 				BB622C565ECF037091092A17 /* M3DebugSeed.swift */,
 				222D3B52B8184050320B4910 /* M4DebugSupport.swift */,
 				F9EC746C6921546F589F55EE /* P1DebugSeed.swift */,
@@ -451,6 +460,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				69D7E32F2037A163D1276BBA /* AppIntentRouter.swift in Sources */,
 				4F20DD44075396004A3472DA /* BenchmarkView.swift in Sources */,
 				2C750406DE2646C2DFC14B80 /* DiagnosticsView.swift in Sources */,
 				9900645556FC372AFED8F47E /* DocumentPicker.swift in Sources */,
@@ -461,6 +471,7 @@
 				54EB328580F716F57A471BFD /* L10n.swift in Sources */,
 				DC0F4714648A8F7C99E7DACC /* LibraryView.swift in Sources */,
 				B47C57FD19EBBE914893017A /* LocalPodApp.swift in Sources */,
+				DEAADBF21D5C8959AB495C7B /* LocalPodAppIntents.swift in Sources */,
 				60156DF3AF1D096EE1D1EF55 /* M3DebugSeed.swift in Sources */,
 				7ADE606D3D7D40509C2CCE8A /* M4DebugSupport.swift in Sources */,
 				27085B42C4116AAEA272FA8F /* OnboardingView.swift in Sources */,
@@ -500,6 +511,7 @@
 				D48228F5B6097FA2E237B75B /* P2ChapterUITests.swift in Sources */,
 				1FCDB99CABF06B72C8FDAE31 /* P2LinkedFolderUITests.swift in Sources */,
 				B20CAB111DA57C2D288A2DD6 /* P2NotificationUITests.swift in Sources */,
+				848901FE1869A10151A037C8 /* P2ShortcutUITests.swift in Sources */,
 				994B579B40C14534F6424A18 /* P2TrashUITests.swift in Sources */,
 				D62989147790BA638BBD6ED8 /* UITestLaunchSupport.swift in Sources */,
 			);

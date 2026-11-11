@@ -50,6 +50,7 @@ struct LibraryView: View {
     }
 
     @Environment(PlaybackSession.self) private var session
+    @Environment(AppIntentRouter.self) private var intentRouter
 
     @Query(sort: \MediaItem.addedAt, order: .reverse)
     private var allItems: [MediaItem]
@@ -71,6 +72,8 @@ struct LibraryView: View {
     @State private var sort: ItemSort = .recent
     @State private var searchText = ""
     @State private var showSettings = false
+    @State private var collectionDetailTarget: MediaCollection?
+    @State private var showCollectionDetail = false
 
     private var libraryItems: [MediaItem] {
         allItems.filter { $0.source != .benchmark }
@@ -198,6 +201,11 @@ struct LibraryView: View {
                 trashSection
             }
             .navigationTitle("资料库")
+            .navigationDestination(isPresented: $showCollectionDetail) {
+                if let collectionDetailTarget {
+                    LibraryCollectionDetailView(collection: collectionDetailTarget)
+                }
+            }
             .searchable(text: $searchText, prompt: "搜索标题或文件夹")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -237,7 +245,28 @@ struct LibraryView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView()
             }
+            // App Intents (Siri/Shortcuts) and localpod:// URL opens stage a
+            // request before or after this view appears; `.task(id:)` covers
+            // both because it runs on first appearance and on id changes.
+            .task(id: intentRouter.collectionRequest) {
+                handlePendingCollectionRequestIfNeeded()
+            }
         }
+    }
+
+    /// Pushes the requested collection when it exists; otherwise falls back to
+    /// the collections scope with the requested name pre-filled in search.
+    private func handlePendingCollectionRequestIfNeeded() {
+        guard let request = intentRouter.collectionRequest else { return }
+        let key = MediaCollection.normalizedKey(for: request.name)
+        if let collection = collections.first(where: { $0.nameKey == key }) {
+            collectionDetailTarget = collection
+            showCollectionDetail = true
+        } else {
+            scope = .collections
+            searchText = request.name
+        }
+        intentRouter.consumeCollectionRequest(id: request.id)
     }
 
     @ViewBuilder

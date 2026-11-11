@@ -220,6 +220,63 @@ final class PlaybackSessionTests: XCTestCase {
         XCTAssertEqual(session.sleepTimer.mode, .off)
     }
 
+    // MARK: - Shortcuts resume
+
+    func testResumeForShortcutStartsQueuedCurrentItem() async throws {
+        session.queue.setQueue(itemIDs: [idA, idB], current: idB)
+
+        XCTAssertTrue(session.resumeForShortcut())
+        XCTAssertEqual(session.queue.currentItemID, idB)
+        try await waitUntil(message: "shortcut did not start the queued item") {
+            self.session.playback.currentItem?.title == "B"
+                && self.session.playback.isPlaying
+        }
+    }
+
+    func testResumeForShortcutFallsBackToMostRecentUnfinishedProgress() async throws {
+        // A is older, B is the most recent unfinished item, and C is finished
+        // (and newer) so it must be ignored.
+        context.insert(PlaybackState(
+            itemID: idA,
+            position: 5,
+            duration: 20,
+            isFinished: false,
+            playCount: 1,
+            lastPlayedAt: fixedNow.addingTimeInterval(-600)
+        ))
+        context.insert(PlaybackState(
+            itemID: idB,
+            position: 7,
+            duration: 20,
+            isFinished: false,
+            playCount: 2,
+            lastPlayedAt: fixedNow
+        ))
+        context.insert(PlaybackState(
+            itemID: idC,
+            position: 20,
+            duration: 20,
+            isFinished: true,
+            playCount: 3,
+            lastPlayedAt: fixedNow.addingTimeInterval(60)
+        ))
+        try context.save()
+
+        XCTAssertTrue(session.resumeForShortcut())
+        XCTAssertEqual(session.queue.itemIDs, [idB])
+        XCTAssertEqual(session.queue.currentItemID, idB)
+        try await waitUntil(message: "shortcut did not resume the recent unfinished item") {
+            self.session.playback.currentItem?.title == "B"
+                && self.session.playback.isPlaying
+        }
+    }
+
+    func testResumeForShortcutReturnsFalseWhenNothingPlayable() {
+        XCTAssertTrue(session.queue.isEmpty)
+        XCTAssertFalse(session.resumeForShortcut())
+        XCTAssertNil(session.playback.currentItem)
+    }
+
     func testRepeatOneReloadsCurrentItemOnEnd() async throws {
         session.play(items: [mediaItem(idA), mediaItem(idB)])
         try await waitUntil { self.session.playback.isPlaying }

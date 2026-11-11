@@ -6,6 +6,7 @@ import LocalPodKit
 struct LocalPodApp: App {
     @State private var importCoordinator = ImportCoordinator()
     @State private var session = PlaybackSession()
+    @State private var intentRouter = AppIntentRouter()
     private let container: ModelContainer
 
     init() {
@@ -20,6 +21,16 @@ struct LocalPodApp: App {
         // test.
         if launchArguments.contains("--m5-reset-onboarding") {
             UserDefaults.standard.removeObject(forKey: OnboardingStorage.completedKey)
+        }
+        // UI-test seam for Shortcuts/Siri: stage the same request the App
+        // Intent would persist, then let RootView consume it through the
+        // normal path once the library fixtures exist.
+        let appIntentPrefix = "--p2-app-intent="
+        if let argument = launchArguments.first(where: { $0.hasPrefix(appIntentPrefix) }),
+           let request = AppIntentLaunchRequest(
+               rawValue: String(argument.dropFirst(appIntentPrefix.count))
+           ) {
+            AppIntentLaunchRequestStore.save(request)
         }
         #endif
         do {
@@ -70,6 +81,9 @@ struct LocalPodApp: App {
             at: MediaStorage.live.cachesRoot.appendingPathComponent("Artwork", isDirectory: true)
         )
         AppSettingsStore.clearStoredValues()
+        // A pending Shortcuts/Siri request is per-launch state; never let a
+        // failed/terminated test leak it into the next one.
+        AppIntentLaunchRequestStore.clear()
         // Keep UI-test resets onboarding-free: resetting media data is not a
         // first install. `--m5-reset-onboarding` opts into first-run instead.
         UserDefaults.standard.set(true, forKey: OnboardingStorage.completedKey)
@@ -85,6 +99,7 @@ struct LocalPodApp: App {
             RootView()
                 .environment(importCoordinator)
                 .environment(session)
+                .environment(intentRouter)
                 .environment(session.playback)
                 .environment(session.queue)
                 .environment(session.settings)

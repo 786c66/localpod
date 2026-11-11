@@ -8,6 +8,7 @@ struct RootView: View {
     @Environment(ImportCoordinator.self) private var importCoordinator
     @Environment(PlaybackController.self) private var playback
     @Environment(PlaybackSession.self) private var session
+    @Environment(AppIntentRouter.self) private var intentRouter
 
     @AppStorage(OnboardingStorage.completedKey) private var onboardingCompleted = false
 
@@ -16,6 +17,7 @@ struct RootView: View {
     @State private var showOnboarding = false
     @State private var didResolveOnboarding = false
     @State private var didRunLaunchAutomation = false
+    @State private var didBootstrapPlayback = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -58,6 +60,7 @@ struct RootView: View {
                 context: modelContext,
                 progressStore: PlaybackProgressStore(context: modelContext)
             )
+            didBootstrapPlayback = true
             // P2 debug seeds must exist BEFORE bootstrap so the launch
             // maintenance (reconcile → purgeExpired) sees them — the expired
             // trash fixture specifically exercises purge-at-launch.
@@ -76,12 +79,19 @@ struct RootView: View {
                 expirationDate: SigningInfo.current()?.expirationDate,
                 isEnabled: session.settings.signingReminderEnabled
             )
+            // Intent requests are consumed only after the seeds above exist, so
+            // a cold Siri launch can resolve seeded/debug collections.
+            consumePendingAppIntentRequestIfNeeded()
         }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .active:
                 importCoordinator.runMaintenance(modelContext: modelContext)
                 importCoordinator.importInboxIfNeeded(modelContext: modelContext)
+                // Warm launch (Siri/Shortcuts while the app is alive): the
+                // `.task` already ran, so consume any request staged by the
+                // intent or an incoming URL.
+                consumePendingAppIntentRequestIfNeeded()
             case .background:
                 // Audio continues in the background; only force a progress save.
                 playback.handleSceneDidEnterBackground()
@@ -101,7 +111,14 @@ struct RootView: View {
             }
         }
         .onOpenURL { url in
-            importCoordinator.handleOpenURL(url, modelContext: modelContext)
+            if url.scheme == "localpod" {
+                if let request = AppIntentLaunchRequest(url: url) {
+                    AppIntentLaunchRequestStore.save(request)
+                }
+                consumePendingAppIntentRequestIfNeeded()
+            } else {
+                importCoordinator.handleOpenURL(url, modelContext: modelContext)
+            }
         }
         // Normal builds follow the system appearance. The iOS 27.1 simulator
         // used by UI tests does not propagate XCUIDevice.appearance into the
@@ -123,6 +140,22 @@ struct RootView: View {
     /// exercised across app launches in UI tests.
     private static let m2LongAudioLibraryID =
         UUID(uuidString: "22222222-2222-4222-8222-222222222222")!
+
+    /// Handles a pending Shortcuts/Siri or `localpod://` request exactly once.
+    /// Cold launches call this at the end of `.task` (after debug/library
+    /// seeds); warm launches call it on `.active` and from `onOpenURL`.
+    private func consumePendingAppIntentRequestIfNeeded() {
+        guard didBootstrapPlayback else { return }
+        guard let request = AppIntentLaunchRequestStore.consume() else { return }
+        switch request {
+        case .continuePlayback:
+            selectedTab = 2
+            _ = session.resumeForShortcut()
+        case .openCollection(let name):
+            selectedTab = 0
+            intentRouter.requestCollection(named: name)
+        }
+    }
 
     private func resolveOnboardingIfNeeded() {
         guard !didResolveOnboarding else { return }
