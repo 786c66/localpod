@@ -27,10 +27,11 @@ struct TapeTapeCover: View {
         }
         .padding(12)
         .frame(width: width)
-        .background(
-            TapeTheme.coral,
-            in: RoundedRectangle(cornerRadius: TapeTheme.radiusCard, style: .continuous)
-        )
+        .background {
+            RoundedRectangle(cornerRadius: TapeTheme.radiusCard, style: .continuous)
+                .fill(TapeTheme.coral)
+                .shadow(color: TapeTheme.ink, radius: 0, x: 5, y: 5)
+        }
         .overlay {
             RoundedRectangle(cornerRadius: TapeTheme.radiusCard, style: .continuous)
                 .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
@@ -39,8 +40,6 @@ struct TapeTapeCover: View {
         .overlay(alignment: .topTrailing) { screw }
         .overlay(alignment: .bottomLeading) { screw }
         .overlay(alignment: .bottomTrailing) { screw }
-        .shadow(color: TapeTheme.ink, radius: 0, x: 5, y: 5)
-        .accessibilityHidden(true)
         .task(id: artworkURL) {
             guard let artworkURL else {
                 artwork = nil

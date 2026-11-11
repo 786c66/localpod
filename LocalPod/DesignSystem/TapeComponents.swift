@@ -41,15 +41,15 @@ struct TapeCard<Content: View>: View {
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                fill,
-                in: RoundedRectangle(cornerRadius: TapeTheme.radiusCard, style: .continuous)
-            )
+            .background {
+                RoundedRectangle(cornerRadius: TapeTheme.radiusCard, style: .continuous)
+                    .fill(fill)
+                    .shadow(color: TapeTheme.ink, radius: 0, x: 4, y: 4)
+            }
             .overlay {
                 RoundedRectangle(cornerRadius: TapeTheme.radiusCard, style: .continuous)
                     .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
             }
-            .shadow(color: TapeTheme.ink, radius: 0, x: 4, y: 4)
             .rotationEffect(.degrees(rotation))
     }
 }
@@ -92,17 +92,20 @@ struct TapePrimaryButtonStyle: ButtonStyle {
             .padding(.horizontal, TapeTheme.space4)
             .padding(.vertical, TapeTheme.space3)
             .frame(minHeight: 44)
-            .background(fill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(fill)
+                    .shadow(
+                        color: TapeTheme.ink,
+                        radius: 0,
+                        x: configuration.isPressed ? 1 : 4,
+                        y: configuration.isPressed ? 1 : 4
+                    )
+            }
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
             }
-            .shadow(
-                color: TapeTheme.ink,
-                radius: 0,
-                x: configuration.isPressed ? 1 : 4,
-                y: configuration.isPressed ? 1 : 4
-            )
             .offset(
                 x: configuration.isPressed ? 3 : 0,
                 y: configuration.isPressed ? 3 : 0
@@ -123,17 +126,20 @@ struct TapeSecondaryButtonStyle: ButtonStyle {
             .padding(.horizontal, TapeTheme.space4)
             .padding(.vertical, TapeTheme.space3)
             .frame(minHeight: 44)
-            .background(fill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(fill)
+                    .shadow(
+                        color: TapeTheme.ink,
+                        radius: 0,
+                        x: configuration.isPressed ? 1 : 2,
+                        y: configuration.isPressed ? 1 : 2
+                    )
+            }
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
             }
-            .shadow(
-                color: TapeTheme.ink,
-                radius: 0,
-                x: configuration.isPressed ? 1 : 2,
-                y: configuration.isPressed ? 1 : 2
-            )
             .offset(
                 x: configuration.isPressed ? 1 : 0,
                 y: configuration.isPressed ? 1 : 0
@@ -151,17 +157,20 @@ struct TapeDestructiveButtonStyle: ButtonStyle {
             .padding(.horizontal, TapeTheme.space4)
             .padding(.vertical, TapeTheme.space3)
             .frame(minHeight: 44)
-            .background(TapeTheme.coral, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(TapeTheme.coral)
+                    .shadow(
+                        color: TapeTheme.ink,
+                        radius: 0,
+                        x: configuration.isPressed ? 1 : 3,
+                        y: configuration.isPressed ? 1 : 3
+                    )
+            }
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
             }
-            .shadow(
-                color: TapeTheme.ink,
-                radius: 0,
-                x: configuration.isPressed ? 1 : 3,
-                y: configuration.isPressed ? 1 : 3
-            )
             .offset(
                 x: configuration.isPressed ? 2 : 0,
                 y: configuration.isPressed ? 2 : 0
@@ -181,20 +190,27 @@ struct TapeIconButtonStyle: ButtonStyle {
             .font(.system(size: diameter * 0.42, weight: .bold))
             .foregroundStyle(foreground)
             .frame(width: diameter, height: diameter)
-            .background(fill, in: Circle())
+            .background {
+                Circle()
+                    .fill(fill)
+                    .shadow(
+                        color: TapeTheme.ink,
+                        radius: 0,
+                        x: configuration.isPressed ? 0.5 : 2,
+                        y: configuration.isPressed ? 0.5 : 2
+                    )
+            }
             .overlay { Circle().strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke) }
-            .shadow(
-                color: TapeTheme.ink,
-                radius: 0,
-                x: configuration.isPressed ? 0.5 : 2,
-                y: configuration.isPressed ? 0.5 : 2
-            )
             .offset(
                 x: configuration.isPressed ? 1.5 : 0,
                 y: configuration.isPressed ? 1.5 : 0
             )
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
             .animation(TapeTheme.press, value: configuration.isPressed)
+            // Visual diameter can stay small (36/40) for the sticker look,
+            // but the tappable area is always at least 44pt.
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
     }
 }
 
@@ -224,12 +240,15 @@ struct TapeSticker: View {
             .lineLimit(1)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(fill, in: RoundedRectangle(cornerRadius: TapeTheme.radiusSticker))
+            .background {
+                RoundedRectangle(cornerRadius: TapeTheme.radiusSticker)
+                    .fill(fill)
+                    .shadow(color: TapeTheme.ink, radius: 0, x: 2, y: 2)
+            }
             .overlay {
                 RoundedRectangle(cornerRadius: TapeTheme.radiusSticker)
                     .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
             }
-            .shadow(color: TapeTheme.ink, radius: 0, x: 2, y: 2)
             .rotationEffect(.degrees(angle))
     }
 }
@@ -294,17 +313,17 @@ struct TapeChip: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
             .frame(minHeight: 32)
-            .background(
-                isSelected ? TapeTheme.acid : fill,
-                in: Capsule()
-            )
+            .background {
+                Capsule()
+                    .fill(isSelected ? TapeTheme.acid : fill)
+                    .shadow(
+                        color: TapeTheme.ink,
+                        radius: 0,
+                        x: isSelected ? 2 : 0,
+                        y: isSelected ? 2 : 0
+                    )
+            }
             .overlay { Capsule().strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke) }
-            .shadow(
-                color: TapeTheme.ink,
-                radius: 0,
-                x: isSelected ? 2 : 0,
-                y: isSelected ? 2 : 0
-            )
     }
 }
 
@@ -542,15 +561,15 @@ struct TapeRow: View {
         .padding(.horizontal, TapeTheme.space3)
         .padding(.vertical, 10)
         .frame(minHeight: 56)
-        .background(
-            TapeTheme.card,
-            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-        )
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(TapeTheme.card)
+                .shadow(color: TapeTheme.ink, radius: 0, x: 2, y: 2)
+        }
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
         }
-        .shadow(color: TapeTheme.ink, radius: 0, x: 2, y: 2)
     }
 }
 
@@ -574,6 +593,7 @@ extension View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
             .listSectionSpacing(TapeTheme.space3)
+            .contentMargins(.bottom, 80, for: .scrollContent)
     }
 
     /// Clear, zero-inset list row so the content card owns its own margins.
@@ -591,15 +611,29 @@ extension View {
             )
     }
 
+    /// Inline cream navigation chrome with ink controls. Inline mode is used
+    /// everywhere: content owns the big titles, the system bar only navigates.
+    func tapeNavigationChrome() -> some View {
+        self
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(TapeTheme.cream, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.light, for: .navigationBar)
+            .tint(TapeTheme.ink)
+    }
+
     /// Applies the shared primary card treatment without using TapeCard
     /// (for rows that already manage their own padding).
     func tapeCardSurface(fill: Color = TapeTheme.card, corner: CGFloat = TapeTheme.radiusCard) -> some View {
         self
-            .background(fill, in: RoundedRectangle(cornerRadius: corner, style: .continuous))
+            .background {
+                RoundedRectangle(cornerRadius: corner, style: .continuous)
+                    .fill(fill)
+                    .shadow(color: TapeTheme.ink, radius: 0, x: 4, y: 4)
+            }
             .overlay {
                 RoundedRectangle(cornerRadius: corner, style: .continuous)
                     .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
             }
-            .shadow(color: TapeTheme.ink, radius: 0, x: 4, y: 4)
     }
 }

@@ -20,34 +20,46 @@ struct RootView: View {
     @State private var didBootstrapPlayback = false
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            LibraryView()
-                .toolbar(.hidden, for: .tabBar)
-                .tabItem { Label("资料库", systemImage: "books.vertical") }
-                .tag(0)
+        // The custom bar is a layout sibling, not a floating inset: content
+        // must not extend under it. A floating bar stays inside the window,
+        // so XCUITest still reports covered controls as hittable and taps
+        // land on the bar (see P2Chapter/M2 regressions). A sibling bar ends
+        // the scroll viewport exactly where the bar begins, like the system
+        // tab bar did.
+        VStack(spacing: 0) {
+            TabView(selection: $selectedTab) {
+                LibraryView()
+                    .tint(TapeTheme.ink)
+                    .toolbar(.hidden, for: .tabBar)
+                    .tabItem { Label("资料库", systemImage: "books.vertical") }
+                    .tag(0)
 
-            ImportView()
-                .toolbar(.hidden, for: .tabBar)
-                .tabItem { Label("导入", systemImage: "tray.and.arrow.down") }
-                .tag(1)
+                ImportView()
+                    .tint(TapeTheme.ink)
+                    .toolbar(.hidden, for: .tabBar)
+                    .tabItem { Label("导入", systemImage: "tray.and.arrow.down") }
+                    .tag(1)
 
-            PlaybackView(onGoToLibrary: { selectedTab = 0 })
-                .toolbar(.hidden, for: .tabBar)
-                .tabItem { Label(L10n.string("tab.playback"), systemImage: "play.circle") }
-                .tag(2)
+                PlaybackView(onGoToLibrary: { selectedTab = 0 })
+                    .tint(TapeTheme.ink)
+                    .toolbar(.hidden, for: .tabBar)
+                    .tabItem { Label(L10n.string("tab.playback"), systemImage: "play.circle") }
+                    .tag(2)
 
-            InboxView()
-                .toolbar(.hidden, for: .tabBar)
-                .tabItem { Label("收件箱", systemImage: "envelope") }
-                .tag(3)
+                InboxView()
+                    .tint(TapeTheme.ink)
+                    .toolbar(.hidden, for: .tabBar)
+                    .tabItem { Label("收件箱", systemImage: "envelope") }
+                    .tag(3)
 
-            DiagnosticsView()
-                .toolbar(.hidden, for: .tabBar)
-                .tabItem { Label("诊断", systemImage: "stethoscope") }
-                .tag(4)
-        }
-        .tint(Color.accentColor)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+                DiagnosticsView()
+                    .tint(TapeTheme.ink)
+                    .toolbar(.hidden, for: .tabBar)
+                    .tabItem { Label("诊断", systemImage: "stethoscope") }
+                    .tag(4)
+            }
+            .tint(Color.accentColor)
+
             TapeTabBar(selection: $selectedTab)
         }
         .sheet(isPresented: $showSettings) {

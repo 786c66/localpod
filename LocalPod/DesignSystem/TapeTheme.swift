@@ -3,7 +3,7 @@ import UIKit
 
 /// Direction C「节拍 / Expressive」design tokens.
 ///
-/// The source spec is `DESIGN-SPEC.md`; the short version is: cream paper,
+/// The source spec is `docs/DESIGN-SPEC.md`; the short version is: cream paper,
 /// ink outlines, hard offset shadows, acid-lime action surfaces, coral and
 /// violet stickers, Space Grotesk display type and IBM Plex Mono numbers.
 enum TapeTheme {
