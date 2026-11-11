@@ -37,6 +37,7 @@
 		98187EE9B16597D503E25C56 /* M1UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 629BFC9FD7ECCD7B7A19C1CB /* M1UITests.swift */; };
 		9900645556FC372AFED8F47E /* DocumentPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D17F0BADA440FB407E46DA /* DocumentPicker.swift */; };
 		9908F428FF83B92D30A9D9BF /* P2DebugSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B6F713FE4FAE5DE8CFAEC5A /* P2DebugSeed.swift */; };
+		994B579B40C14534F6424A18 /* P2TrashUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 064329BD11B40700985C8067 /* P2TrashUITests.swift */; };
 		A43211C1E73DA0617B6D86FC /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 30F3A5C4AD486F7663F2D8E7 /* InfoPlist.strings */; };
 		ADBB7965B11E440241B1D17F /* M5DeliveryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9F0BC6809D1861746C7FAB /* M5DeliveryUITests.swift */; };
 		B17C1E4561DAAE88CF8C2828 /* M5PerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F7BF1A32BFD81852377C2A /* M5PerformanceTests.swift */; };
@@ -52,6 +53,7 @@
 		DB70393E86FDA4810F1D39A9 /* WiFiUploadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4D561A87F9A5B96AAF59B6F /* WiFiUploadView.swift */; };
 		DC0F4714648A8F7C99E7DACC /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFD2D2A1E3D000812950E085 /* LibraryView.swift */; };
 		E88FB4648BE59E15C934CEE6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3DC41E9533AC5BE62B52E987 /* Assets.xcassets */; };
+		F6B654BC1617FAFEE32EE536 /* TrashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CABF7BB71EBEF457E5FDF796 /* TrashView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -66,6 +68,7 @@
 
 /* Begin PBXFileReference section */
 		00705DECE55BE2A80CE153C3 /* LocalPodUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LocalPodUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		064329BD11B40700985C8067 /* P2TrashUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P2TrashUITests.swift; sourceTree = "<group>"; };
 		06AE680CAD12BBEC847065DD /* M0UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M0UITests.swift; sourceTree = "<group>"; };
 		1E9F0BC6809D1861746C7FAB /* M5DeliveryUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M5DeliveryUITests.swift; sourceTree = "<group>"; };
 		1EC85DB0C315007B5918E0AF /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
@@ -102,6 +105,7 @@
 		BB622C565ECF037091092A17 /* M3DebugSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M3DebugSeed.swift; sourceTree = "<group>"; };
 		C240AF67ECE4340E5C07A451 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		C78C751F6184AADE403909F1 /* PlaylistViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistViews.swift; sourceTree = "<group>"; };
+		CABF7BB71EBEF457E5FDF796 /* TrashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrashView.swift; sourceTree = "<group>"; };
 		CF0159A431873BBF57DF3694 /* ImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinator.swift; sourceTree = "<group>"; };
 		DB42381B83497C220C5B45CB /* M4UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M4UITests.swift; sourceTree = "<group>"; };
 		DC4E61AF6AD15CB716921049 /* SampleContent */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SampleContent; path = LocalPod/Resources/SampleContent; sourceTree = SOURCE_ROOT; };
@@ -150,6 +154,7 @@
 			isa = PBXGroup;
 			children = (
 				DFD2D2A1E3D000812950E085 /* LibraryView.swift */,
+				CABF7BB71EBEF457E5FDF796 /* TrashView.swift */,
 			);
 			path = Library;
 			sourceTree = "<group>";
@@ -266,6 +271,7 @@
 				978D426BBAE705D2442C2EB7 /* P1SmartPlaylistUITests.swift */,
 				6B4D8FF6A4D7021F44F506B3 /* P1WiFiUITests.swift */,
 				FE6521D864694A9AE45802A6 /* P2LinkedFolderUITests.swift */,
+				064329BD11B40700985C8067 /* P2TrashUITests.swift */,
 				6A84D0E08C709973B8C7F00A /* UITestLaunchSupport.swift */,
 			);
 			path = LocalPodUITests;
@@ -450,6 +456,7 @@
 				80A51DA75F7704434827020C /* SigningInfo.swift in Sources */,
 				544C59412F5A855C292DEAB5 /* SigningReminder.swift in Sources */,
 				5E64D25A79DC6089D7319D82 /* SmartPlaylistViews.swift in Sources */,
+				F6B654BC1617FAFEE32EE536 /* TrashView.swift in Sources */,
 				CED122E14578EE233205BC83 /* WiFiUploadController.swift in Sources */,
 				21A28E89594C318417AF496D /* WiFiUploadStorage.swift in Sources */,
 				DB70393E86FDA4810F1D39A9 /* WiFiUploadView.swift in Sources */,
@@ -473,6 +480,7 @@
 				427307DA6CB9184B92644F0A /* P1SmartPlaylistUITests.swift in Sources */,
 				2C410E36941974F5361139F8 /* P1WiFiUITests.swift in Sources */,
 				1FCDB99CABF06B72C8FDAE31 /* P2LinkedFolderUITests.swift in Sources */,
+				994B579B40C14534F6424A18 /* P2TrashUITests.swift in Sources */,
 				D62989147790BA638BBD6ED8 /* UITestLaunchSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

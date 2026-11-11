@@ -139,7 +139,7 @@
 - **链接文件夹 + 增量重扫**：持久化 security-scoped bookmark，重新扫描新增/删除文件。**（已完成，见 5.10）**
 - **智能播放列表**：继续播放、未播完、最近添加、已播完、按合集筛选。**（已完成，见 5.8）**
 - **章节**：内嵌章节（m4a/mp3 等），播放页章节列表与跳转。**（待做）**
-- **回收站/最近删除**：删除后保留 7–30 天，可恢复。**（待做）**
+- **回收站/最近删除**：删除后保留 7–30 天，可恢复。**（已完成，见 5.12）**
 - **备份/导出**：播放列表、进度、库清单导出 JSON；支持从备份恢复。**（待做）**
 - **Shortcuts / Siri**：继续播放、打开合集；小组件需 App Groups，当前免费账号不做（见条件性功能）。**（待做）**
 - **通知**：导入完成/失败通知。**（待做）**
@@ -1008,6 +1008,23 @@ idle → preparing → ready → playing ⇄ paused
 - [x] UI：同步导入新文件、过期徽标+重选入口（`P2LinkedFolderUITests` 2 个用例）。
 - [x] 回归：全量 UI 46 个用例（含新 2 个）第四轮全部通过（0 失败，1155.8 秒）。
 - [ ] 真机项：通过文件 App 选择 iCloud Drive/第三方 provider 文件夹后的真实 bookmark 解析、provider 掉线（标记过期）后的重选流程。未计为通过。
+
+### 5.12 回收站/最近删除（2026-11-11 完成）
+
+**交付**
+
+- Schema V6：`TrashItem` 实体（itemID、title、snapshotJSON、deletedAt、expiresAt、artworkKey 镜像），V5→V6 轻量迁移；`makeContainer` 用 V6。
+- `TrashService`：移入回收站（MediaItem 行删除 + 文件移入 `Application Support/Trash/<itemID>/` + 播放列表成员快照进 snapshotJSON + 队列行删除；封面与 PlaybackState 保留）、恢复（同 id/addedAt 重建、文件移回、播放列表成员恢复、staged 文件缺失时按 isMissing=true 恢复）、彻底删除（文件/封面/进度/队列/播放列表全清）、过期清理（`purgeExpired`，保留期 30 天）与清空。
+- 拦截点：`LibraryService.delete` 改为走回收站（返回 movedToTrash），原硬删除保留为 `deleteHard`；`reconcile` 先清过期回收条目（summary.expiredTrashPurged），且孤儿媒体扫描对 Trash 根目录免疫（回收站目录在 Media/ 之外，另有前缀防御）。
+- UI：资料库标签底部新增「回收站」区（计数 + NavigationLink → TrashView；不触碰 ImportView，P1 回归教训）；TrashView 列表（删除时间/剩余天数）、单条恢复（左滑）、单条彻底删除（右滑+确认）、清空回收站（确认弹窗）、空状态；条目删除确认文案改为「移到回收站」。
+- 调试参数 `--p2-seed-trash` / `--p2-seed-expired-trash`（仅 Debug，`--m0-reset-data` 会一并清掉 Trash 目录）。
+- 本地化：App 语义键 26 个 + 提取键 2 个（删除确认改文案），中英 parity；`--m0-reset-data` 目录清单补充 `Trash`。
+
+**验收**
+
+- [x] 单元测试：快照往返、staged 文件、成员恢复（列表被删时跳过）、staged 缺失→isMissing、purge 无孤儿、过期清理、reconcile 免疫 Trash 目录、V5→V6 迁移；`LibraryService`/`PlaylistService` 既有删除用例改为回收站语义。LocalPodKit 203 个测试 0 失败。
+- [x] UI：删除→回收站(1)→恢复→资料库回归；过期条目启动即清（`P2TrashUITests` 2 个用例）。
+- [ ] 真机项：无（纯本地逻辑，模拟器自动化已覆盖）。剩余 30 天到期自动清理由 `purgeExpired` 注入式 `now` 测试覆盖。
 
 ### 5.9 估算假设
 

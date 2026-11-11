@@ -59,7 +59,8 @@ struct LocalPodApp: App {
             "AcceptanceInput",
             "ImportStaging",
             "ImportReports",
-            "WiFiUploads"
+            "WiFiUploads",
+            "Trash"
         ] {
             try? FileManager.default.removeItem(
                 at: supportRoot.appendingPathComponent(directory, isDirectory: true)

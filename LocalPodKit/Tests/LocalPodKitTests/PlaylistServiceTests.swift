@@ -97,7 +97,7 @@ final class PlaylistServiceTests: XCTestCase {
         XCTAssertEqual(service.itemIDs(in: second).count, 1)
     }
 
-    func testLibraryDeleteCascadesQueuePlaylistAndProgressRows() throws {
+    func testLibraryDeleteTrashesItemAndRestoresPlaylistMembership() throws {
         let itemID = UUID()
         let item = MediaItem(
             id: itemID,
@@ -115,6 +115,48 @@ final class PlaylistServiceTests: XCTestCase {
         try context.save()
 
         _ = try LibraryService().delete(item, in: context)
+
+        // Trash: the item row is gone, queue rows are dropped, playlist
+        // entries are removed (membership lives in the snapshot until
+        // restore), and playback state is kept so restore reconnects by id.
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<MediaItem>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<QueueEntry>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<PlaybackState>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<TrashItem>()), 1)
+        XCTAssertEqual(service.itemIDs(in: playlist), [])
+
+        // Restore puts the item and its playlist entry back.
+        let trashRow = try XCTUnwrap(
+            try context.fetch(FetchDescriptor<TrashItem>()).first
+        )
+        _ = try TrashService().restore(trashRow, in: context)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<MediaItem>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<TrashItem>()), 0)
+        XCTAssertEqual(service.itemIDs(in: playlist), [itemID])
+        let restoredState = try XCTUnwrap(
+            try context.fetch(FetchDescriptor<PlaybackState>()).first
+        )
+        XCTAssertEqual(restoredState.position, 3)
+    }
+
+    func testLibraryDeleteHardCascadesQueuePlaylistAndProgressRows() throws {
+        let itemID = UUID()
+        let item = MediaItem(
+            id: itemID,
+            title: "删除目标",
+            relativePath: "Media/missing.m4a",
+            kind: .audio,
+            fileExtension: "m4a",
+            byteSize: 100
+        )
+        context.insert(item)
+        context.insert(PlaybackState(itemID: itemID, position: 3, duration: 10))
+        context.insert(QueueEntry(itemID: itemID, position: 0))
+        let playlist = try XCTUnwrap(service.create(name: "级联"))
+        service.add(itemID: itemID, to: playlist)
+        try context.save()
+
+        _ = try LibraryService().deleteHard(item, in: context)
 
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<MediaItem>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<PlaybackState>()), 0)

@@ -140,5 +140,135 @@ enum P2DebugSeed {
             return false
         }
     }
+
+    // MARK: - Trash (回收站) fixtures
+
+    static let trashedTitle = "回收站测试条目"
+    static let expiredTitle = "回收站过期条目"
+
+    private static func makeTrashSnapshot(
+        title: String,
+        itemID: UUID
+    ) -> TrashItemSnapshot {
+        TrashItemSnapshot(
+            id: itemID,
+            title: title,
+            sortTitle: title,
+            originalFileName: "\(itemID.uuidString).m4a",
+            relativePath: "Media/\(itemID.uuidString).m4a",
+            relativeFolderPath: "",
+            kindRaw: MediaKind.audio.rawValue,
+            fileExtension: "m4a",
+            byteSize: 220_000,
+            durationSeconds: 20,
+            addedAt: Date().addingTimeInterval(-3_600),
+            folderName: "P2 回收站",
+            sourceRaw: MediaSource.imported.rawValue,
+            sourceName: "P2 回收站",
+            fingerprint: nil,
+            collectionID: nil,
+            artworkKey: nil,
+            importSessionID: nil,
+            isFavorite: false,
+            notes: nil,
+            playlistEntries: []
+        )
+    }
+
+    private static func seedTrashItem(
+        title: String,
+        itemID: UUID,
+        expiresAt: Date,
+        stageMediaFile: Bool,
+        in context: ModelContext
+    ) {
+        let encoder = JSONEncoder()
+        guard let snapshotJSON = try? encoder.encode(
+            makeTrashSnapshot(title: title, itemID: itemID)
+        ) else {
+            return
+        }
+
+        // Stage a real demo file into the trash directory so restore has
+        // something to move back; the expired seed skips this (its purge must
+        // succeed even with no staged file).
+        let storage = MediaStorage.live
+        if stageMediaFile,
+           let trashDir = try? storage.trashItemURL(itemID: itemID),
+           let source = Bundle.main.url(forResource: "demo-audio", withExtension: "m4a") {
+            try? FileManager.default.createDirectory(
+                at: trashDir,
+                withIntermediateDirectories: true
+            )
+            try? FileManager.default.removeItem(
+                at: trashDir.appendingPathComponent("\(itemID.uuidString).m4a")
+            )
+            try? FileManager.default.copyItem(
+                at: source,
+                to: trashDir.appendingPathComponent("\(itemID.uuidString).m4a")
+            )
+        }
+
+        context.insert(TrashItem(
+            itemID: itemID,
+            title: title,
+            snapshotJSON: snapshotJSON,
+            deletedAt: Date().addingTimeInterval(-60),
+            expiresAt: expiresAt,
+            artworkKey: nil
+        ))
+        try? context.save()
+    }
+
+    /// --p2-seed-trash: one normal trash row (full retention) the UI test can
+    /// restore. Restarting clean removes leftovers first.
+    @discardableResult
+    static func seedTrashIfRequested(in context: ModelContext) -> Bool {
+        guard ProcessInfo.processInfo.arguments.contains("--p2-seed-trash") else {
+            return false
+        }
+        let itemID = UUID(uuidString: "44444444-4444-4444-8444-444444444401")!
+        removeTrashRow(itemID: itemID, in: context)
+        seedTrashItem(
+            title: trashedTitle,
+            itemID: itemID,
+            expiresAt: Date().addingTimeInterval(TrashService.retentionInterval),
+            stageMediaFile: true,
+            in: context
+        )
+        return true
+    }
+
+    /// --p2-seed-expired-trash: one already-expired trash row. The launch
+    /// bootstrap purge (reconcile → purgeExpired) must remove it before the
+    /// first frame, so the trash UI shows the empty state.
+    @discardableResult
+    static func seedExpiredTrashIfRequested(in context: ModelContext) -> Bool {
+        guard ProcessInfo.processInfo.arguments.contains("--p2-seed-expired-trash") else {
+            return false
+        }
+        let itemID = UUID(uuidString: "44444444-4444-4444-8444-444444444402")!
+        removeTrashRow(itemID: itemID, in: context)
+        seedTrashItem(
+            title: expiredTitle,
+            itemID: itemID,
+            expiresAt: Date().addingTimeInterval(-60),
+            stageMediaFile: false,
+            in: context
+        )
+        return true
+    }
+
+    private static func removeTrashRow(itemID: UUID, in context: ModelContext) {
+        let rows = (try? context.fetch(FetchDescriptor<TrashItem>(
+            predicate: #Predicate { $0.itemID == itemID }
+        ))) ?? []
+        for row in rows {
+            context.delete(row)
+        }
+        if !rows.isEmpty {
+            try? context.save()
+        }
+    }
 }
 #endif

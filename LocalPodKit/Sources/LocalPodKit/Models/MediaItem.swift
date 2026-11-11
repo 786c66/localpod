@@ -44,6 +44,7 @@ public typealias QueueState = LocalPodSchemaV4.QueueState
 public typealias Playlist = LocalPodSchemaV4.Playlist
 public typealias PlaylistEntry = LocalPodSchemaV4.PlaylistEntry
 public typealias LinkedFolder = LocalPodSchemaV5.LinkedFolder
+public typealias TrashItem = LocalPodSchemaV6.TrashItem
 
 public extension LocalPodSchemaV2.MediaItem {
     var kind: MediaKind {

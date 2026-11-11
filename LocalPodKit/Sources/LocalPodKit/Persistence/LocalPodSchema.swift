@@ -467,6 +467,69 @@ public enum LocalPodSchemaV5: VersionedSchema {
     }
 }
 
+/// P2 回收站 (trash / recently deleted) adds one row per trashed library item.
+/// The media file is staged under a hidden directory (see
+/// `MediaStorage.trashRootURL`) and the row keeps a JSON snapshot of every
+/// MediaItem field needed to restore it. All previous entities are reused
+/// unchanged.
+public enum LocalPodSchemaV6: VersionedSchema {
+    public static var versionIdentifier: Schema.Version { Schema.Version(6, 0, 0) }
+
+    public static var models: [any PersistentModel.Type] {
+        [
+            LocalPodSchemaV2.MediaItem.self,
+            LocalPodSchemaV2.MediaCollection.self,
+            LocalPodSchemaV2.ImportSession.self,
+            LocalPodSchemaV3.PlaybackState.self,
+            LocalPodSchemaV4.QueueEntry.self,
+            LocalPodSchemaV4.QueueState.self,
+            LocalPodSchemaV4.Playlist.self,
+            LocalPodSchemaV4.PlaylistEntry.self,
+            LocalPodSchemaV5.LinkedFolder.self,
+            TrashItem.self
+        ]
+    }
+
+    @Model
+    public final class TrashItem: Hashable, Identifiable {
+        @Attribute(.unique) public var id: UUID = UUID()
+        /// The trashed MediaItem's id. Restore recreates the row with this
+        /// exact identity (and the snapshotted `addedAt`), so playback state
+        /// and fingerprints reconnect without any re-linking.
+        public var itemID: UUID = UUID()
+        /// Denormalized from the snapshot so lists and UI tests can show and
+        /// target rows without decoding JSON on every render.
+        public var title: String = ""
+        /// JSON-encoded `TrashItemSnapshot`.
+        public var snapshotJSON: Data = Data()
+        public var deletedAt: Date = Date()
+        /// `deletedAt` + retention (30 days). Rows with `expiresAt <= now`
+        /// are purged by maintenance before reconcile.
+        public var expiresAt: Date = Date()
+        /// Mirror of `snapshot.artworkKey` so reconcile can protect and purge
+        /// can remove the cached artwork without decoding the snapshot.
+        public var artworkKey: String?
+
+        public init(
+            id: UUID = UUID(),
+            itemID: UUID,
+            title: String,
+            snapshotJSON: Data,
+            deletedAt: Date,
+            expiresAt: Date,
+            artworkKey: String? = nil
+        ) {
+            self.id = id
+            self.itemID = itemID
+            self.title = title
+            self.snapshotJSON = snapshotJSON
+            self.deletedAt = deletedAt
+            self.expiresAt = expiresAt
+            self.artworkKey = artworkKey
+        }
+    }
+}
+
 public enum LocalPodMigrationPlan: SchemaMigrationPlan {
     public static var schemas: [any VersionedSchema.Type] {
         [
@@ -474,12 +537,13 @@ public enum LocalPodMigrationPlan: SchemaMigrationPlan {
             LocalPodSchemaV2.self,
             LocalPodSchemaV3.self,
             LocalPodSchemaV4.self,
-            LocalPodSchemaV5.self
+            LocalPodSchemaV5.self,
+            LocalPodSchemaV6.self
         ]
     }
 
     public static var stages: [MigrationStage] {
-        [migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5]
+        [migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5, migrateV5toV6]
     }
 
     public static let migrateV1toV2 = MigrationStage.lightweight(
@@ -501,6 +565,11 @@ public enum LocalPodMigrationPlan: SchemaMigrationPlan {
         fromVersion: LocalPodSchemaV4.self,
         toVersion: LocalPodSchemaV5.self
     )
+
+    public static let migrateV5toV6 = MigrationStage.lightweight(
+        fromVersion: LocalPodSchemaV5.self,
+        toVersion: LocalPodSchemaV6.self
+    )
 }
 
 public enum LocalPodStore {
@@ -518,7 +587,7 @@ public enum LocalPodStore {
     }
 
     public static func makeContainer(inMemory: Bool = false) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: LocalPodSchemaV5.self)
+        let schema = Schema(versionedSchema: LocalPodSchemaV6.self)
         let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: inMemory

@@ -23,8 +23,31 @@ public struct LibraryCommitResult: Sendable {
 public struct LibraryDeleteResult: Sendable {
     public let title: String
     public let freedBytes: Int64
+    /// False for a normal user delete: the media file was staged into the
+    /// trash, not removed. True only for the legacy hard-delete path
+    /// (`deleteHard`), which empty-trash/purge now handles.
     public let removedMediaFile: Bool
     public let removedArtwork: Bool
+    /// Set when the delete went through the trash (the normal path).
+    public let movedToTrash: Bool
+    /// Playlist entries snapshotted and removed when the item was trashed.
+    public let trashPlaylistEntryCount: Int
+
+    public init(
+        title: String,
+        freedBytes: Int64,
+        removedMediaFile: Bool,
+        removedArtwork: Bool,
+        movedToTrash: Bool = false,
+        trashPlaylistEntryCount: Int = 0
+    ) {
+        self.title = title
+        self.freedBytes = freedBytes
+        self.removedMediaFile = removedMediaFile
+        self.removedArtwork = removedArtwork
+        self.movedToTrash = movedToTrash
+        self.trashPlaylistEntryCount = trashPlaylistEntryCount
+    }
 }
 
 public struct LibrarySampleDeleteResult: Sendable {
@@ -43,6 +66,10 @@ public struct LibraryCleanupSummary: Sendable {
     public var orphanMediaFilesRemoved: Int = 0
     public var stagingSessionsRemoved: Int = 0
     public var orphanArtworkFilesRemoved: Int = 0
+    /// Trash rows purged because their 30-day retention expired. Maintenance
+    /// runs expired-purge before the file scans, so an expired item's artwork
+    /// is removed before the orphan pass would otherwise report it.
+    public var expiredTrashPurged: Int = 0
     public var failures: [String] = []
 
     public var hasChanges: Bool {
@@ -51,6 +78,7 @@ public struct LibraryCleanupSummary: Sendable {
             || orphanMediaFilesRemoved > 0
             || stagingSessionsRemoved > 0
             || orphanArtworkFilesRemoved > 0
+            || expiredTrashPurged > 0
             || !failures.isEmpty
     }
 
@@ -63,6 +91,7 @@ public struct LibraryCleanupSummary: Sendable {
         result.orphanMediaFilesRemoved += other.orphanMediaFilesRemoved
         result.stagingSessionsRemoved += other.stagingSessionsRemoved
         result.orphanArtworkFilesRemoved += other.orphanArtworkFilesRemoved
+        result.expiredTrashPurged += other.expiredTrashPurged
         result.failures += other.failures
         return result
     }
@@ -214,7 +243,33 @@ public final class LibraryService {
         )
     }
 
+    /// Deletes a library item by moving it to the trash (P1 回收站): the
+    /// MediaItem row disappears from every query, the media file is staged in
+    /// `Application Support/Trash/<itemID>/`, and playlist membership is
+    /// snapshotted so restore can put it back. See `TrashService`.
+    @discardableResult
     public func delete(
+        _ item: MediaItem,
+        in context: ModelContext
+    ) throws -> LibraryDeleteResult {
+        let title = item.title
+        let freedBytes = item.byteSize
+        let result = try TrashService(storage: storage).moveToTrash(item, in: context)
+        return LibraryDeleteResult(
+            title: title,
+            freedBytes: freedBytes,
+            removedMediaFile: false,
+            removedArtwork: false,
+            movedToTrash: true,
+            trashPlaylistEntryCount: result.trashedPlaylistEntryCount
+        )
+    }
+
+    /// Legacy hard delete (file + artwork + playback/queue/playlist rows are
+    /// gone immediately). Kept for tests and as the reference implementation;
+    /// the app's user-facing delete path goes through the trash instead.
+    @discardableResult
+    public func deleteHard(
         _ item: MediaItem,
         in context: ModelContext
     ) throws -> LibraryDeleteResult {
@@ -262,7 +317,9 @@ public final class LibraryService {
             title: title,
             freedBytes: freedBytes,
             removedMediaFile: removedMedia,
-            removedArtwork: removedArtwork
+            removedArtwork: removedArtwork,
+            movedToTrash: false,
+            trashPlaylistEntryCount: 0
         )
     }
 
@@ -384,11 +441,36 @@ public final class LibraryService {
     }
 
     /// Startup / foreground maintenance:
+    /// - purge trash rows whose retention expired (before any file scan, so a
+    ///   purged item's artwork cannot be double-counted as an orphan);
     /// - mark records whose media file disappeared;
     /// - clear stale staging sessions;
     /// - remove media and artwork files with no DB record.
+    ///
+    /// The trash staging root (`Application Support/Trash`) is deliberately
+    /// outside `Media/`, so the orphan-media scan never sees trashed files;
+    /// `TrashService` owns that directory's lifecycle.
     public func reconcile(in context: ModelContext) throws -> LibraryCleanupSummary {
         var summary = LibraryCleanupSummary()
+
+        // Expired trash first: a purged row's artwork is removed here, before
+        // the orphan-artwork pass below runs.
+        do {
+            let trashResult = try TrashService(storage: storage).purgeExpired(in: context)
+            summary.expiredTrashPurged = trashResult.purgedCount
+            if trashResult.failedCount > 0 {
+                summary.failures.append(LocalPodLocalization.format(
+                    "error.maintenance.trashPurge",
+                    trashResult.failedCount
+                ))
+            }
+        } catch {
+            summary.failures.append(LocalPodLocalization.format(
+                "error.maintenance.trashPurge",
+                error.localizedDescription
+            ))
+        }
+
         let items = try context.fetch(FetchDescriptor<MediaItem>())
         var referencedRelativePaths = Set<String>()
         var referencedArtworkKeys = Set<String>()
@@ -447,7 +529,13 @@ public final class LibraryService {
                includingPropertiesForKeys: [.isRegularFileKey],
                options: [.skipsHiddenFiles]
            ) {
+            // The trash staging root must never be scanned as orphan media,
+            // even if it ever ends up inside the media root.
+            let trashRoot = try? storage.trashRootURL().path
             for url in mediaFiles where (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true {
+                if let trashRoot, url.standardizedFileURL.path.hasPrefix(trashRoot + "/") {
+                    continue
+                }
                 let relative = try? storage.relativePath(for: url)
                 if let relative, !referencedRelativePaths.contains(relative) {
                     do {

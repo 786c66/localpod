@@ -63,6 +63,9 @@ struct LibraryView: View {
     @Query(sort: \Playlist.sortOrder)
     private var playlists: [Playlist]
 
+    @Query(sort: \TrashItem.deletedAt, order: .reverse)
+    private var trashItems: [TrashItem]
+
     @State private var scope: Scope = .items
     @State private var filter: ItemFilter = .all
     @State private var sort: ItemSort = .recent
@@ -191,6 +194,8 @@ struct LibraryView: View {
                 } else {
                     collectionsSection
                 }
+
+                trashSection
             }
             .navigationTitle("资料库")
             .searchable(text: $searchText, prompt: "搜索标题或文件夹")
@@ -314,6 +319,31 @@ struct LibraryView: View {
                     .accessibilityIdentifier("collectionRow-\(row.collection.name)")
                 }
             }
+        }
+    }
+
+    /// 回收站 (recently deleted). Placed at the bottom of the library tab on
+    /// purpose — see the P1 regression note: new UI never goes at the top of
+    /// an existing view.
+    @ViewBuilder
+    private var trashSection: some View {
+        Section {
+            NavigationLink {
+                TrashView()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "trash")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28)
+                    Text(L10n.string("trash.section"))
+                    Spacer()
+                    Text(L10n.format("trash.count", trashItems.count))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("trashCountText")
+                }
+            }
+            .accessibilityIdentifier("trashSectionLink")
         }
     }
 }
@@ -612,12 +642,13 @@ struct LibraryItemDetailView: View {
             .presentationDetents([.medium, .large])
         }
         .alert("删除这个条目？", isPresented: $showDeleteConfirmation) {
-            Button("删除", role: .destructive) {
+            Button("移到回收站", role: .destructive) {
                 deleteItem()
             }
+            .accessibilityIdentifier("detailDeleteConfirmButton")
             Button("取消", role: .cancel) {}
         } message: {
-            Text("将删除资料库记录、媒体文件与封面，释放 \(ByteCountFormatter.string(fromByteCount: item.byteSize, countStyle: .file))。")
+            Text("条目会从资料库移除，并在回收站保留 \(L10n.trashRetentionDays) 天，期间可以恢复；彻底删除时才释放 \(ByteCountFormatter.string(fromByteCount: item.byteSize, countStyle: .file))。")
         }
     }
 
@@ -644,6 +675,8 @@ struct LibraryItemDetailView: View {
         do {
             let service = LibraryService(storage: .live)
             _ = try service.delete(item, in: modelContext)
+            // The persisted queue/playlist rows were cleaned by the service;
+            // keep the in-memory session consistent too.
             session.handleDeletedItem(itemID)
             dismiss()
         } catch {

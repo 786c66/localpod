@@ -1,4 +1,5 @@
 import Foundation
+import LocalPodKit
 
 /// Helpers for user-facing strings that are assembled in Swift instead of
 /// declared inline in a SwiftUI view. SwiftUI literal keys live in
@@ -16,4 +17,9 @@ enum L10n {
             arguments: arguments
         )
     }
+
+    /// Trash retention in whole days, for the delete-confirmation and trash
+    /// footer copy. `retentionInterval` is MainActor-isolated; the value is a
+    /// compile-time constant in days, so mirror it here as a plain constant.
+    static let trashRetentionDays = 30
 }

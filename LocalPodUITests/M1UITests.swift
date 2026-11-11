@@ -148,7 +148,9 @@ final class M1UITests: XCTestCase {
         XCTAssertTrue(deleteButton.waitForExistence(timeout: 10))
         deleteButton.tap()
 
-        let alertDelete = app.alerts.buttons["删除"]
+        let alertDelete = app.alerts.buttons.matching(
+            NSPredicate(format: "label == %@", "移到回收站")
+        ).firstMatch
         XCTAssertTrue(alertDelete.waitForExistence(timeout: 10))
         alertDelete.tap()
 

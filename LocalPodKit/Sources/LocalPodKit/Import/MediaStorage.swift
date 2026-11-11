@@ -83,6 +83,25 @@ public struct MediaStorage: Sendable {
         return url
     }
 
+    /// Hidden staging root for trashed media (`Application Support/Trash`).
+    /// While an item sits in the trash its file lives here as
+    /// `<itemID>/<original file name>`; reconcile must not treat the directory
+    /// as either referenced media or orphans.
+    public func trashRootURL() throws -> URL {
+        let url = applicationSupportRoot
+            .appendingPathComponent("Trash", isDirectory: true)
+            .standardizedFileURL
+        try createDirectory(url)
+        excludeFromBackup(url)
+        return url
+    }
+
+    /// Per-item staging directory inside the trash root.
+    public func trashItemURL(itemID: UUID) throws -> URL {
+        let root = try trashRootURL()
+        return root.appendingPathComponent(itemID.uuidString, isDirectory: true)
+    }
+
     public func newStagingSessionURL(id: UUID = UUID()) throws -> URL {
         let url = try stagingRootURL()
             .appendingPathComponent(id.uuidString, isDirectory: true)

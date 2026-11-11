@@ -245,7 +245,9 @@ final class M3UITests: XCTestCase {
         let delete = element(app, "detailDeleteButton")
         reveal(delete, in: app)
         delete.tap()
-        let confirm = app.alerts.buttons["删除"]
+        let confirm = app.alerts.buttons.matching(
+            NSPredicate(format: "label == %@", "移到回收站")
+        ).firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 10))
         confirm.tap()
 

@@ -58,11 +58,14 @@ struct RootView: View {
                 context: modelContext,
                 progressStore: PlaybackProgressStore(context: modelContext)
             )
+            // P2 debug seeds must exist BEFORE bootstrap so the launch
+            // maintenance (reconcile → purgeExpired) sees them — the expired
+            // trash fixture specifically exercises purge-at-launch.
+            seedP2FixturesIfNeeded()
             importCoordinator.bootstrap(modelContext: modelContext)
             seedDebugLibraryIfNeeded()
             seedM3FixturesIfNeeded()
             seedP1FixturesIfNeeded()
-            seedP2FixturesIfNeeded()
             runLaunchAutomationIfNeeded()
             resolveOnboardingIfNeeded()
             // Local-only expiry reminder. This never prompts at launch: it
@@ -291,6 +294,8 @@ struct RootView: View {
         #if DEBUG
         P2DebugSeed.seedLinkedFolderIfRequested(in: modelContext)
         P2DebugSeed.addFileToLinkedFolderIfRequested(in: modelContext)
+        P2DebugSeed.seedTrashIfRequested(in: modelContext)
+        P2DebugSeed.seedExpiredTrashIfRequested(in: modelContext)
         #endif
     }
 

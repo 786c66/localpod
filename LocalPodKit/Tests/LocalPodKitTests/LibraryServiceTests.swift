@@ -85,7 +85,7 @@ final class LibraryServiceTests: XCTestCase {
         XCTAssertEqual(try env.context.fetchCount(FetchDescriptor<ImportSession>()), 2)
     }
 
-    func testDeleteRemovesRecordFileAndArtwork() async throws {
+    func testDeleteMovesItemToTrashAndKeepsFileStaged() async throws {
         let env = try makeEnvironment()
         let source = try TemporaryDirectory()
         let artwork = Data(repeating: 0xAB, count: 64)
@@ -110,9 +110,63 @@ final class LibraryServiceTests: XCTestCase {
         let before = try env.library.storageBytes(in: env.context)
         let result = try env.library.delete(item, in: env.context)
 
+        // Trash semantics: the row leaves the library, but media + artwork +
+        // playback state stay until the trash is emptied.
+        XCTAssertEqual(result.freedBytes, 128)
+        XCTAssertTrue(result.movedToTrash)
+        XCTAssertFalse(result.removedMediaFile)
+        XCTAssertFalse(result.removedArtwork)
+        XCTAssertEqual(try env.context.fetchCount(FetchDescriptor<MediaItem>()), 0)
+        XCTAssertEqual(try env.context.fetchCount(FetchDescriptor<TrashItem>()), 1)
+        XCTAssertEqual(try env.context.fetchCount(FetchDescriptor<PlaybackState>()), 1)
+        XCTAssertEqual(try env.library.storageBytes(in: env.context), before - 128)
+        let trashRows = try env.context.fetch(FetchDescriptor<TrashItem>())
+        XCTAssertEqual(trashRows.count, 1)
+        let trashDir = try env.storage.trashItemURL(itemID: try XCTUnwrap(trashRows.first?.itemID))
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: trashDir.path),
+            "Media file must be staged under the trash directory"
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: artworkURL.path))
+
+        // Emptying the trash is the point of no return.
+        let emptyResult = try TrashService(storage: env.storage).emptyTrash(in: env.context)
+        XCTAssertEqual(emptyResult.purgedCount, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: mediaURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: trashDir.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: artworkURL.path))
+        XCTAssertEqual(try env.context.fetchCount(FetchDescriptor<PlaybackState>()), 0)
+    }
+
+    func testDeleteHardRemovesRecordFileAndArtwork() async throws {
+        let env = try makeEnvironment()
+        let source = try TemporaryDirectory()
+        let artwork = Data(repeating: 0xAB, count: 64)
+        try source.write("audio.m4a", bytes: 128)
+        _ = try await env.importService.importFolder(
+            rootURL: source.url,
+            source: .files,
+            rootName: "Single",
+            in: env.context,
+            probe: FakeMediaProbe(artwork: artwork)
+        )
+
+        let item = try XCTUnwrap(try env.context.fetch(FetchDescriptor<MediaItem>()).first)
+        env.context.insert(PlaybackState(itemID: item.id, position: 12, duration: 60))
+        try env.context.save()
+        XCTAssertEqual(try env.context.fetchCount(FetchDescriptor<PlaybackState>()), 1)
+        let mediaURL = try env.storage.url(forRelativePath: item.relativePath)
+        let artworkURL = try env.storage.artworkURL(forKey: XCTUnwrap(item.artworkKey))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: mediaURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: artworkURL.path))
+
+        let before = try env.library.storageBytes(in: env.context)
+        let result = try env.library.deleteHard(item, in: env.context)
+
         XCTAssertEqual(result.freedBytes, 128)
         XCTAssertTrue(result.removedMediaFile)
         XCTAssertTrue(result.removedArtwork)
+        XCTAssertFalse(result.movedToTrash)
         XCTAssertFalse(FileManager.default.fileExists(atPath: mediaURL.path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: artworkURL.path))
         XCTAssertEqual(try env.context.fetchCount(FetchDescriptor<MediaItem>()), 0)

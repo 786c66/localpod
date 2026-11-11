@@ -84,6 +84,7 @@ struct DiagnosticsView: View {
                         LabeledContent("清理孤儿媒体", value: "\(summary.orphanMediaFilesRemoved)")
                         LabeledContent("清理 staging", value: "\(summary.stagingSessionsRemoved)")
                         LabeledContent("清理孤儿封面", value: "\(summary.orphanArtworkFilesRemoved)")
+                        LabeledContent("清理过期回收站", value: "\(summary.expiredTrashPurged)")
                         if !summary.failures.isEmpty {
                             ForEach(summary.failures, id: \.self) { failure in
                                 Text(failure)
