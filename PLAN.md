@@ -140,7 +140,7 @@
 - **智能播放列表**：继续播放、未播完、最近添加、已播完、按合集筛选。**（已完成，见 5.8）**
 - **章节**：内嵌章节（m4a/mp3 等），播放页章节列表与跳转。**（待做）**
 - **回收站/最近删除**：删除后保留 7–30 天，可恢复。**（已完成，见 5.12）**
-- **备份/导出**：播放列表、进度、库清单导出 JSON；支持从备份恢复。**（待做）**
+- **备份/导出**：播放列表、进度、库清单导出 JSON；支持从备份恢复。**（已完成，见 5.13）**
 - **Shortcuts / Siri**：继续播放、打开合集；小组件需 App Groups，当前免费账号不做（见条件性功能）。**（待做）**
 - **通知**：导入完成/失败通知。**（待做）**
 
@@ -1025,6 +1025,23 @@ idle → preparing → ready → playing ⇄ paused
 - [x] 单元测试：快照往返、staged 文件、成员恢复（列表被删时跳过）、staged 缺失→isMissing、purge 无孤儿、过期清理、reconcile 免疫 Trash 目录、V5→V6 迁移；`LibraryService`/`PlaylistService` 既有删除用例改为回收站语义。LocalPodKit 203 个测试 0 失败。
 - [x] UI：删除→回收站(1)→恢复→资料库回归；过期条目启动即清（`P2TrashUITests` 2 个用例）。
 - [ ] 真机项：无（纯本地逻辑，模拟器自动化已覆盖）。剩余 30 天到期自动清理由 `purgeExpired` 注入式 `now` 测试覆盖。
+
+### 5.13 备份/导出（2026-11-11 完成）
+
+**交付**
+
+- `BackupDocument`（schemaVersion=1）：纯数据 JSON 备份——条目（全部 MediaItem 字段，剔除 benchmark 来源）、合集、播放列表（含条目）、播放进度、队列、6 项应用设置；tolerant 解码（缺节默认空、未知字段忽略）。
+- `BackupService`：snapshot（进度/成员/队列按导出条目过滤，不写悬挂引用）与 restore（**只增不删**：条目按 id→SHA-256 指纹两级匹配，匹配保留原行；缺失媒体按 isMissing=true 插入走重链流程；合集按 id→规范化名；播放列表按名合并只补缺、重建幂等；进度 newer-wins；队列节非空才整体替换；设置经钳位 setter）。
+- 设置页「备份与恢复」区（链接文件夹之后、导入历史之前，不触碰 ImportView）：导出→ShareLinkSheet 分享 JSON；导入→DocumentPicker(.json)→确认弹窗→恢复，结果摘要行（恢复/匹配/缺失/播放列表/进度计数）。
+- 排除项（有意）：LinkedFolder bookmark（设备相关）、TrashItem（暂存态）、ImportSession（历史记录）、媒体文件本体（重导入按指纹重链）。
+- 调试参数 `--p2-export-backup` / `--p2-import-backup`（仅 Debug，引导期执行，摘要写 UserDefaults 供 UI 断言）。
+- 本地化：kit 4 错误键 + App 12 语义键，中英 parity。
+
+**验收**
+
+- [x] 单元测试：快照往返、指纹匹配重链、播放列表按名合并不重复、进度 newer-wins、部分备份不清队列、损坏 JSON/版本错误、设置钳位。LocalPodKit 216 个测试 0 失败。
+- [x] UI：导出→分享面板→摘要；重置后导入恢复→摘要→资料库行回归（`P2BackupUITests` 1 个用例）。两处测试侧修复：摘要断言前必须先 reveal（SwiftUI Form 懒加载行不滚不进无障碍树）；断言后关闭设置 sheet 前也必须 reveal 关闭按钮（滚到摘要后按钮离屏，裸 exists/isHittable 守卫会静默跳过点击，sheet 盖屏导致后续全部失败）。
+- [ ] 真机项：DocumentPicker 从 iCloud Drive/第三方 provider 选文件的安全作用域读取；分享面板到「文件」/AirDrop 的落盘验证。
 
 ### 5.9 估算假设
 

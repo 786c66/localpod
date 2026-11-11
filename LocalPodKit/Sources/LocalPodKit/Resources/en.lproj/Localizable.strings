@@ -118,3 +118,9 @@
 "linkedFolder.error.staleBookmark" = "The linked folder could not be found. It may have been moved, renamed, or deleted; pick the folder again.";
 "linkedFolder.error.unreadable" = "The folder link could not be read; pick the folder again.";
 "linkedFolder.error.accessDenied" = "The linked folder cannot be accessed. Make sure the files are still on this device and the app has permission to read them.";
+
+/* Backup / restore (备份与恢复) */
+"backup.error.corrupt" = "The backup file is damaged or is not a LocalPod backup.";
+"backup.error.version" = "This backup was made by a different version (schema %lld; this app supports %lld). Update the app and try again.";
+"backup.error.readFailed" = "Unable to read the backup file: %@";
+"backup.error.writeFailed" = "Unable to write the backup file: %@";

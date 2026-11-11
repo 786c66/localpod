@@ -114,6 +114,7 @@
 "导入遇到问题。请确认文件仍在本机、格式受支持且存储空间充足，然后重试。" = "导入遇到问题。请确认文件仍在本机、格式受支持且存储空间充足，然后重试。";
 "导入验收文件夹（100 文件，含 2 不支持 + 1 重复）" = "导入验收文件夹（100 文件，含 2 不支持 + 1 重复）";
 "将删除 %lld 条示例及其进度、队列和播放列表引用。你导入的内容不会受影响。" = "将删除 %lld 条示例及其进度、队列和播放列表引用。你导入的内容不会受影响。";
+"将删除资料库记录、媒体文件与封面，释放 %@。" = "将删除资料库记录、媒体文件与封面，释放 %@。";
 "尚未运行启动维护。" = "尚未运行启动维护。";
 "工具" = "工具";
 "左右滑动调整播放位置" = "左右滑动调整播放位置";
@@ -292,6 +293,18 @@
 "需要处理" = "需要处理";
 "默认倍速" = "默认倍速";
 "默认速度 %@" = "默认速度 %@";
+"backup.export" = "导出备份";
+"backup.exportFailed" = "导出失败：%@";
+"backup.exportSummary" = "已导出 %lld 条目 · %lld 播放列表 · %lld 进度记录";
+"backup.footer" = "备份只含数据不含媒体文件；恢复后缺失媒体的条目会标记「缺失」，重新导入原文件后自动重链。";
+"backup.import" = "导入并恢复";
+"backup.importFailed" = "恢复失败：%@";
+"backup.restoreConfirm.cancel" = "取消";
+"backup.restoreConfirm.confirm" = "恢复";
+"backup.restoreConfirm.message" = "备份会合并进当前资料库：已有的条目不会被覆盖或删除，同名播放列表会补充缺少的条目，较新的播放进度优先。";
+"backup.restoreConfirm.title" = "导入并恢复备份？";
+"backup.restoreSummary" = "已恢复 %lld 条目 · 匹配 %lld · 缺失媒体 %lld · 播放列表 +%lld/%lld · 进度 %lld";
+"backup.section" = "备份与恢复";
 "benchmark.error.cleanup" = "清理失败：%@";
 "benchmark.error.insert" = "插入失败：%@";
 "benchmark.error.query" = "查询失败：%@";

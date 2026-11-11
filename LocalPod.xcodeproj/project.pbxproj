@@ -21,6 +21,7 @@
 		41E2453FADEB97F15C7EAD44 /* SampleContent in Resources */ = {isa = PBXBuildFile; fileRef = DC4E61AF6AD15CB716921049 /* SampleContent */; };
 		427307DA6CB9184B92644F0A /* P1SmartPlaylistUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 978D426BBAE705D2442C2EB7 /* P1SmartPlaylistUITests.swift */; };
 		42CE0371FC30EA306BC2B64D /* M5LocalizationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE32A75A482AF84A59AD7605 /* M5LocalizationUITests.swift */; };
+		4431A96BAD92DD9B40AF73D6 /* P2BackupUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D367E2EA757BBDD07528E6B /* P2BackupUITests.swift */; };
 		4C6D139BC918AAC0E64B1249 /* demo-audio.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 23346E600CEA4A18BA25978B /* demo-audio.m4a */; };
 		4F20DD44075396004A3472DA /* BenchmarkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2310D31581FEB3DC9E6D0B97 /* BenchmarkView.swift */; };
 		537088C83C23043BA2D22DDC /* InboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB082AAFCA17FAF2392BEF17 /* InboxView.swift */; };
@@ -79,6 +80,7 @@
 		2BE5FFCCF1BFDDC0A7C14512 /* M5UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M5UITests.swift; sourceTree = "<group>"; };
 		361F918E598EAD9C59C223E8 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		3A54E75216A376FF635D2C01 /* WiFiUploadStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiUploadStorage.swift; sourceTree = "<group>"; };
+		3D367E2EA757BBDD07528E6B /* P2BackupUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P2BackupUITests.swift; sourceTree = "<group>"; };
 		3DC41E9533AC5BE62B52E987 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4AECD17FBD53662BDB9FDFAC /* PlaybackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackView.swift; sourceTree = "<group>"; };
 		4CE94FF4BAD0EADD4805E30B /* WiFiUploadController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiUploadController.swift; sourceTree = "<group>"; };
@@ -270,6 +272,7 @@
 				2BE5FFCCF1BFDDC0A7C14512 /* M5UITests.swift */,
 				978D426BBAE705D2442C2EB7 /* P1SmartPlaylistUITests.swift */,
 				6B4D8FF6A4D7021F44F506B3 /* P1WiFiUITests.swift */,
+				3D367E2EA757BBDD07528E6B /* P2BackupUITests.swift */,
 				FE6521D864694A9AE45802A6 /* P2LinkedFolderUITests.swift */,
 				064329BD11B40700985C8067 /* P2TrashUITests.swift */,
 				6A84D0E08C709973B8C7F00A /* UITestLaunchSupport.swift */,
@@ -479,6 +482,7 @@
 				B56B53B162D5DD51D04357AB /* M5UITests.swift in Sources */,
 				427307DA6CB9184B92644F0A /* P1SmartPlaylistUITests.swift in Sources */,
 				2C410E36941974F5361139F8 /* P1WiFiUITests.swift in Sources */,
+				4431A96BAD92DD9B40AF73D6 /* P2BackupUITests.swift in Sources */,
 				1FCDB99CABF06B72C8FDAE31 /* P2LinkedFolderUITests.swift in Sources */,
 				994B579B40C14534F6424A18 /* P2TrashUITests.swift in Sources */,
 				D62989147790BA638BBD6ED8 /* UITestLaunchSupport.swift in Sources */,

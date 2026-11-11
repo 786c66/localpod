@@ -297,6 +297,7 @@ EN = {
     "重试": "Retry",
     "重试失败": "Retry Failed",
     "重链": "Relinked",
+    "将删除资料库记录、媒体文件与封面，释放 %@。": "This deletes the library records, media files, and artwork, freeing %@.",
     "错误": "Error",
     "问题与跳过": "Issues & Skipped",
     "队列 · %lld": "Queue · %lld",
@@ -534,6 +535,18 @@ SEMANTIC_ZH = {
     "error.trash.snapshotDecode": "回收站数据损坏，无法读取该条目。",
     "error.trash.itemStillInLibrary": "该条目已在资料库中，无法重复恢复。",
     "error.maintenance.trashPurge": "清理过期回收站失败：%@",
+    "backup.section": "备份与恢复",
+    "backup.export": "导出备份",
+    "backup.import": "导入并恢复",
+    "backup.exportSummary": "已导出 %lld 条目 · %lld 播放列表 · %lld 进度记录",
+    "backup.restoreSummary": "已恢复 %lld 条目 · 匹配 %lld · 缺失媒体 %lld · 播放列表 +%lld/%lld · 进度 %lld",
+    "backup.importFailed": "恢复失败：%@",
+    "backup.exportFailed": "导出失败：%@",
+    "backup.footer": "备份只含数据不含媒体文件；恢复后缺失媒体的条目会标记「缺失」，重新导入原文件后自动重链。",
+    "backup.restoreConfirm.title": "导入并恢复备份？",
+    "backup.restoreConfirm.message": "备份会合并进当前资料库：已有的条目不会被覆盖或删除，同名播放列表会补充缺少的条目，较新的播放进度优先。",
+    "backup.restoreConfirm.confirm": "恢复",
+    "backup.restoreConfirm.cancel": "取消",
 }
 
 SEMANTIC_EN = {
@@ -760,6 +773,18 @@ SEMANTIC_EN = {
     "error.trash.snapshotDecode": "Trash data is corrupted; this item cannot be read.",
     "error.trash.itemStillInLibrary": "This item is already in the library and cannot be restored twice.",
     "error.maintenance.trashPurge": "Failed to purge expired trash: %@",
+    "backup.section": "Backup & Restore",
+    "backup.export": "Export Backup",
+    "backup.import": "Import & Restore",
+    "backup.exportSummary": "Exported %lld items · %lld playlists · %lld progress records",
+    "backup.restoreSummary": "Restored %lld items · matched %lld · missing media %lld · playlists +%lld/%lld · progress %lld",
+    "backup.importFailed": "Restore failed: %@",
+    "backup.exportFailed": "Export failed: %@",
+    "backup.footer": "The backup contains data only, not media files. Items whose media is missing after a restore are marked Missing and relink automatically once the original files are re-imported.",
+    "backup.restoreConfirm.title": "Import and restore the backup?",
+    "backup.restoreConfirm.message": "The backup merges into the current library: existing items are never overwritten or deleted, same-name playlists gain their missing entries, and the newer playback progress wins.",
+    "backup.restoreConfirm.confirm": "Restore",
+    "backup.restoreConfirm.cancel": "Cancel",
 }
 
 

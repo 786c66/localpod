@@ -1,6 +1,49 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 import LocalPodKit
+
+/// Identifiable box so the exported temp file can drive `.sheet(item:)`.
+private struct ShareFile: Identifiable {
+    let url: URL
+    var id: String { url.absoluteString }
+}
+
+/// Presents the exported backup file through the system share sheet.
+private struct ShareLinkSheet: View {
+    let url: URL
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 44))
+                    .foregroundStyle(.secondary)
+                Text(url.lastPathComponent)
+                    .font(.callout.weight(.medium))
+                ShareLink(
+                    item: url,
+                    preview: SharePreview(
+                        url.lastPathComponent,
+                        image: Image(systemName: "doc.text")
+                    )
+                )
+                .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("backupShareLink")
+            }
+            .padding()
+            .navigationTitle(L10n.string("backup.export"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                        .accessibilityIdentifier("backupShareDone")
+                }
+            }
+        }
+    }
+}
 
 struct SettingsView: View {
     @Environment(PlaybackSession.self) private var session
@@ -22,6 +65,13 @@ struct SettingsView: View {
     @State private var showLinkedFolderPicker = false
     @State private var pendingRelinkFolder: LinkedFolder?
     @State private var folderPendingDelete: LinkedFolder?
+    // 备份与恢复 state.
+    @State private var backupExportURL: URL?
+    @State private var backupExportSummary: String?
+    @State private var backupRestoreSummary: String?
+    @State private var showBackupImportPicker = false
+    @State private var pendingRestoreDocument: BackupDocument?
+    @State private var pendingRestoreFileName: String?
     /// Launch-argument automation (UI tests) force an immediate staleness
     /// check so the badge is visible without tapping anything first.
     @State private var didResolveStalenessOnAppear = false
@@ -153,6 +203,8 @@ struct SettingsView: View {
 
                 linkedFoldersSection
 
+                backupSection
+
                 Section("导入历史") {
                     if importSessions.isEmpty {
                         Text("还没有导入记录。")
@@ -217,6 +269,41 @@ struct SettingsView: View {
                     onCancel: { showLinkedFolderPicker = false }
                 )
             }
+            .sheet(isPresented: $showBackupImportPicker) {
+                DocumentPicker(
+                    contentTypes: Self.backupContentTypes,
+                    onPick: { urls in
+                        showBackupImportPicker = false
+                        guard let url = urls.first else { return }
+                        readBackupForRestore(at: url)
+                    },
+                    onCancel: { showBackupImportPicker = false }
+                )
+            }
+            .sheet(
+                item: Binding(
+                    get: { backupExportURL.map(ShareFile.init) },
+                    set: { url in backupExportURL = url?.url }
+                )
+            ) { file in
+                ShareLinkSheet(url: file.url)
+            }
+            .confirmationDialog(
+                L10n.string("backup.restoreConfirm.title"),
+                isPresented: showRestoreConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button(L10n.string("backup.restoreConfirm.confirm"), role: .destructive) {
+                    runRestore()
+                }
+                .accessibilityIdentifier("backupRestoreConfirm")
+                Button(L10n.string("backup.restoreConfirm.cancel"), role: .cancel) {
+                    pendingRestoreDocument = nil
+                    pendingRestoreFileName = nil
+                }
+            } message: {
+                Text(L10n.string("backup.restoreConfirm.message"))
+            }
             .sheet(item: $pendingRelinkFolder) { folder in
                 DocumentPicker(
                     contentTypes: [.folder],
@@ -248,6 +335,7 @@ struct SettingsView: View {
             }
             .onAppear {
                 resolveStalenessOnAppearIfNeeded()
+                readBackupRestoreSummaryOnAppearIfNeeded()
             }
         }
     }
@@ -271,6 +359,24 @@ struct SettingsView: View {
             }
         }
         try? modelContext.save()
+        #endif
+    }
+
+    /// UI-test/launch automation hook: `--p2-import-backup` restores the debug
+    /// backup at bootstrap, before any Settings view exists, and publishes the
+    /// restore summary through UserDefaults. Surfacing it here shows the real
+    /// bootstrap-restore result in the section where a manual restore's
+    /// summary would appear. DEBUG-only and harmless on normal launches (the
+    /// key is only ever written by the import seam).
+    private func readBackupRestoreSummaryOnAppearIfNeeded() {
+        #if DEBUG
+        guard backupRestoreSummary == nil,
+              let summary = UserDefaults.standard.string(
+                  forKey: P2DebugSeed.restoreSummaryDefaultsKey
+              ) else {
+            return
+        }
+        backupRestoreSummary = summary
         #endif
     }
 
@@ -308,6 +414,141 @@ struct SettingsView: View {
                 Text(L10n.string("linkedFolders.emptyFooter"))
             }
         }
+    }
+
+    /// 备份与恢复: data-only JSON export via the share sheet, and restore
+    /// (merge into the current library) via the document picker. Placed after
+    /// the linked-folders section, per the regression rule that new UI is
+    /// appended after existing content and existing sections never reorder.
+    @ViewBuilder
+    private var backupSection: some View {
+        Section {
+            Button {
+                runExportBackup()
+            } label: {
+                Label(L10n.string("backup.export"), systemImage: "square.and.arrow.up")
+            }
+            .accessibilityIdentifier("backupExportButton")
+
+            if let backupExportSummary {
+                Text(backupExportSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("backupExportSummary")
+            }
+
+            Button {
+                showBackupImportPicker = true
+            } label: {
+                Label(L10n.string("backup.import"), systemImage: "square.and.arrow.down")
+            }
+            .accessibilityIdentifier("backupImportButton")
+
+            if let backupRestoreSummary {
+                Text(backupRestoreSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("backupRestoreSummary")
+            }
+        } header: {
+            Text(L10n.string("backup.section"))
+                .accessibilityIdentifier("backupSection")
+        } footer: {
+            Text(L10n.string("backup.footer"))
+        }
+    }
+
+    /// Export: snapshot → JSON temp file → share sheet. Fast on the main
+    /// actor (a full library snapshot is a few hundred small row reads);
+    /// matching how Settings runs maintenance synchronously.
+    private func runExportBackup() {
+        do {
+            let document = try BackupService().snapshot(
+                in: modelContext,
+                settings: session.settings
+            )
+            let url = try BackupService.exportURL(document)
+            backupExportURL = url
+            backupExportSummary = L10n.format(
+                "backup.exportSummary",
+                document.items.count,
+                document.playlists.count,
+                document.playbackStates.count
+            )
+        } catch {
+            backupExportSummary = L10n.format(
+                "backup.exportFailed",
+                error.localizedDescription
+            )
+        }
+    }
+
+    /// Import step 1: read and validate the picked file. Security-scoped
+    /// access is handled inside `BackupService.readDocument`. A valid
+    /// document is parked and only restored after the user confirms the
+    /// merge warning dialog.
+    private func readBackupForRestore(at url: URL) {
+        do {
+            let document = try BackupService.readDocument(from: url)
+            pendingRestoreDocument = document
+            pendingRestoreFileName = url.lastPathComponent
+        } catch {
+            backupRestoreSummary = L10n.format(
+                "backup.importFailed",
+                error.localizedDescription
+            )
+        }
+    }
+
+    private var showRestoreConfirmation: Binding<Bool> {
+        Binding(
+            get: { pendingRestoreDocument != nil },
+            set: { shown in
+                if !shown {
+                    pendingRestoreDocument = nil
+                    pendingRestoreFileName = nil
+                }
+            }
+        )
+    }
+
+    /// Import step 2: the confirmed restore. SwiftData work stays on the
+    /// main actor (same as LibraryService/TrashService paths); the decode
+    /// already happened in the picker callback.
+    private func runRestore() {
+        guard let document = pendingRestoreDocument else { return }
+        pendingRestoreDocument = nil
+        do {
+            let result = try BackupService().restore(
+                document,
+                into: modelContext,
+                settings: session.settings
+            )
+            backupRestoreSummary = L10n.format(
+                "backup.restoreSummary",
+                result.itemsRestored,
+                result.itemsMatched,
+                result.itemsMissingMedia,
+                result.playlistsCreated,
+                result.playlistsMerged,
+                result.progressUpdated
+            )
+        } catch {
+            backupRestoreSummary = L10n.format(
+                "backup.importFailed",
+                error.localizedDescription
+            )
+        }
+    }
+
+    /// The picker's `.json` fallback: `UTType.json` exists on iOS 14+, but
+    /// files picked from some providers lose the extension-based typing, so
+    /// plain `public.json` (what `UTType.json` maps to) is the primary and
+    /// only entry here — matching the single-type folder picker convention.
+    private static var backupContentTypes: [UTType] {
+        [.json]
     }
 
     @ViewBuilder

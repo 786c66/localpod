@@ -117,3 +117,9 @@
 "linkedFolder.error.staleBookmark" = "找不到链接的文件夹。它可能已被移动、重命名或删除，请重新选择文件夹。";
 "linkedFolder.error.unreadable" = "无法读取文件夹链接，请重新选择文件夹。";
 "linkedFolder.error.accessDenied" = "无法访问链接的文件夹，请确认文件仍在本机且 App 有权限访问。";
+
+/* 备份与恢复 */
+"backup.error.corrupt" = "备份文件已损坏，或不是 LocalPod 备份。";
+"backup.error.version" = "该备份来自不同版本（格式 %lld，当前支持 %lld）。请先更新 App 再试。";
+"backup.error.readFailed" = "无法读取备份文件：%@";
+"backup.error.writeFailed" = "无法写入备份文件：%@";

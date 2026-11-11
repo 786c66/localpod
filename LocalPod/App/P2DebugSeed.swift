@@ -270,5 +270,92 @@ enum P2DebugSeed {
             try? context.save()
         }
     }
+
+    // MARK: - Backup / restore (备份与恢复) fixtures
+
+    /// Where the debug backup lives. A fixed file name keeps the export→
+    /// reset→import round trip deterministic across processes; the Documents
+    /// copy is also reachable through `simctl get_app_container`.
+    static var backupURL: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("p2-backup.json")
+    }
+
+    /// --p2-export-backup: silently snapshot the current library to
+    /// Documents/p2-backup.json (plus a tmp copy for ad-hoc inspection).
+    /// Usually combined with `--m3-seed-playable-library` so there is data to
+    /// export; runs after seeding.
+    @discardableResult
+    static func exportBackupIfRequested(in context: ModelContext) -> Bool {
+        guard ProcessInfo.processInfo.arguments.contains("--p2-export-backup") else {
+            return false
+        }
+        do {
+            let document = try BackupService(storage: .live).snapshot(in: context)
+            try BackupService.encodedJSON(document).write(
+                to: backupURL,
+                options: .atomic
+            )
+            let tmpURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("p2-backup.json")
+            try? FileManager.default.removeItem(at: tmpURL)
+            try? FileManager.default.copyItem(at: backupURL, to: tmpURL)
+            print("[P2DebugSeed] backup exported: \(backupURL.path)")
+            return true
+        } catch {
+            print("[P2DebugSeed] backup export FAILED: \(error)")
+            return false
+        }
+    }
+
+    /// Where the import seam publishes its restore summary. Settings reads it
+    /// back under `--p2-import-backup` so the section shows the real result of
+    /// a bootstrap restore (the in-UI restore path sets the line itself).
+    static let restoreSummaryDefaultsKey = "p2.restoreSummary"
+
+    /// --p2-import-backup: restore Documents/p2-backup.json into the (usually
+    /// freshly reset) library at bootstrap. Item ids are preserved by the
+    /// restore, so rows seeded before the export reconnect exactly.
+    @discardableResult
+    static func importBackupIfRequested(in context: ModelContext) -> Bool {
+        guard ProcessInfo.processInfo.arguments.contains("--p2-import-backup") else {
+            return false
+        }
+        do {
+            let document = try BackupService.readDocument(from: backupURL)
+            let result = try BackupService(storage: .live)
+                .restore(document, into: context)
+            UserDefaults.standard.set(
+                L10n.format(
+                    "backup.restoreSummary",
+                    result.itemsRestored,
+                    result.itemsMatched,
+                    result.itemsMissingMedia,
+                    result.playlistsCreated,
+                    result.playlistsMerged,
+                    result.progressUpdated
+                ),
+                forKey: restoreSummaryDefaultsKey
+            )
+            print(
+                "[P2DebugSeed] backup restored: items=\(result.itemsRestored) " +
+                "matched=\(result.itemsMatched) missing=\(result.itemsMissingMedia) " +
+                "playlistsCreated=\(result.playlistsCreated) " +
+                "playlistsMerged=\(result.playlistsMerged) " +
+                "progress=\(result.progressUpdated)"
+            )
+            return true
+        } catch {
+            print("[P2DebugSeed] backup import FAILED: \(error)")
+            UserDefaults.standard.set(
+                L10n.format(
+                    "backup.importFailed",
+                    error.localizedDescription
+                ),
+                forKey: restoreSummaryDefaultsKey
+            )
+            return false
+        }
+    }
 }
 #endif

@@ -66,6 +66,7 @@ struct RootView: View {
             seedDebugLibraryIfNeeded()
             seedM3FixturesIfNeeded()
             seedP1FixturesIfNeeded()
+            seedP2BackupRoundTripIfNeeded()
             runLaunchAutomationIfNeeded()
             resolveOnboardingIfNeeded()
             // Local-only expiry reminder. This never prompts at launch: it
@@ -296,6 +297,20 @@ struct RootView: View {
         P2DebugSeed.addFileToLinkedFolderIfRequested(in: modelContext)
         P2DebugSeed.seedTrashIfRequested(in: modelContext)
         P2DebugSeed.seedExpiredTrashIfRequested(in: modelContext)
+        #endif
+    }
+
+    /// Backup/restore round-trip seam (--p2-export-backup / --p2-import-backup).
+    /// Export runs after the seeds so it snapshots the seeded library; import
+    /// runs at the same point on the second launch, where bootstrap
+    /// maintenance has already re-marked restored rows missing when the media
+    /// files are gone.
+    private func seedP2BackupRoundTripIfNeeded() {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--p2-import-backup") {
+            P2DebugSeed.importBackupIfRequested(in: modelContext)
+        }
+        P2DebugSeed.exportBackupIfRequested(in: modelContext)
         #endif
     }
 
