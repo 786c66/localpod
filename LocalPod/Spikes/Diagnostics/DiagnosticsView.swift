@@ -19,6 +19,7 @@ struct DiagnosticsView: View {
     @State private var mediaPath = ""
     @State private var supportPath = ""
     @State private var copied = false
+    @State private var showBenchmark = false
 
     private var bundleIdentifier: String {
         Bundle.main.bundleIdentifier ?? "—"
@@ -41,157 +42,92 @@ struct DiagnosticsView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    if let info = signingInfo, let days = info.daysRemaining {
-                        HStack(alignment: .top, spacing: 10) {
-                            Image(systemName: days <= 2 ? "exclamationmark.triangle.fill" : "checkmark.shield.fill")
-                                .foregroundStyle(days <= 2 ? Color.orange : Color.green)
-                                .accessibilityHidden(true)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(signingBannerText(days: days))
-                                    .font(.callout)
-                                    .accessibilityIdentifier("signingExpiryBanner")
-                                Text("到期：\(info.expirationDate?.formatted(date: .abbreviated, time: .shortened) ?? "—")")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .padding(.vertical, 2)
+                if let info = signingInfo, let days = info.daysRemaining {
+                    Section {
+                        signingCard(info: info, days: days)
+                            .tapeRowInsets(6)
                     }
                 }
 
-                Section("工具") {
-                    NavigationLink {
-                        BenchmarkView()
-                    } label: {
-                        Label("SwiftData 5k 基准", systemImage: "gauge.with.dots.needle.67percent")
-                    }
-                    .accessibilityIdentifier("benchmarkLink")
-                }
-
                 Section {
-                    if let summary = coordinator.lastCleanupSummary {
-                        Text(summary.hasChanges ? "启动维护已完成。" : "启动维护已完成，没有需要清理的内容。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .accessibilityIdentifier("maintenanceSummaryText")
-                        Text("staging \(summary.stagingSessionsRemoved) · 孤儿媒体 \(summary.orphanMediaFilesRemoved) · 孤儿封面 \(summary.orphanArtworkFilesRemoved) · 缺失 \(summary.missingMarked)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .accessibilityIdentifier("maintenanceDetailText")
-                        LabeledContent("标记缺失", value: "\(summary.missingMarked)")
-                        LabeledContent("恢复存在", value: "\(summary.restored)")
-                        LabeledContent("清理孤儿媒体", value: "\(summary.orphanMediaFilesRemoved)")
-                        LabeledContent("清理 staging", value: "\(summary.stagingSessionsRemoved)")
-                        LabeledContent("清理孤儿封面", value: "\(summary.orphanArtworkFilesRemoved)")
-                        LabeledContent("清理过期回收站", value: "\(summary.expiredTrashPurged)")
-                        if !summary.failures.isEmpty {
-                            ForEach(summary.failures, id: \.self) { failure in
-                                Text(failure)
-                                    .font(.caption)
-                                    .foregroundStyle(.red)
-                            }
-                        }
-                    } else {
-                        Text("尚未运行启动维护。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Button {
-                        coordinator.runMaintenance(modelContext: modelContext)
-                        refresh()
-                    } label: {
-                        Label("立即对账 / 清理", systemImage: "cross.case")
-                    }
-                    .disabled(coordinator.isRunning)
-                    .accessibilityIdentifier("runMaintenanceButton")
-
+                    benchmarkLink
                 } header: {
-                    Text("维护")
-                } footer: {
-                    Text("启动、回前台或手动触发：缺失文件标记、孤儿媒体/封面清理、残留 staging 清理。导入进行中不执行。")
-                }
-
-                Section("App") {
-                    LabeledContent("Bundle ID", value: bundleIdentifier)
-                    LabeledContent("版本", value: appVersion)
-                    LabeledContent("设备", value: deviceDescription)
+                    sectionHeader("工具", kicker: "TOOLS")
                 }
 
                 Section {
-                    if let info = signingInfo {
-                        LabeledContent("描述文件", value: info.name ?? "—")
-                        LabeledContent("Team", value: info.teamIdentifier ?? "—")
-                        LabeledContent("App ID", value: info.appIdentifier ?? "—")
-                        if let expiration = info.expirationDate {
-                            LabeledContent(
-                                "到期",
-                                value: expiration.formatted(date: .abbreviated, time: .shortened)
-                            )
-                        }
-                        if let days = info.daysRemaining {
-                            LabeledContent(
-                                "剩余",
-                                value: days >= 0
-                                    ? L10n.format("diagnostics.daysRemaining", days)
-                                    : L10n.format("diagnostics.daysExpired", -days)
-                            )
-                        }
-                        if let deviceCount = info.provisionedDeviceCount {
-                            LabeledContent("描述文件设备数", value: "\(deviceCount)")
-                        }
-                        Text(info.statusText)
-                            .font(.caption)
-                            .foregroundStyle(info.isExpired ? .red : .green)
-                    } else {
-                        Text("未发现 embedded.mobileprovision（模拟器或未签名构建）。真机免费账号构建会显示 7 天到期时间。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                    maintenanceCard
                 } header: {
-                    Text("签名")
+                    sectionHeader("维护", kicker: "MAINTENANCE")
                 } footer: {
-                    Text("免费 Apple ID 的 Personal Team 描述文件通常 7 天到期。到期后 App 无法启动；用同一 Bundle ID 在 Xcode 重新运行即可，App 容器数据一般保留。")
+                    sectionFooter("启动、回前台或手动触发：缺失文件标记、孤儿媒体/封面清理、残留 staging 清理。导入进行中不执行。")
                 }
 
-                Section("数据") {
-                    LabeledContent("资料库条目", value: "\(importedCount) 条")
-                    LabeledContent("缺失条目", value: "\(missingCount) 条")
-                    LabeledContent("合集", value: "\(collectionCount) 个")
-                    LabeledContent("导入会话", value: "\(sessionCount) 次")
-                    LabeledContent("资料库大小", value: ByteCountFormatter.string(
-                        fromByteCount: libraryBytes,
-                        countStyle: .file
-                    ))
-                    LabeledContent("基准条目", value: "\(benchmarkCount) 条")
+                Section {
+                    TapeCard {
+                        VStack(spacing: TapeTheme.space2) {
+                            infoRow("Bundle ID", bundleIdentifier)
+                            TapeHairline()
+                            infoRow("版本", appVersion)
+                            TapeHairline()
+                            infoRow("设备", deviceDescription)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .tapeRowInsets(6)
+                } header: {
+                    sectionHeader("App", kicker: "APP INFO")
                 }
 
-                Section("路径") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("收件箱 (Documents/Import)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(inboxPath)
-                            .font(.caption2.monospaced())
-                            .textSelection(.enabled)
+                Section {
+                    signingDetailCard
+                } header: {
+                    sectionHeader("签名", kicker: "SIGNING")
+                } footer: {
+                    sectionFooter("免费 Apple ID 的 Personal Team 描述文件通常 7 天到期。到期后 App 无法启动；用同一 Bundle ID 在 Xcode 重新运行即可，App 容器数据一般保留。")
+                }
+
+                Section {
+                    TapeCard {
+                        VStack(spacing: TapeTheme.space2) {
+                            Group {
+                                infoRow("资料库条目", "\(importedCount) 条")
+                                TapeHairline()
+                                infoRow("缺失条目", "\(missingCount) 条")
+                                TapeHairline()
+                                infoRow("合集", "\(collectionCount) 个")
+                                TapeHairline()
+                                infoRow("导入会话", "\(sessionCount) 次")
+                                TapeHairline()
+                                infoRow("资料库大小", ByteCountFormatter.string(
+                                    fromByteCount: libraryBytes,
+                                    countStyle: .file
+                                ))
+                                TapeHairline()
+                            }
+                            infoRow("基准条目", "\(benchmarkCount) 条")
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("媒体库 (Application Support/Media)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(mediaPath)
-                            .font(.caption2.monospaced())
-                            .textSelection(.enabled)
+                    .tapeRowInsets(6)
+                } header: {
+                    sectionHeader("数据", kicker: "LIBRARY DATA")
+                }
+
+                Section {
+                    TapeCard {
+                        VStack(alignment: .leading, spacing: TapeTheme.space3) {
+                            pathBlock("收件箱 (Documents/Import)", path: inboxPath)
+                            TapeHairline()
+                            pathBlock("媒体库 (Application Support/Media)", path: mediaPath)
+                            TapeHairline()
+                            pathBlock("Application Support", path: supportPath)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Application Support")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(supportPath)
-                            .font(.caption2.monospaced())
-                            .textSelection(.enabled)
-                    }
+                    .tapeRowInsets(6)
+                } header: {
+                    sectionHeader("路径", kicker: "ON DISK")
                 }
 
                 Section {
@@ -200,18 +136,271 @@ struct DiagnosticsView: View {
                     } label: {
                         Label("刷新", systemImage: "arrow.clockwise")
                     }
+                    .buttonStyle(TapeSecondaryButtonStyle())
+                    .tapeRowInsets(4)
+
                     Button {
                         UIPasteboard.general.string = diagnosticText
                         copied = true
                     } label: {
                         Label(copied ? "已复制诊断信息" : "复制诊断信息", systemImage: copied ? "checkmark.circle" : "doc.on.doc")
                     }
+                    .buttonStyle(TapePrimaryButtonStyle())
+                    .tapeRowInsets(4)
                 }
             }
+            .listStyle(.plain)
+            .tapeScreen()
             .navigationTitle("诊断")
+            .tapeNavigationChrome()
+            .navigationDestination(isPresented: $showBenchmark) {
+                BenchmarkView()
+            }
             .task {
                 refresh()
             }
+        }
+    }
+
+    // MARK: - Cards
+
+    private func signingCard(info: SigningInfo, days: Int) -> some View {
+        TapeCard(fill: days <= 2 ? TapeTheme.peach : TapeTheme.card) {
+            VStack(alignment: .leading, spacing: TapeTheme.space3) {
+                HStack(alignment: .center, spacing: TapeTheme.space2) {
+                    Image(systemName: days <= 2 ? "exclamationmark.triangle.fill" : "checkmark.shield.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(days <= 2 ? TapeTheme.coral : TapeTheme.ink)
+                        .accessibilityHidden(true)
+                    TapeSticker(
+                        text: days <= 2 ? "EXPIRING" : "SIGNED",
+                        fill: days <= 2 ? TapeTheme.coral : TapeTheme.acid,
+                        foreground: days <= 2 ? TapeTheme.stickerInk : TapeTheme.ink,
+                        angle: days <= 2 ? -4 : 4
+                    )
+                    Spacer(minLength: TapeTheme.space2)
+                }
+
+                Text(signingBannerText(days: days))
+                    .font(TapeType.body)
+                    .foregroundStyle(TapeTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("signingExpiryBanner")
+
+                Text("到期：\(info.expirationDate?.formatted(date: .abbreviated, time: .shortened) ?? "—")")
+                    .font(TapeType.monoMeta)
+                    .foregroundStyle(TapeTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var benchmarkLink: some View {
+        Button {
+            showBenchmark = true
+        } label: {
+            HStack(spacing: TapeTheme.space3) {
+                Image(systemName: "gauge.with.dots.needle.67percent")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(TapeTheme.ink)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        TapeTheme.acid,
+                        in: RoundedRectangle(cornerRadius: TapeTheme.radiusThumb, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: TapeTheme.radiusThumb, style: .continuous)
+                            .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
+                    }
+                Text("SwiftData 5k 基准")
+                    .font(TapeType.headline)
+                    .foregroundStyle(TapeTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: TapeTheme.space2)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(TapeTheme.faint)
+            }
+            .padding(.horizontal, TapeTheme.space3)
+            .padding(.vertical, 10)
+            .frame(minHeight: 56)
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(TapeTheme.card)
+                    .shadow(color: TapeTheme.ink, radius: 0, x: 2, y: 2)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
+            }
+        }
+        .buttonStyle(TapePlainPressStyle())
+        .accessibilityLabel("SwiftData 5k 基准")
+        .accessibilityIdentifier("benchmarkLink")
+        .tapeRowInsets(4)
+    }
+
+    private var maintenanceCard: some View {
+        TapeCard {
+            VStack(alignment: .leading, spacing: TapeTheme.space2) {
+                if let summary = coordinator.lastCleanupSummary {
+                    Group {
+                        Text(summary.hasChanges ? "启动维护已完成。" : "启动维护已完成，没有需要清理的内容。")
+                            .font(TapeType.body)
+                            .foregroundStyle(TapeTheme.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("maintenanceSummaryText")
+                        Text("staging \(summary.stagingSessionsRemoved) · 孤儿媒体 \(summary.orphanMediaFilesRemoved) · 孤儿封面 \(summary.orphanArtworkFilesRemoved) · 缺失 \(summary.missingMarked)")
+                            .font(TapeType.monoMicro)
+                            .foregroundStyle(TapeTheme.faint)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("maintenanceDetailText")
+
+                        TapeHairline()
+                            .padding(.vertical, TapeTheme.space1)
+
+                        infoRow("标记缺失", "\(summary.missingMarked)")
+                        TapeHairline()
+                        infoRow("恢复存在", "\(summary.restored)")
+                        TapeHairline()
+                        infoRow("清理孤儿媒体", "\(summary.orphanMediaFilesRemoved)")
+                        TapeHairline()
+                        infoRow("清理 staging", "\(summary.stagingSessionsRemoved)")
+                    }
+
+                    Group {
+                        TapeHairline()
+                        infoRow("清理孤儿封面", "\(summary.orphanArtworkFilesRemoved)")
+                        TapeHairline()
+                        infoRow("清理过期回收站", "\(summary.expiredTrashPurged)")
+
+                        if !summary.failures.isEmpty {
+                            TapeHairline()
+                            ForEach(summary.failures, id: \.self) { failure in
+                                Text(failure)
+                                    .font(TapeType.captionSmall)
+                                    .foregroundStyle(TapeTheme.coral)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                } else {
+                    Text("尚未运行启动维护。")
+                        .font(TapeType.body)
+                        .foregroundStyle(TapeTheme.muted)
+                }
+
+                Button {
+                    coordinator.runMaintenance(modelContext: modelContext)
+                    refresh()
+                } label: {
+                    Label("立即对账 / 清理", systemImage: "cross.case")
+                }
+                .buttonStyle(TapePrimaryButtonStyle())
+                .disabled(coordinator.isRunning)
+                .opacity(coordinator.isRunning ? 0.5 : 1)
+                .accessibilityIdentifier("runMaintenanceButton")
+                .padding(.top, TapeTheme.space1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .tapeRowInsets(6)
+    }
+
+    @ViewBuilder
+    private var signingDetailCard: some View {
+        TapeCard {
+            VStack(alignment: .leading, spacing: TapeTheme.space2) {
+                if let info = signingInfo {
+                    infoRow("描述文件", info.name ?? "—")
+                    TapeHairline()
+                    infoRow("Team", info.teamIdentifier ?? "—")
+                    TapeHairline()
+                    infoRow("App ID", info.appIdentifier ?? "—")
+                    if let expiration = info.expirationDate {
+                        TapeHairline()
+                        infoRow(
+                            "到期",
+                            expiration.formatted(date: .abbreviated, time: .shortened)
+                        )
+                    }
+                    if let days = info.daysRemaining {
+                        TapeHairline()
+                        infoRow(
+                            "剩余",
+                            days >= 0
+                                ? L10n.format("diagnostics.daysRemaining", days)
+                                : L10n.format("diagnostics.daysExpired", -days)
+                        )
+                    }
+                    if let deviceCount = info.provisionedDeviceCount {
+                        TapeHairline()
+                        infoRow("描述文件设备数", "\(deviceCount)")
+                    }
+                    Text(info.statusText)
+                        .font(TapeType.captionSmall)
+                        .foregroundStyle(info.isExpired ? TapeTheme.coral : TapeTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, TapeTheme.space1)
+                } else {
+                    Text("未发现 embedded.mobileprovision（模拟器或未签名构建）。真机免费账号构建会显示 7 天到期时间。")
+                        .font(TapeType.caption)
+                        .foregroundStyle(TapeTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .tapeRowInsets(6)
+    }
+
+    private func pathBlock(_ label: String, path: String) -> some View {
+        VStack(alignment: .leading, spacing: TapeTheme.space1) {
+            Text(label)
+                .font(TapeType.monoMicro)
+                .foregroundStyle(TapeTheme.faint)
+            Text(path)
+                .font(TapeType.monoMeta)
+                .foregroundStyle(TapeTheme.muted)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Shared pieces
+
+    private func sectionHeader(_ title: String, kicker: String) -> some View {
+        TapeSectionHeader(title: title, kicker: kicker)
+            .textCase(nil)
+            .padding(.horizontal, TapeTheme.screenPadding)
+            .padding(.top, TapeTheme.space3)
+            .padding(.bottom, TapeTheme.space1)
+    }
+
+    private func sectionFooter(_ text: String) -> some View {
+        Text(text)
+            .font(TapeType.captionSmall)
+            .foregroundStyle(TapeTheme.muted)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, TapeTheme.space4)
+            .padding(.top, TapeTheme.space1)
+            .listRowBackground(Color.clear)
+    }
+
+    private func infoRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: TapeTheme.space2) {
+            Text(label)
+                .font(TapeType.bodySmall)
+                .foregroundStyle(TapeTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: TapeTheme.space2)
+            Text(value)
+                .font(TapeType.monoMeta)
+                .foregroundStyle(TapeTheme.ink)
+                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

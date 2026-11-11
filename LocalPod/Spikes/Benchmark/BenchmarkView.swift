@@ -14,83 +14,224 @@ struct BenchmarkView: View {
     @State private var status = L10n.string("benchmark.status.idle")
     @State private var isWorking = false
     @State private var errorMessage: String?
+    @State private var showBenchmarkList = false
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    LabeledContent("当前基准条目", value: "\(benchmarkCount) 条")
-                    LabeledContent("状态", value: status)
-                    Text(status)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("benchmarkStatus")
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                    TapeCard {
+                        VStack(alignment: .leading, spacing: TapeTheme.space3) {
+                            HStack(alignment: .center, spacing: TapeTheme.space2) {
+                                TapeSticker(
+                                    text: "5K",
+                                    fill: TapeTheme.acid,
+                                    foreground: TapeTheme.ink,
+                                    angle: -4
+                                )
+                                Spacer(minLength: TapeTheme.space2)
+                                Text("\(benchmarkCount) 条")
+                                    .font(TapeType.monoMeta)
+                                    .foregroundStyle(TapeTheme.faint)
+                            }
+
+                            infoRow("当前基准条目", "\(benchmarkCount) 条")
+
+                            HStack(alignment: .firstTextBaseline, spacing: TapeTheme.space2) {
+                                Text("状态")
+                                    .font(TapeType.bodySmall)
+                                    .foregroundStyle(TapeTheme.muted)
+                                Spacer(minLength: TapeTheme.space2)
+                                Text(status)
+                                    .font(TapeType.monoMeta)
+                                    .foregroundStyle(TapeTheme.ink)
+                                    .multilineTextAlignment(.trailing)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .accessibilityIdentifier("benchmarkStatus")
+                            }
+
+                            if let errorMessage {
+                                Text(errorMessage)
+                                    .font(TapeType.captionSmall)
+                                    .foregroundStyle(TapeTheme.coral)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .tapeRowInsets(6)
                 } header: {
-                    Text("SwiftData 5k 基准")
+                    sectionHeader("SwiftData 5k 基准", kicker: "BENCHMARK")
                 } footer: {
-                    Text("M0 只验证插入、查询与 5k 列表滚动；如果主界面卡顿，后续只做批处理/索引/分页优化，不更换持久化框架。")
+                    sectionFooter("M0 只验证插入、查询与 5k 列表滚动；如果主界面卡顿，后续只做批处理/索引/分页优化，不更换持久化框架。")
                 }
 
-                Section("操作") {
+                Section {
                     Button {
                         runInsert()
                     } label: {
                         Label("插入 5000 条", systemImage: "square.stack.3d.up")
                     }
+                    .buttonStyle(TapePrimaryButtonStyle())
                     .disabled(isWorking || benchmarkCount > 0)
+                    .opacity(isWorking || benchmarkCount > 0 ? 0.5 : 1)
                     .accessibilityIdentifier("benchmarkInsertButton")
+                    .tapeRowInsets(4)
 
                     Button {
                         runQuery()
                     } label: {
                         Label("查询 100 条 + 总数", systemImage: "magnifyingglass")
                     }
+                    .buttonStyle(TapeSecondaryButtonStyle())
                     .disabled(isWorking || benchmarkCount == 0)
+                    .opacity(isWorking || benchmarkCount == 0 ? 0.5 : 1)
+                    .tapeRowInsets(4)
 
-                    NavigationLink {
-                        BenchmarkListView()
-                    } label: {
-                        Label("打开 5000 条列表", systemImage: "list.number")
-                    }
-                    .disabled(benchmarkCount == 0)
-                    .accessibilityIdentifier("benchmarkListLink")
+                    benchmarkListLink
 
                     Button(role: .destructive) {
                         runCleanup()
                     } label: {
                         Label("清理基准数据", systemImage: "trash")
                     }
+                    .buttonStyle(TapeDestructiveButtonStyle())
                     .disabled(isWorking || benchmarkCount == 0)
+                    .opacity(isWorking || benchmarkCount == 0 ? 0.5 : 1)
+                    .tapeRowInsets(4)
+                } header: {
+                    sectionHeader("操作", kicker: "ACTIONS")
                 }
 
-                Section("结果") {
-                    LabeledContent("插入 5000 条", value: format(insertSeconds))
-                    LabeledContent("查询 100 条 + 总数", value: format(querySeconds))
-                    LabeledContent(
-                        "列表本次读取",
-                        value: lastPageCount == 0
-                            ? "—"
-                            : L10n.format("benchmark.lastPageCount", lastPageCount)
-                    )
-                    LabeledContent("清理", value: format(cleanupSeconds))
+                Section {
+                    TapeCard {
+                        VStack(spacing: TapeTheme.space2) {
+                            infoRow("插入 5000 条", format(insertSeconds))
+                            TapeHairline()
+                            infoRow("查询 100 条 + 总数", format(querySeconds))
+                            TapeHairline()
+                            infoRow(
+                                "列表本次读取",
+                                lastPageCount == 0
+                                    ? "—"
+                                    : L10n.format("benchmark.lastPageCount", lastPageCount)
+                            )
+                            TapeHairline()
+                            infoRow("清理", format(cleanupSeconds))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .tapeRowInsets(6)
+                } header: {
+                    sectionHeader("结果", kicker: "RESULTS")
                 }
 
-                Section("说明") {
-                    Text("插入使用主线程 ModelContext 一次性保存，模拟最保守的路径；真实 M1 导入会改为后台 ModelActor + 分批保存。")
-                    Text("列表页用 @Query 拉取全部基准条目，验证 SwiftUI List 的懒加载滚动。")
+                Section {
+                    TapeCard {
+                        VStack(alignment: .leading, spacing: TapeTheme.space2) {
+                            Text("插入使用主线程 ModelContext 一次性保存，模拟最保守的路径；真实 M1 导入会改为后台 ModelActor + 分批保存。")
+                            Text("列表页用 @Query 拉取全部基准条目，验证 SwiftUI List 的懒加载滚动。")
+                        }
+                        .font(TapeType.caption)
+                        .foregroundStyle(TapeTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .tapeRowInsets(6)
+                } header: {
+                    sectionHeader("说明", kicker: "NOTES")
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
+            .listStyle(.plain)
+            .tapeScreen()
             .navigationTitle("SwiftData 基准")
+            .tapeNavigationChrome()
+            .navigationDestination(isPresented: $showBenchmarkList) {
+                BenchmarkListView()
+            }
             .task {
                 refreshCount()
             }
+        }
+    }
+
+    private var benchmarkListLink: some View {
+        Button {
+            showBenchmarkList = true
+        } label: {
+            HStack(spacing: TapeTheme.space3) {
+                Image(systemName: "list.number")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(TapeTheme.ink)
+                    .frame(width: 36, height: 36)
+                    .background(
+                        TapeTheme.violetSoft,
+                        in: RoundedRectangle(cornerRadius: TapeTheme.radiusThumb, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: TapeTheme.radiusThumb, style: .continuous)
+                            .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
+                    }
+                Text("打开 5000 条列表")
+                    .font(TapeType.headline)
+                    .foregroundStyle(TapeTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: TapeTheme.space2)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(TapeTheme.faint)
+            }
+            .padding(.horizontal, TapeTheme.space3)
+            .padding(.vertical, 10)
+            .frame(minHeight: 56)
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(TapeTheme.card)
+                    .shadow(color: TapeTheme.ink, radius: 0, x: 2, y: 2)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
+            }
+            .opacity(benchmarkCount == 0 ? 0.5 : 1)
+        }
+        .buttonStyle(TapePlainPressStyle())
+        .disabled(benchmarkCount == 0)
+        .accessibilityLabel("打开 5000 条列表")
+        .accessibilityIdentifier("benchmarkListLink")
+        .tapeRowInsets(4)
+    }
+
+    private func sectionHeader(_ title: String, kicker: String) -> some View {
+        TapeSectionHeader(title: title, kicker: kicker)
+            .textCase(nil)
+            .padding(.horizontal, TapeTheme.screenPadding)
+            .padding(.top, TapeTheme.space3)
+            .padding(.bottom, TapeTheme.space1)
+    }
+
+    private func sectionFooter(_ text: String) -> some View {
+        Text(text)
+            .font(TapeType.captionSmall)
+            .foregroundStyle(TapeTheme.muted)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, TapeTheme.space4)
+            .padding(.top, TapeTheme.space1)
+            .listRowBackground(Color.clear)
+    }
+
+    private func infoRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: TapeTheme.space2) {
+            Text(label)
+                .font(TapeType.bodySmall)
+                .foregroundStyle(TapeTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: TapeTheme.space2)
+            Text(value)
+                .font(TapeType.monoMeta)
+                .foregroundStyle(TapeTheme.ink)
+                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -217,19 +358,19 @@ struct BenchmarkListView: View {
 
     var body: some View {
         List(items) { item in
-            HStack(spacing: 12) {
-                Image(systemName: item.kind.isVideo ? "film" : "waveform")
-                    .foregroundStyle(item.kind.isVideo ? .orange : .indigo)
-                    .frame(width: 24)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.title)
-                    Text("\(item.kind.displayName) · \(ByteCountFormatter.string(fromByteCount: item.byteSize, countStyle: .file))")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            TapeRow(
+                thumbText: "",
+                thumbFill: item.kind.isVideo ? TapeTheme.peach : TapeTheme.cream,
+                icon: item.kind.isVideo ? "film" : "waveform",
+                title: item.title,
+                subtitle: "\(item.kind.displayName) · \(ByteCountFormatter.string(fromByteCount: item.byteSize, countStyle: .file))",
+                showsTrailing: false
+            )
+            .tapeRowInsets(4)
         }
+        .listStyle(.plain)
+        .tapeScreen()
         .navigationTitle("\(items.count) 条")
-        .navigationBarTitleDisplayMode(.inline)
+        .tapeNavigationChrome()
     }
 }

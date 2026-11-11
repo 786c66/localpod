@@ -16,12 +16,15 @@ private struct ShareLinkSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 16) {
+            VStack(spacing: TapeTheme.space4) {
                 Image(systemName: "doc.text")
-                    .font(.system(size: 44))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 44, weight: .semibold))
+                    .foregroundStyle(TapeTheme.violet)
                 Text(url.lastPathComponent)
-                    .font(.callout.weight(.medium))
+                    .font(TapeType.monoMeta)
+                    .foregroundStyle(TapeTheme.ink)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
                 ShareLink(
                     item: url,
                     preview: SharePreview(
@@ -29,12 +32,14 @@ private struct ShareLinkSheet: View {
                         image: Image(systemName: "doc.text")
                     )
                 )
-                .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("backupShareLink")
+                .buttonStyle(TapePrimaryButtonStyle())
+                .accessibilityIdentifier("backupShareLink")
             }
-            .padding()
+            .padding(TapeTheme.space6)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(TapeScreenBackground())
             .navigationTitle(L10n.string("backup.export"))
-            .navigationBarTitleDisplayMode(.inline)
+            .tapeNavigationChrome()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }
@@ -108,105 +113,44 @@ struct SettingsView: View {
     var body: some View {
         @Bindable var settings = session.settings
         NavigationStack {
-            Form {
-                Section {
-                    LabeledContent("默认倍速") {
-                        Text(PlaybackPolicy.speedLabel(settings.defaultRate))
-                            .accessibilityIdentifier("settingsDefaultSpeedValue")
-                    }
-
-                    ViewThatFits(in: .horizontal) {
-                        speedPresetsRow(settings)
-                            .fixedSize(horizontal: true, vertical: false)
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            speedPresetsRow(settings)
-                        }
-                    }
-
-                    Picker("快进间隔", selection: $settings.skipForwardSeconds) {
-                        ForEach(AppSettingsStore.skipOptions, id: \.self) { seconds in
-                            Text("\(Int(seconds)) 秒").tag(seconds)
-                        }
-                    }
-                    .accessibilityIdentifier("settingsSkipForwardPicker")
-
-                    Picker("快退间隔", selection: $settings.skipBackwardSeconds) {
-                        ForEach(AppSettingsStore.skipOptions, id: \.self) { seconds in
-                            Text("\(Int(seconds)) 秒").tag(seconds)
-                        }
-                    }
-                    .accessibilityIdentifier("settingsSkipBackwardPicker")
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("恢复播放位置")
-                        Picker("恢复播放位置", selection: $settings.resumeEnabled) {
-                            Text("记住").tag(true)
-                            Text("不记住").tag(false)
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                        .accessibilityIdentifier("settingsResumePicker")
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("播完自动下一集")
-                        Picker("播完自动下一集", selection: $settings.autoPlayNext) {
-                            Text("自动").tag(true)
-                            Text("不自动").tag(false)
-                        }
-                        .labelsHidden()
-                        .pickerStyle(.segmented)
-                        .accessibilityIdentifier("settingsAutoNextPicker")
-                    }
-                } header: {
-                    Text(L10n.string("settings.section.playback"))
-                } footer: {
-                    Text("所有设置立即保存，重启 App 后仍然生效。")
-                }
+            List {
+                playbackSection(settings)
 
                 Section {
-                    Toggle("签名到期提醒", isOn: $settings.signingReminderEnabled)
-                        .accessibilityIdentifier("settingsSigningReminderToggle")
+                    TapeCard {
+                        // Keep the caption: a card whose row holds a single
+                        // accessibility element gets that element's frame
+                        // promoted to the whole list row (verified: 450×63 vs
+                        // the switch's real 310×28), so taps aimed at the
+                        // switch's trailing side miss it. A second element
+                        // keeps the toggle's frame tight.
+                        VStack(alignment: .leading, spacing: TapeTheme.space2) {
+                            Toggle(isOn: $settings.signingReminderEnabled) {
+                                Text("签名到期提醒")
+                            }
+                            .font(TapeType.body)
+                            .foregroundStyle(TapeTheme.ink)
+                            .accessibilityIdentifier("settingsSigningReminderToggle")
+
+                            Text("描述文件到期前 2 天的 10:00 提醒你重签。")
+                                .font(TapeType.captionSmall)
+                                .foregroundStyle(TapeTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .tapeRowInsets(6)
                 } header: {
-                    Text("签名")
+                    settingsHeader(L10n.string("签名"), kicker: "SIGNING")
                 } footer: {
-                    Text("开启后会在描述文件到期前 2 天 10:00 发送本地通知；首次开启会请求通知权限。关闭会取消待发送的提醒。若开关原本就是开启状态，请先关闭再开启一次以触发系统授权。即使拒绝通知，诊断页仍会显示到期提示。")
+                    settingsFooter(L10n.string("开启后会在描述文件到期前 2 天 10:00 发送本地通知；首次开启会请求通知权限。关闭会取消待发送的提醒。若开关原本就是开启状态，请先关闭再开启一次以触发系统授权。即使拒绝通知，诊断页仍会显示到期提示。"))
                 }
 
-                Section("存储") {
-                    LabeledContent("资料库条目", value: "\(libraryItems.count) 条")
-                    LabeledContent("占用空间", value: ByteCountFormatter.string(
-                        fromByteCount: totalBytes,
-                        countStyle: .file
-                    ))
-                    Button {
-                        runMaintenance()
-                    } label: {
-                        Label("执行资料库维护", systemImage: "wrench.and.screwdriver")
-                    }
-                    .accessibilityIdentifier("settingsMaintenanceButton")
-                    if let maintenanceSummary {
-                        Text(maintenanceSummary)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .accessibilityIdentifier("settingsMaintenanceSummary")
-                    }
-                }
+                storageSection
 
                 sampleSection
 
-                Section {
-                    NavigationLink {
-                        WiFiUploadView()
-                    } label: {
-                        Label(L10n.string("wifi.title"), systemImage: "wifi")
-                    }
-                    .accessibilityIdentifier("wifiUploadLink")
-                } header: {
-                    Text(L10n.string("settings.wifi.section"))
-                } footer: {
-                    Text(L10n.string("settings.wifi.footer"))
-                }
+                wifiSection
 
                 linkedFoldersSection
 
@@ -214,37 +158,14 @@ struct SettingsView: View {
 
                 importNotificationsSection(settings)
 
-                Section("导入历史") {
-                    if importSessions.isEmpty {
-                        Text("还没有导入记录。")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(importSessions.prefix(5)) { session in
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(session.rootName)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Text("\(session.startedAt.formatted(date: .abbreviated, time: .shortened)) · 导入 \(session.importedCount) · 重复 \(session.duplicateCount) · 失败 \(session.failedCount)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                    }
-                }
+                importHistorySection
 
-                Section("关于") {
-                    LabeledContent("版本", value: appVersion)
-                    LabeledContent(
-                        "播放范围",
-                        value: L10n.string("settings.audioOnly")
-                    )
-                    Text("LocalPod 只播放音频。视频文件可以导入并读取音轨，但不显示画面，也不支持旋转或画中画。完全免费，无内购、无订阅。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                aboutSection
             }
+            .listStyle(.plain)
+            .tapeScreen()
             .navigationTitle("设置")
-            .navigationBarTitleDisplayMode(.inline)
+            .tapeNavigationChrome()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }
@@ -352,6 +273,345 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Tape-styled sections
+
+    @ViewBuilder
+    private func playbackSection(_ settings: AppSettingsStore) -> some View {
+        @Bindable var settings = settings
+        Section {
+            TapeCard {
+                // Tighter than the default card rhythm: this first screen must
+                // fit the signing toggle above the simulator's fold so the
+                // regression can tap it without scrolling luck.
+                VStack(alignment: .leading, spacing: TapeTheme.space2) {
+                    HStack(alignment: .firstTextBaseline, spacing: TapeTheme.space2) {
+                        Text("默认倍速")
+                            .font(TapeType.body)
+                            .foregroundStyle(TapeTheme.ink)
+                        Spacer(minLength: TapeTheme.space2)
+                        Text(PlaybackPolicy.speedLabel(settings.defaultRate))
+                            .font(TapeType.monoMeta)
+                            .foregroundStyle(TapeTheme.faint)
+                            .accessibilityIdentifier("settingsDefaultSpeedValue")
+                    }
+
+                    ViewThatFits(in: .horizontal) {
+                        speedPresetsRow(settings)
+                            .fixedSize(horizontal: true, vertical: false)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            speedPresetsRow(settings)
+                        }
+                    }
+
+                    TapeHairline()
+
+                    Picker(selection: $settings.skipForwardSeconds) {
+                        ForEach(AppSettingsStore.skipOptions, id: \.self) { seconds in
+                            Text("\(Int(seconds)) 秒").tag(seconds)
+                        }
+                    } label: {
+                        Text("快进间隔")
+                            .font(TapeType.body)
+                            .foregroundStyle(TapeTheme.ink)
+                    }
+                    .accessibilityIdentifier("settingsSkipForwardPicker")
+
+                    TapeHairline()
+
+                    Picker(selection: $settings.skipBackwardSeconds) {
+                        ForEach(AppSettingsStore.skipOptions, id: \.self) { seconds in
+                            Text("\(Int(seconds)) 秒").tag(seconds)
+                        }
+                    } label: {
+                        Text("快退间隔")
+                            .font(TapeType.body)
+                            .foregroundStyle(TapeTheme.ink)
+                    }
+                    .accessibilityIdentifier("settingsSkipBackwardPicker")
+
+                    TapeHairline()
+
+                    segmentedRow(
+                        title: L10n.string("恢复播放位置"),
+                        selection: $settings.resumeEnabled,
+                        options: [
+                            (title: L10n.string("记住"), value: true),
+                            (title: L10n.string("不记住"), value: false)
+                        ],
+                        identifier: "settingsResumePicker"
+                    )
+
+                    TapeHairline()
+
+                    segmentedRow(
+                        title: L10n.string("播完自动下一集"),
+                        selection: $settings.autoPlayNext,
+                        options: [
+                            (title: L10n.string("自动"), value: true),
+                            (title: L10n.string("不自动"), value: false)
+                        ],
+                        identifier: "settingsAutoNextPicker"
+                    )
+                }
+            }
+            .tapeRowInsets(6)
+        } header: {
+            settingsHeader(L10n.string("settings.section.playback"), kicker: "DEFAULTS")
+        } footer: {
+            settingsFooter(L10n.string("所有设置立即保存，重启 App 后仍然生效。"))
+        }
+    }
+
+    private var storageSection: some View {
+        Section {
+            TapeCard {
+                VStack(alignment: .leading, spacing: TapeTheme.space3) {
+                    infoRow(L10n.string("资料库条目"), "\(libraryItems.count) 条")
+                    TapeHairline()
+                    infoRow(
+                        L10n.string("占用空间"),
+                        ByteCountFormatter.string(
+                            fromByteCount: totalBytes,
+                            countStyle: .file
+                        )
+                    )
+                    TapeHairline()
+                    Button {
+                        runMaintenance()
+                    } label: {
+                        Label("执行资料库维护", systemImage: "wrench.and.screwdriver")
+                    }
+                    .buttonStyle(TapeSecondaryButtonStyle())
+                    .accessibilityIdentifier("settingsMaintenanceButton")
+                    if let maintenanceSummary {
+                        Text(maintenanceSummary)
+                            .font(TapeType.monoMicro)
+                            .foregroundStyle(TapeTheme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("settingsMaintenanceSummary")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .tapeRowInsets(6)
+        } header: {
+            settingsHeader(L10n.string("存储"), kicker: "STORAGE")
+        }
+    }
+
+    private var wifiSection: some View {
+        Section {
+            TapeCard(padding: TapeTheme.space3) {
+                // The kicker is also load-bearing accessibility-wise: a card
+                // whose row holds a single element has that element's frame
+                // promoted to the whole list cell, which stays "hittable"
+                // under the navigation bar and sends taps to the bar instead
+                // of the link. A second element keeps the link's frame tight,
+                // so a covered row reports not-hittable and the scroll
+                // continues until the card is genuinely tappable.
+                VStack(alignment: .leading, spacing: TapeTheme.space2) {
+                    Text("LOCAL LAN · PIN")
+                        .font(TapeType.monoMicro)
+                        .foregroundStyle(TapeTheme.faint)
+
+                    NavigationLink {
+                        WiFiUploadView()
+                    } label: {
+                        HStack(spacing: TapeTheme.space3) {
+                            iconTile("wifi", fill: TapeTheme.violetSoft)
+                            Text(L10n.string("wifi.title"))
+                                .font(TapeType.headline)
+                                .foregroundStyle(TapeTheme.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: TapeTheme.space2)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(TapeTheme.ink)
+                                .frame(width: 28, height: 28)
+                                .background(TapeTheme.cream, in: Circle())
+                                .overlay {
+                                    Circle().strokeBorder(
+                                        TapeTheme.ink,
+                                        lineWidth: TapeTheme.stroke
+                                    )
+                                }
+                        }
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(TapePlainPressStyle())
+                    .accessibilityIdentifier("wifiUploadLink")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .tapeRowInsets(6)
+        } header: {
+            settingsHeader(L10n.string("settings.wifi.section"), kicker: "WI-FI")
+        } footer: {
+            settingsFooter(L10n.string("settings.wifi.footer"))
+        }
+    }
+
+    private var importHistorySection: some View {
+        Section {
+            if importSessions.isEmpty {
+                TapeDashedCard {
+                    Text("还没有导入记录。")
+                        .font(TapeType.body)
+                        .foregroundStyle(TapeTheme.muted)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                }
+                .tapeRowInsets(6)
+            } else {
+                TapeCard {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(importSessions.prefix(5)) { importSession in
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(importSession.rootName)
+                                    .font(TapeType.headline)
+                                    .foregroundStyle(TapeTheme.ink)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Text("\(importSession.startedAt.formatted(date: .abbreviated, time: .shortened)) · 导入 \(importSession.importedCount) · 重复 \(importSession.duplicateCount) · 失败 \(importSession.failedCount)")
+                                    .font(TapeType.monoMicro)
+                                    .foregroundStyle(TapeTheme.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, TapeTheme.space2)
+                            if importSession.id != importSessions.prefix(5).last?.id {
+                                TapeHairline()
+                            }
+                        }
+                    }
+                }
+                .tapeRowInsets(6)
+            }
+        } header: {
+            settingsHeader(L10n.string("导入历史"), kicker: "IMPORT LOG")
+        }
+    }
+
+    private var aboutSection: some View {
+        Section {
+            TapeCard {
+                VStack(alignment: .leading, spacing: TapeTheme.space3) {
+                    infoRow(L10n.string("版本"), appVersion)
+                    TapeHairline()
+                    infoRow(L10n.string("播放范围"), L10n.string("settings.audioOnly"))
+                    TapeHairline()
+                    Text("LocalPod 只播放音频。视频文件可以导入并读取音轨，但不显示画面，也不支持旋转或画中画。完全免费，无内购、无订阅。")
+                        .font(TapeType.captionSmall)
+                        .foregroundStyle(TapeTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .tapeRowInsets(6)
+        } header: {
+            settingsHeader(L10n.string("关于"), kicker: "ABOUT")
+        }
+    }
+
+    // MARK: - Section chrome
+
+    private func settingsHeaderBase(_ title: String, _ kicker: String) -> some View {
+        TapeSectionHeader(title: title, kicker: kicker)
+            .textCase(nil)
+            .padding(.horizontal, TapeTheme.screenPadding)
+            .padding(.top, TapeTheme.space3)
+            .padding(.bottom, TapeTheme.space1)
+    }
+
+    @ViewBuilder
+    private func settingsHeader(
+        _ title: String,
+        kicker: String,
+        identifier: String? = nil
+    ) -> some View {
+        if let identifier {
+            settingsHeaderBase(title, kicker)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier(identifier)
+        } else {
+            settingsHeaderBase(title, kicker)
+        }
+    }
+
+    private func settingsFooter(_ text: String) -> some View {
+        Text(text)
+            .font(TapeType.captionSmall)
+            .foregroundStyle(TapeTheme.muted)
+            .fixedSize(horizontal: false, vertical: true)
+            .textCase(nil)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, TapeTheme.space4)
+            .padding(.top, TapeTheme.space1)
+            .listRowBackground(Color.clear)
+    }
+
+    // MARK: - Small pieces
+
+    private func segmentedRow(
+        title: String,
+        selection: Binding<Bool>,
+        options: [(title: String, value: Bool)],
+        identifier: String
+    ) -> some View {
+        // Title and control share one row: two stacked segmented pickers were
+        // ~60pt taller and pushed the signing card below the simulator
+        // viewport, which broke the reminder-toggle regression.
+        VStack(alignment: .leading, spacing: TapeTheme.space2) {
+            HStack(alignment: .center, spacing: TapeTheme.space2) {
+                Text(title)
+                    .font(TapeType.body)
+                    .foregroundStyle(TapeTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: TapeTheme.space2)
+                Picker(title, selection: selection) {
+                    ForEach(options.indices, id: \.self) { index in
+                        Text(options[index].title).tag(options[index].value)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .fixedSize()
+                .accessibilityIdentifier(identifier)
+            }
+        }
+    }
+
+    private func infoRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: TapeTheme.space2) {
+            Text(label)
+                .font(TapeType.body)
+                .foregroundStyle(TapeTheme.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: TapeTheme.space2)
+            Text(value)
+                .font(TapeType.monoMeta)
+                .foregroundStyle(TapeTheme.faint)
+                .multilineTextAlignment(.trailing)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func iconTile(_ icon: String, fill: Color) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: TapeTheme.radiusThumb, style: .continuous)
+                .fill(fill)
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(TapeTheme.ink)
+        }
+        .frame(width: 36, height: 36)
+        .overlay {
+            RoundedRectangle(cornerRadius: TapeTheme.radiusThumb, style: .continuous)
+                .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
+        }
+        .accessibilityHidden(true)
+    }
+
     /// UI-test/launch automation hook: `--p2-check-stale-linked-folders`
     /// resolves every bookmark once when the settings page appears and flags
     /// rows whose folder is gone. Deliberately not part of normal launches:
@@ -399,31 +659,53 @@ struct SettingsView: View {
     @ViewBuilder
     private var linkedFoldersSection: some View {
         Section {
-            ForEach(linkedFolders) { folder in
-                linkedFolderRow(folder)
-            }
+            TapeCard {
+                VStack(alignment: .leading, spacing: TapeTheme.space3) {
+                    ForEach(linkedFolders) { folder in
+                        linkedFolderRow(folder)
+                        if folder.id != linkedFolders.last?.id {
+                            TapeHairline()
+                        }
+                    }
 
-            Button {
-                showLinkedFolderPicker = true
-            } label: {
-                Label(L10n.string("linkedFolders.add"), systemImage: "link.badge.plus")
-            }
-            .disabled(coordinator.isRunning)
-            .accessibilityIdentifier("linkedFolderAddButton")
+                    if !linkedFolders.isEmpty {
+                        TapeHairline()
+                    }
 
-            if !linkedFolders.isEmpty {
-                Text(L10n.string("linkedFolders.hint"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("linkedFolderHintText")
+                    Button {
+                        showLinkedFolderPicker = true
+                    } label: {
+                        Label(
+                            L10n.string("linkedFolders.add"),
+                            systemImage: "link.badge.plus"
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(TapePrimaryButtonStyle())
+                    .disabled(coordinator.isRunning)
+                    .opacity(coordinator.isRunning ? 0.5 : 1)
+                    .accessibilityIdentifier("linkedFolderAddButton")
+
+                    if !linkedFolders.isEmpty {
+                        Text(L10n.string("linkedFolders.hint"))
+                            .font(TapeType.captionSmall)
+                            .foregroundStyle(TapeTheme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("linkedFolderHintText")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .tapeRowInsets(6)
         } header: {
-            Text(L10n.string("linkedFolders.section"))
-                .accessibilityIdentifier("linkedFoldersSection")
+            settingsHeader(
+                L10n.string("linkedFolders.section"),
+                kicker: "FOLDERS",
+                identifier: "linkedFoldersSection"
+            )
         } footer: {
             if linkedFolders.isEmpty {
-                Text(L10n.string("linkedFolders.emptyFooter"))
+                settingsFooter(L10n.string("linkedFolders.emptyFooter"))
             }
         }
     }
@@ -435,40 +717,61 @@ struct SettingsView: View {
     @ViewBuilder
     private var backupSection: some View {
         Section {
-            Button {
-                runExportBackup()
-            } label: {
-                Label(L10n.string("backup.export"), systemImage: "square.and.arrow.up")
-            }
-            .accessibilityIdentifier("backupExportButton")
+            TapeCard {
+                VStack(alignment: .leading, spacing: TapeTheme.space3) {
+                    Button {
+                        runExportBackup()
+                    } label: {
+                        Label(
+                            L10n.string("backup.export"),
+                            systemImage: "square.and.arrow.up"
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(TapePrimaryButtonStyle())
+                    .accessibilityIdentifier("backupExportButton")
 
-            if let backupExportSummary {
-                Text(backupExportSummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("backupExportSummary")
-            }
+                    if let backupExportSummary {
+                        Text(backupExportSummary)
+                            .font(TapeType.monoMicro)
+                            .foregroundStyle(TapeTheme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("backupExportSummary")
+                    }
 
-            Button {
-                showBackupImportPicker = true
-            } label: {
-                Label(L10n.string("backup.import"), systemImage: "square.and.arrow.down")
-            }
-            .accessibilityIdentifier("backupImportButton")
+                    TapeHairline()
 
-            if let backupRestoreSummary {
-                Text(backupRestoreSummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("backupRestoreSummary")
+                    Button {
+                        showBackupImportPicker = true
+                    } label: {
+                        Label(
+                            L10n.string("backup.import"),
+                            systemImage: "square.and.arrow.down"
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(TapeSecondaryButtonStyle())
+                    .accessibilityIdentifier("backupImportButton")
+
+                    if let backupRestoreSummary {
+                        Text(backupRestoreSummary)
+                            .font(TapeType.monoMicro)
+                            .foregroundStyle(TapeTheme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("backupRestoreSummary")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .tapeRowInsets(6)
         } header: {
-            Text(L10n.string("backup.section"))
-                .accessibilityIdentifier("backupSection")
+            settingsHeader(
+                L10n.string("backup.section"),
+                kicker: "BACKUP",
+                identifier: "backupSection"
+            )
         } footer: {
-            Text(L10n.string("backup.footer"))
+            settingsFooter(L10n.string("backup.footer"))
         }
     }
 
@@ -479,33 +782,44 @@ struct SettingsView: View {
     private func importNotificationsSection(_ settings: AppSettingsStore) -> some View {
         @Bindable var settings = settings
         Section {
-            Toggle(isOn: $settings.importNotificationsEnabled) {
-                Text(L10n.string("settings.notifications.toggle"))
-            }
-            .accessibilityIdentifier("importNotificationsToggle")
+            TapeCard {
+                VStack(alignment: .leading, spacing: TapeTheme.space2) {
+                    Toggle(isOn: $settings.importNotificationsEnabled) {
+                        Text(L10n.string("settings.notifications.toggle"))
+                    }
+                    .font(TapeType.body)
+                    .foregroundStyle(TapeTheme.ink)
+                    .accessibilityIdentifier("importNotificationsToggle")
 
-            if importNotificationsAuthorizationDenied {
-                Text(L10n.string("settings.notifications.denied"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("importNotificationsDeniedHint")
-            }
+                    if importNotificationsAuthorizationDenied {
+                        Text(L10n.string("settings.notifications.denied"))
+                            .font(TapeType.captionSmall)
+                            .foregroundStyle(TapeTheme.coral)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("importNotificationsDeniedHint")
+                    }
 
-            #if DEBUG
-            if !lastImportNotificationText.isEmpty {
-                Text(lastImportNotificationText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("lastImportNotificationText")
+                    #if DEBUG
+                    if !lastImportNotificationText.isEmpty {
+                        Text(lastImportNotificationText)
+                            .font(TapeType.monoMicro)
+                            .foregroundStyle(TapeTheme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("lastImportNotificationText")
+                    }
+                    #endif
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            #endif
+            .tapeRowInsets(6)
         } header: {
-            Text(L10n.string("settings.notifications.section"))
-                .accessibilityIdentifier("importNotificationsSection")
+            settingsHeader(
+                L10n.string("settings.notifications.section"),
+                kicker: "NOTIFICATIONS",
+                identifier: "importNotificationsSection"
+            )
         } footer: {
-            Text(L10n.string("settings.notifications.footer"))
+            settingsFooter(L10n.string("settings.notifications.footer"))
         }
     }
 
@@ -627,57 +941,97 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func linkedFolderRow(_ folder: LinkedFolder) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
+        VStack(alignment: .leading, spacing: TapeTheme.space2) {
+            HStack(alignment: .center, spacing: TapeTheme.space2) {
                 Text(folder.rootName)
-                    .font(.body)
+                    .font(TapeType.headline)
+                    .foregroundStyle(TapeTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("linkedFolderName-\(folder.rootName)")
-                Spacer()
+                Spacer(minLength: TapeTheme.space2)
                 if folder.isStale {
-                    Text(L10n.string("linkedFolders.staleBadge"))
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.orange)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.orange.opacity(0.15), in: Capsule())
-                        .accessibilityIdentifier("linkedFolderStaleBadge")
+                    TapeSticker(
+                        text: L10n.string("linkedFolders.staleBadge"),
+                        fill: TapeTheme.coral,
+                        angle: -4
+                    )
+                    .accessibilityIdentifier("linkedFolderStaleBadge")
                 }
             }
 
             Text(lastScannedText(folder))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(TapeType.monoMicro)
+                .foregroundStyle(TapeTheme.faint)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("linkedFolderSyncSummary-\(folder.rootName)")
 
-            if folder.isStale {
-                Button {
-                    pendingRelinkFolder = folder
-                } label: {
-                    Label(L10n.string("linkedFolders.relink"), systemImage: "arrow.triangle.2.circlepath")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: TapeTheme.space4) {
+                    folderActionButton(folder)
+                    removeFolderButton(folder)
                 }
-                .font(.callout)
-                .disabled(coordinator.isRunning)
-                .accessibilityIdentifier("linkedFolderRelinkButton")
-            } else {
-                Button {
-                    coordinator.rescanLinkedFolder(folder, modelContext: modelContext)
-                } label: {
-                    Label(L10n.string("linkedFolders.syncNow"), systemImage: "arrow.clockwise")
+                VStack(alignment: .leading, spacing: TapeTheme.space1) {
+                    folderActionButton(folder)
+                    removeFolderButton(folder)
                 }
-                .font(.callout)
-                .disabled(coordinator.isRunning)
-                .accessibilityIdentifier(syncButtonIdentifier(folder))
             }
-
-            Button(role: .destructive) {
-                folderPendingDelete = folder
-            } label: {
-                Label(L10n.string("linkedFolders.remove"), systemImage: "trash")
-            }
-            .font(.callout)
-            .accessibilityIdentifier("linkedFolderRemoveButton")
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private func folderActionButton(_ folder: LinkedFolder) -> some View {
+        if folder.isStale {
+            Button {
+                pendingRelinkFolder = folder
+            } label: {
+                Label(
+                    L10n.string("linkedFolders.relink"),
+                    systemImage: "arrow.triangle.2.circlepath"
+                )
+                .font(TapeType.bodySmall)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .buttonStyle(TapePlainPressStyle())
+            .foregroundStyle(TapeTheme.violet)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .disabled(coordinator.isRunning)
+            .accessibilityIdentifier("linkedFolderRelinkButton")
+        } else {
+            Button {
+                coordinator.rescanLinkedFolder(folder, modelContext: modelContext)
+            } label: {
+                Label(
+                    L10n.string("linkedFolders.syncNow"),
+                    systemImage: "arrow.clockwise"
+                )
+                .font(TapeType.bodySmall)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .buttonStyle(TapePlainPressStyle())
+            .foregroundStyle(TapeTheme.violet)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+            .disabled(coordinator.isRunning)
+            .accessibilityIdentifier(syncButtonIdentifier(folder))
+        }
+    }
+
+    private func removeFolderButton(_ folder: LinkedFolder) -> some View {
+        Button(role: .destructive) {
+            folderPendingDelete = folder
+        } label: {
+            Label(L10n.string("linkedFolders.remove"), systemImage: "trash")
+                .font(TapeType.bodySmall)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .buttonStyle(TapePlainPressStyle())
+        .foregroundStyle(TapeTheme.coral)
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+        .accessibilityIdentifier("linkedFolderRemoveButton")
     }
 
     private func lastScannedText(_ folder: LinkedFolder) -> String {
@@ -713,61 +1067,60 @@ struct SettingsView: View {
     }
 
     @ViewBuilder
-    private var sampleSection: some View {        Section {
-            HStack {
-                Text("示例条目")
-                Spacer()
-                Text("\(sampleItems.count) 条")
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("sampleCountText")
+    private var sampleSection: some View {
+        Section {
+            TapeCard {
+                VStack(alignment: .leading, spacing: TapeTheme.space3) {
+                    HStack(alignment: .firstTextBaseline, spacing: TapeTheme.space2) {
+                        Text("示例条目")
+                            .font(TapeType.body)
+                            .foregroundStyle(TapeTheme.ink)
+                        Spacer(minLength: TapeTheme.space2)
+                        Text("\(sampleItems.count) 条")
+                            .font(TapeType.monoMeta)
+                            .foregroundStyle(TapeTheme.faint)
+                            .accessibilityIdentifier("sampleCountText")
+                    }
+
+                    Button(role: .destructive) {
+                        showDeleteSamplesConfirmation = true
+                    } label: {
+                        Label("删除示例内容", systemImage: "trash")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(TapeDestructiveButtonStyle())
+                    .disabled(sampleItems.isEmpty)
+                    .opacity(sampleItems.isEmpty ? 0.5 : 1)
+                    .accessibilityIdentifier("sampleDeleteButton")
+
+                    if let sampleDeleteSummary {
+                        Text(sampleDeleteSummary)
+                            .font(TapeType.monoMicro)
+                            .foregroundStyle(TapeTheme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("sampleDeleteSummary")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Button(role: .destructive) {
-                showDeleteSamplesConfirmation = true
-            } label: {
-                Label("删除示例内容", systemImage: "trash")
-            }
-            .accessibilityIdentifier("sampleDeleteButton")
-            .disabled(sampleItems.isEmpty)
-            if let sampleDeleteSummary {
-                Text(sampleDeleteSummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("sampleDeleteSummary")
-            }
+            .tapeRowInsets(6)
         } header: {
-            Text("示例内容")
+            settingsHeader(L10n.string("示例内容"), kicker: "SAMPLES")
         } footer: {
-            Text("内置示例均为自生成的系统语音，不包含第三方内容。删除会同时移除示例的进度、队列与播放列表引用；之后可以重新添加。")
+            settingsFooter(L10n.string("内置示例均为自生成的系统语音，不包含第三方内容。删除会同时移除示例的进度、队列与播放列表引用；之后可以重新添加。"))
         }
     }
 
     private func speedPresetsRow(_ settings: AppSettingsStore) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: TapeTheme.space2) {
             ForEach(PlaybackPolicy.featuredSpeedPresets, id: \.self) { rate in
                 let isSelected = settings.defaultRate == rate
-                Button {
+                TapeChip(
+                    text: PlaybackPolicy.speedLabel(rate),
+                    isSelected: isSelected
+                ) {
                     settings.defaultRate = rate
-                } label: {
-                    Text(PlaybackPolicy.speedLabel(rate))
-                        .font(.caption.weight(isSelected ? .semibold : .regular))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(
-                            isSelected
-                                ? Color.accentColor.opacity(0.22)
-                                : Color.secondary.opacity(0.12),
-                            in: Capsule()
-                        )
-                        .overlay {
-                            Capsule()
-                                .strokeBorder(
-                                    Color.accentColor,
-                                    lineWidth: isSelected ? 1.5 : 0
-                                )
-                        }
-                        .foregroundStyle(Color.primary)
                 }
-                .buttonStyle(.plain)
                 .accessibilityIdentifier("settingsSpeed-\(rate)")
                 .accessibilityLabel("默认速度 \(PlaybackPolicy.speedLabel(rate))")
                 .accessibilityHint("把默认播放速度设为 \(PlaybackPolicy.speedLabel(rate))")
