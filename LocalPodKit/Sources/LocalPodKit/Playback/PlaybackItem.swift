@@ -11,6 +11,9 @@ public struct PlaybackItem: Identifiable, Sendable, Equatable {
     /// playback progress is not persisted.
     public let libraryItemID: UUID?
     public let artworkURL: URL?
+    /// Embedded chapters carried for context (queue hand-offs, future backup);
+    /// live playback chapters live on the controller.
+    public var chapters: [ChapterInfo] = []
 
     public init(
         id: UUID = UUID(),
@@ -20,7 +23,8 @@ public struct PlaybackItem: Identifiable, Sendable, Equatable {
         kind: MediaKind,
         durationHint: Double? = nil,
         libraryItemID: UUID? = nil,
-        artworkURL: URL? = nil
+        artworkURL: URL? = nil,
+        chapters: [ChapterInfo] = []
     ) {
         self.id = id
         self.title = title
@@ -30,5 +34,6 @@ public struct PlaybackItem: Identifiable, Sendable, Equatable {
         self.durationHint = durationHint
         self.libraryItemID = libraryItemID
         self.artworkURL = artworkURL
+        self.chapters = chapters
     }
 }

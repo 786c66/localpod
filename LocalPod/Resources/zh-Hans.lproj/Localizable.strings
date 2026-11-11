@@ -317,6 +317,9 @@
 "benchmark.status.inserting" = "插入中…";
 "benchmark.status.queried" = "查询完成（总数 %lld）";
 "benchmark.status.querying" = "查询中…";
+"chapter.rowLabel" = "第 %1$lld 章：%2$@，开始于 %3$@";
+"chapter.section" = "章节 · %lld";
+"chapter.untitled" = "未命名章节";
 "collection.acceptance" = "验收文件夹";
 "collection.demo" = "演示文件夹";
 "collection.inbox" = "收件箱";
@@ -423,6 +426,7 @@
 "playback.builtInSubtitle" = "内置测试媒体";
 "playback.demo.audioTitle" = "内置音频测试";
 "playback.demo.autoTitle" = "自动播放音频";
+"playback.demo.chapterTitle" = "章节音频测试";
 "playback.demo.launchArgumentSubtitle" = "启动参数";
 "playback.demo.longAudioTitle" = "长音频测试";
 "playback.libraryFallback" = "资料库";

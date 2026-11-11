@@ -192,6 +192,24 @@ struct RootView: View {
             }
         }
 
+        if arguments.contains("--p2-chapter-playback") {
+            selectedTab = 2
+            if let url = Bundle.main.url(
+                forResource: "demo-chaptered-audio",
+                withExtension: "m4a"
+            ) {
+                playback.load(
+                    PlaybackItem(
+                        title: L10n.string("playback.demo.chapterTitle"),
+                        subtitle: L10n.string("playback.demo.launchArgumentSubtitle"),
+                        fileURL: url,
+                        kind: .audio
+                    ),
+                    autoplay: true
+                )
+            }
+        }
+
         if arguments.contains("--m3-open-settings") {
             showSettings = true
         }

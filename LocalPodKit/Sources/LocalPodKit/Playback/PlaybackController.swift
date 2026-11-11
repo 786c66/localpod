@@ -47,6 +47,10 @@ public final class PlaybackController {
     public private(set) var phase: PlaybackPhase = .idle
     public private(set) var currentTime: Double = 0
     public private(set) var duration: Double = 0
+    /// Embedded chapters of the current file, loaded asynchronously after the
+    /// player item installs. Empty for chapterless media and until the load
+    /// finishes; a new `load` clears it immediately.
+    public private(set) var chapters: [ChapterInfo] = []
     public private(set) var errorMessage: String?
     public private(set) var playbackRate: Float = 1.0
     public private(set) var skipForwardInterval: Double = 15
@@ -115,6 +119,7 @@ public final class PlaybackController {
         currentItem = item
         currentTime = 0
         duration = item.durationHint.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } ?? 0
+        chapters = []
         errorMessage = nil
         playbackRate = PlaybackPolicy.clampedRate(playbackRate)
         playIntent = false
@@ -252,6 +257,7 @@ public final class PlaybackController {
         currentItem = nil
         currentTime = 0
         duration = 0
+        chapters = []
         errorMessage = nil
         phase = .idle
         lastSavedPosition = 0
@@ -357,6 +363,48 @@ public final class PlaybackController {
                 self.updateNowPlaying()
             }
         }
+        loadChapters(item: item)
+    }
+
+    /// Reads embedded chapters off a fresh AVURLAsset. The async property
+    /// load keeps the same stale-item guard as the duration path, so a quick
+    /// item switch never publishes chapters for an earlier file.
+    private func loadChapters(item: PlaybackItem) {
+        Task { [weak self] in
+            let asset = AVURLAsset(url: item.fileURL)
+            let groups = try? await asset.loadChapterMetadataGroups(
+                withTitleLocale: Locale(identifier: "und"),
+                containingItemsWithCommonKeys: [.commonKeyTitle]
+            )
+            var loaded: [ChapterInfo] = []
+            for group in groups ?? [] {
+                let start = group.timeRange.start.seconds
+                let duration = group.timeRange.duration.seconds
+                guard start.isFinite, start >= 0 else { continue }
+                let titleItem = group.items.first {
+                    $0.commonKey == AVMetadataKey.commonKeyTitle
+                }
+                let title = try? await titleItem?.load(.stringValue)
+                loaded.append(ChapterInfo(
+                    title: title ?? "",
+                    start: start,
+                    duration: duration.isFinite && duration > 0 ? duration : 0
+                ))
+            }
+            await MainActor.run { [weak self] in
+                guard let self, self.currentItem?.id == item.id else { return }
+                self.chapters = loaded.sorted { $0.start < $1.start }
+                if !loaded.isEmpty {
+                    self.updateNowPlaying()
+                }
+            }
+        }
+    }
+
+    /// Index of the chapter containing `currentTime`, or nil when the file
+    /// has no chapters or playback sits between/outside chapter ranges.
+    public var currentChapterIndex: Int? {
+        ChapterInfo.index(at: currentTime, in: chapters)
     }
 
     private func handleStatus(
@@ -729,6 +777,14 @@ public final class PlaybackController {
         ]
         if let artwork = artwork(for: item) {
             info[MPMediaItemPropertyArtwork] = artwork
+        }
+        // Chapter metadata is additive; the episode title/artist stay as-is so
+        // lock screen expectations do not change for chapterless files.
+        if !chapters.isEmpty {
+            info[MPNowPlayingInfoPropertyChapterCount] = chapters.count
+            if let index = currentChapterIndex {
+                info[MPNowPlayingInfoPropertyChapterNumber] = index + 1
+            }
         }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
         #if os(iOS)

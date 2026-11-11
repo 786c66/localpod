@@ -317,6 +317,9 @@
 "benchmark.status.inserting" = "Inserting…";
 "benchmark.status.queried" = "Query complete (%lld total)";
 "benchmark.status.querying" = "Querying…";
+"chapter.rowLabel" = "Chapter %lld: %@, starts at %@";
+"chapter.section" = "Chapters · %lld";
+"chapter.untitled" = "Untitled Chapter";
 "collection.acceptance" = "Acceptance Folder";
 "collection.demo" = "Demo Folder";
 "collection.inbox" = "Inbox";
@@ -423,6 +426,7 @@
 "playback.builtInSubtitle" = "Built-in Test Media";
 "playback.demo.audioTitle" = "Built-in Audio Test";
 "playback.demo.autoTitle" = "Auto-Play Audio";
+"playback.demo.chapterTitle" = "Chaptered Audio Test";
 "playback.demo.launchArgumentSubtitle" = "Launch Argument";
 "playback.demo.longAudioTitle" = "Long Audio Test";
 "playback.libraryFallback" = "Library";

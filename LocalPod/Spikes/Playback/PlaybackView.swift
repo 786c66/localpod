@@ -197,6 +197,8 @@ struct PlaybackView: View {
                 speedChips
 
                 sleepTimerRow
+
+                chapterSection
             }
             .padding(.vertical, 4)
         } else {
@@ -486,6 +488,62 @@ struct PlaybackView: View {
                 session.sleepTimer.mode.displayName
             }
         }
+    }
+
+    @ViewBuilder
+    private var chapterSection: some View {
+        if !playback.chapters.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(L10n.format("chapter.section", playback.chapters.count))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("chapterSectionHeader")
+
+                ForEach(Array(playback.chapters.enumerated()), id: \.element.id) {
+                    index,
+                    chapter in
+                    chapterRow(index: index, chapter: chapter)
+                }
+            }
+        }
+    }
+
+    private func chapterRow(index: Int, chapter: ChapterInfo) -> some View {
+        let isCurrent = playback.currentChapterIndex == index
+        return Button {
+            playback.seek(to: chapter.start)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: isCurrent ? "play.fill" : "circle.dotted")
+                    .font(.caption2)
+                    .foregroundStyle(isCurrent ? Color.accentColor : Color.secondary)
+                    .frame(width: 14)
+                Text(chapter.title.isEmpty
+                    ? L10n.string("chapter.untitled")
+                    : chapter.title)
+                    .font(.caption)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(Color.primary)
+                Spacer(minLength: 8)
+                Text(formatTime(chapter.start))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(isCurrent ? Color.accentColor : Color.secondary)
+            }
+            // Apple's 44 pt minimum hit target: caption rows are far too
+            // small to tap reliably (and fail UI-test synthesized events).
+            .frame(minHeight: 44)
+            // The Spacer above is transparent and not hit-testable, so taps
+            // in the middle of the row (where the a11y frame's center sits)
+            // would fall through to the List row and do nothing. Extend the
+            // button's hit area to the whole row.
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(isCurrent ? "chapterRowCurrent" : "chapterRow-\(index)")
+        .accessibilityLabel(
+            L10n.format("chapter.rowLabel", index + 1, chapter.title, formatTime(chapter.start))
+        )
+        .accessibilityAddTraits(isCurrent ? .isSelected : AccessibilityTraits())
     }
 
     private var queueSection: some View {

@@ -138,7 +138,7 @@
 - **Wi-Fi 局域网网页上传**：浏览器拖文件夹上传、PIN、二维码。**（已完成，见 5.8）**
 - **链接文件夹 + 增量重扫**：持久化 security-scoped bookmark，重新扫描新增/删除文件。**（已完成，见 5.10）**
 - **智能播放列表**：继续播放、未播完、最近添加、已播完、按合集筛选。**（已完成，见 5.8）**
-- **章节**：内嵌章节（m4a/mp3 等），播放页章节列表与跳转。**（待做）**
+- **章节**：内嵌章节（m4a/mp3 等），播放页章节列表与跳转。**（已完成，见 5.14）**
 - **回收站/最近删除**：删除后保留 7–30 天，可恢复。**（已完成，见 5.12）**
 - **备份/导出**：播放列表、进度、库清单导出 JSON；支持从备份恢复。**（已完成，见 5.13）**
 - **Shortcuts / Siri**：继续播放、打开合集；小组件需 App Groups，当前免费账号不做（见条件性功能）。**（待做）**
@@ -1042,6 +1042,23 @@ idle → preparing → ready → playing ⇄ paused
 - [x] 单元测试：快照往返、指纹匹配重链、播放列表按名合并不重复、进度 newer-wins、部分备份不清队列、损坏 JSON/版本错误、设置钳位。LocalPodKit 216 个测试 0 失败。
 - [x] UI：导出→分享面板→摘要；重置后导入恢复→摘要→资料库行回归（`P2BackupUITests` 1 个用例）。两处测试侧修复：摘要断言前必须先 reveal（SwiftUI Form 懒加载行不滚不进无障碍树）；断言后关闭设置 sheet 前也必须 reveal 关闭按钮（滚到摘要后按钮离屏，裸 exists/isHittable 守卫会静默跳过点击，sheet 盖屏导致后续全部失败）。
 - [ ] 真机项：DocumentPicker 从 iCloud Drive/第三方 provider 选文件的安全作用域读取；分享面板到「文件」/AirDrop 的落盘验证。
+
+### 5.14 内嵌章节（2026-11-11 完成）
+
+**交付**
+
+- `ChapterInfo`（title/start/duration，Codable+Equatable+Identifiable）与纯函数 `ChapterInfo.index(at:in:)`：空列表/负时间/NaN → nil；有界章节的间隙无归属；仅零时长的最后一章延伸到文件末尾。
+- `PlaybackController`：`chapters` 异步读取（`loadChapterMetadataGroups(withTitleLocale:containingItemsWithCommonKeys:)`），与时长加载相同的 stale-item 守卫；`load`/`stop` 立即清空；`currentChapterIndex` 计算属性；Now Playing 附加 `ChapterCount`/`ChapterNumber`（无章节文件行为不变）。
+- `PlaybackItem` 增加 `chapters` 字段（默认空，为队列交接/未来备份留位）。
+- 播放页在睡眠定时行之后追加章节区（不重排既有 UI）：标题「章节 · N」、行高 ≥44pt、当前章高亮（play 图标+主题色+isSelected）、点击 `seek(to: start)`、无障碍标签「第 N 章：标题，开始于 m:ss」。
+- 调试参数 `--p2-chapter-playback`（Debug）播放内置 180 秒 3 章 fixture `demo-chaptered-audio.m4a`（App 资源 + 测试资源同 sha；QuickTime 章节由 mp4chaps 写入；本机 ffmpeg 9 的 ipod/mov muxer 会丢弃章节，不能用 ffmpeg 生成 fixture）。
+- 本地化：4 个语义键（章节标题/行标签/未命名章节/演示标题），中英 parity 633==633。
+
+**验收**
+
+- [x] 单元测试：fixture 加载 3 章、切换条目清空、无章节文件为空、seek 后索引跟随、加载前为 nil、边界语义、Codable、PlaybackItem 携带。LocalPodKit 224 个测试 0 失败。
+- [x] UI：章节区渲染、3 行、当前章指示、点击第 3 章跳转（进度标签 ≥2:00、指示移动）、截图（`P2ChapterUITests`，无跳过）。调试中发现并修复真实交互 bug：行内 `Spacer` 透明区域不参与命中测试，点击行中间空白无反应（XCUITest 点击 a11y frame 中心恰好命中该空隙）；给行加 `.contentShape(Rectangle())` 后点击恢复。先前误判为「iOS 27.1 模拟器合成点击缺陷」，已推翻并记录。
+- [ ] 真机项：真实手指点击章节行跳转；mp3（ID3 CHAP）与 m4b 章节的实际读取；长章节列表（>30 章）滚动性能。
 
 ### 5.9 估算假设
 
