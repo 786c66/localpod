@@ -4,6 +4,12 @@ import SwiftData
 import UIKit
 import LocalPodKit
 
+private enum LibraryDestination {
+    case item(MediaItem)
+    case collection(MediaCollection)
+    case trash
+}
+
 struct LibraryView: View {
     private enum Scope: String, CaseIterable, Identifiable {
         case items = "条目"
@@ -72,8 +78,8 @@ struct LibraryView: View {
     @State private var sort: ItemSort = .recent
     @State private var searchText = ""
     @State private var showSettings = false
-    @State private var collectionDetailTarget: MediaCollection?
-    @State private var showCollectionDetail = false
+    @State private var destination: LibraryDestination?
+    @State private var showDestination = false
 
     private var libraryItems: [MediaItem] {
         allItems.filter { $0.source != .benchmark }
@@ -154,42 +160,22 @@ struct LibraryView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("\(libraryItems.count) 条 · \(collections.count) 个合集 · \(ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file))")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("libraryStatsText")
-                    LabeledContent("条目", value: "\(libraryItems.count) 条")
-                    LabeledContent("合集", value: "\(collections.count) 个")
-                    LabeledContent("总大小", value: ByteCountFormatter.string(
-                        fromByteCount: totalBytes,
-                        countStyle: .file
-                    ))
-                    LabeledContent("总时长", value: formatDuration(totalDuration))
-                } header: {
-                    Text("资料库")
+                    heroCard
+                        .tapeRowInsets(8)
                 }
 
                 if !continueItems.isEmpty {
-                    Section("继续播放") {
-                        ForEach(continueItems, id: \.item.id) { entry in
-                            Button {
-                                session.play(item: entry.item)
-                            } label: {
-                                ContinueListeningRow(item: entry.item, state: entry.state)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("continueItem-\(entry.item.title)")
-                        }
+                    Section {
+                        continueStrip
+                            .tapeRowInsets(6)
+                    } header: {
+                        libraryHeader("继续播放", kicker: "KEEP LISTENING")
                     }
                 }
 
                 Section {
-                    Picker("视图", selection: $scope) {
-                        ForEach(Scope.allCases) { scope in
-                            Text(scope.displayName).tag(scope)
-                        }
-                    }
-                    .pickerStyle(.segmented)
+                    scopeChips
+                        .tapeRowInsets(4)
                 }
 
                 if scope == .items {
@@ -200,10 +186,20 @@ struct LibraryView: View {
 
                 trashSection
             }
+            .listStyle(.plain)
+            .tapeScreen()
             .navigationTitle("资料库")
-            .navigationDestination(isPresented: $showCollectionDetail) {
-                if let collectionDetailTarget {
-                    LibraryCollectionDetailView(collection: collectionDetailTarget)
+            .tapeNavigationChrome()
+            .navigationDestination(isPresented: $showDestination) {
+                switch destination {
+                case .collection(let collection):
+                    LibraryCollectionDetailView(collection: collection)
+                case .item(let item):
+                    LibraryItemDetailView(item: item)
+                case .trash:
+                    TrashView()
+                case nil:
+                    EmptyView()
                 }
             }
             .searchable(text: $searchText, prompt: "搜索标题或文件夹")
@@ -254,40 +250,156 @@ struct LibraryView: View {
         }
     }
 
-    /// Pushes the requested collection when it exists; otherwise falls back to
-    /// the collections scope with the requested name pre-filled in search.
-    private func handlePendingCollectionRequestIfNeeded() {
-        guard let request = intentRouter.collectionRequest else { return }
-        let key = MediaCollection.normalizedKey(for: request.name)
-        if let collection = collections.first(where: { $0.nameKey == key }) {
-            collectionDetailTarget = collection
-            showCollectionDetail = true
-        } else {
-            scope = .collections
-            searchText = request.name
+    // MARK: - Hero
+
+    private var heroCard: some View {
+        VStack(alignment: .leading, spacing: TapeTheme.space3) {
+            HStack(alignment: .top, spacing: TapeTheme.space2) {
+                VStack(alignment: .leading, spacing: 5) {
+                    TapeKicker(text: "YOUR MIXTAPE", color: TapeTheme.ink.opacity(0.62))
+                    HStack(spacing: TapeTheme.space2) {
+                        Text("我的磁带盒")
+                            .font(TapeType.display)
+                            .tracking(-0.9)
+                            .foregroundStyle(TapeTheme.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                        TapeSticker(text: "本地磁带", fill: TapeTheme.coral, angle: 5)
+                    }
+                }
+                Spacer(minLength: TapeTheme.space2)
+                if let recent = libraryItems.first(where: { $0.fileURL != nil && !$0.isMissing }) {
+                    Button {
+                        session.play(item: recent)
+                    } label: {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 17, weight: .bold))
+                    }
+                    .buttonStyle(TapeIconButtonStyle(diameter: 44, fill: TapeTheme.card))
+                    .accessibilityIdentifier("libraryHeroPlayButton")
+                    .accessibilityLabel("播放最近条目")
+                }
+            }
+
+            Text("\(libraryItems.count) 条 · \(collections.count) 个合集 · \(ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file))")
+                .font(TapeType.monoMeta)
+                .foregroundStyle(TapeTheme.ink.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("libraryStatsText")
+
+            HStack(spacing: TapeTheme.space2) {
+                heroStat(value: "\(libraryItems.count)", label: "条目")
+                heroStat(value: "\(collections.count)", label: "合集")
+                heroStat(value: formatDuration(totalDuration), label: "总时长")
+                heroStat(
+                    value: ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file),
+                    label: "总大小"
+                )
+            }
         }
-        intentRouter.consumeCollectionRequest(id: request.id)
+        .padding(TapeTheme.space4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: TapeTheme.radiusCard, style: .continuous)
+                .fill(TapeTheme.acid)
+                .shadow(color: TapeTheme.ink, radius: 0, x: 4, y: 4)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: TapeTheme.radiusCard, style: .continuous)
+                .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
+        }
     }
+
+    private func heroStat(value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(value)
+                .font(TapeFont.mono(12, weight: .semibold, relativeTo: .caption))
+                .foregroundStyle(TapeTheme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(label)
+                .font(TapeType.captionSmall)
+                .foregroundStyle(TapeTheme.ink.opacity(0.62))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            TapeTheme.card.opacity(0.55),
+            in: RoundedRectangle(cornerRadius: TapeTheme.radiusThumb)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: TapeTheme.radiusThumb)
+                .strokeBorder(TapeTheme.ink.opacity(0.35), lineWidth: 1)
+        }
+    }
+
+    // MARK: - Continue listening
+
+    private var continueStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: TapeTheme.space3) {
+                ForEach(continueItems, id: \.item.id) { entry in
+                    Button {
+                        session.play(item: entry.item)
+                    } label: {
+                        ContinueListeningCard(item: entry.item, state: entry.state)
+                    }
+                    .buttonStyle(TapePlainPressStyle())
+                    .accessibilityIdentifier("continueItem-\(entry.item.title)")
+                }
+            }
+            .padding(.horizontal, TapeTheme.screenPadding)
+            .padding(.vertical, TapeTheme.space1)
+        }
+        .padding(.horizontal, -TapeTheme.screenPadding)
+    }
+
+    // MARK: - Scope
+
+    private var scopeChips: some View {
+        HStack(spacing: TapeTheme.space2) {
+            ForEach(Scope.allCases) { option in
+                TapeChip(text: option.displayName, isSelected: scope == option) {
+                    withAnimation(TapeTheme.spring) { scope = option }
+                }
+                .accessibilityIdentifier("libraryScope-\(option.rawValue)")
+            }
+            Spacer(minLength: TapeTheme.space2)
+            Text(scope == .items
+                ? "\(displayedItems.count) 条"
+                : "\(collectionRows.count) 个")
+                .font(TapeType.monoMicro)
+                .foregroundStyle(TapeTheme.faint)
+        }
+    }
+
+    // MARK: - Items
 
     @ViewBuilder
     private var itemsSection: some View {
-        Section("条目 · \(displayedItems.count)") {
+        Section {
             if displayedItems.isEmpty {
-                ContentUnavailableView(
-                    libraryItems.isEmpty ? "资料库为空" : "没有匹配的条目",
-                    systemImage: "waveform",
-                    description: Text(libraryItems.isEmpty ? "去「导入」选择一个文件夹开始。" : "调整搜索或筛选条件。")
+                emptyCard(
+                    sticker: "EMPTY",
+                    title: libraryItems.isEmpty ? "资料库为空" : "没有匹配的条目",
+                    message: libraryItems.isEmpty
+                        ? "去「导入」选择一个文件夹开始。"
+                        : "调整搜索或筛选条件。",
+                    identifier: "libraryEmptyState"
                 )
-                .accessibilityIdentifier("libraryEmptyState")
+                .tapeRowInsets(6)
             } else {
                 ForEach(displayedItems) { item in
-                    NavigationLink {
-                        LibraryItemDetailView(item: item)
+                    Button {
+                        destination = .item(item)
+                        showDestination = true
                     } label: {
                         LibraryItemRow(item: item)
                     }
+                    .buttonStyle(TapePlainPressStyle())
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("libraryItem-\(item.title)")
+                    .tapeRowInsets(4)
                     .contextMenu {
                         Button("播放") {
                             session.play(item: item)
@@ -313,69 +425,161 @@ struct LibraryView: View {
                     }
                 }
             }
+        } header: {
+            libraryHeader(
+                "条目 · \(displayedItems.count)",
+                kicker: "ON THE SHELF"
+            )
         }
     }
+
+    // MARK: - Collections
 
     @ViewBuilder
     private var collectionsSection: some View {
-        Section("合集 · \(collectionRows.count)") {
+        Section {
             if collectionRows.isEmpty {
-                ContentUnavailableView(
-                    "还没有合集",
-                    systemImage: "square.stack.3d.up",
-                    description: Text("导入一个文件夹后会自动生成合集。")
+                emptyCard(
+                    sticker: "NO TAPES",
+                    title: "还没有合集",
+                    message: "导入一个文件夹后会自动生成合集。",
+                    identifier: "collectionEmptyState"
                 )
-                .accessibilityIdentifier("collectionEmptyState")
+                .tapeRowInsets(6)
             } else {
-                ForEach(collectionRows) { row in
-                    NavigationLink {
-                        LibraryCollectionDetailView(collection: row.collection)
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "square.stack.3d.up.fill")
-                                .foregroundStyle(Color.accentColor)
-                                .frame(width: 28)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(row.collection.name)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                Text("\(row.itemCount) 条 · \(formatDuration(row.duration)) · \(ByteCountFormatter.string(fromByteCount: row.byteCount, countStyle: .file))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: TapeTheme.space3),
+                        GridItem(.flexible(), spacing: TapeTheme.space3)
+                    ],
+                    spacing: TapeTheme.space3
+                ) {
+                    ForEach(Array(collectionRows.enumerated()), id: \.element.id) { index, row in
+                        Button {
+                            destination = .collection(row.collection)
+                            showDestination = true
+                        } label: {
+                            CollectionTile(row: row, index: index)
                         }
+                        .buttonStyle(TapePlainPressStyle())
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("collectionRow-\(row.collection.name)")
                     }
-                    .accessibilityIdentifier("collectionRow-\(row.collection.name)")
                 }
+                .tapeRowInsets(4)
             }
+        } header: {
+            libraryHeader(
+                "合集 · \(collectionRows.count)",
+                kicker: "TAPE BOXES"
+            )
         }
     }
 
-    /// 回收站 (recently deleted). Placed at the bottom of the library tab on
-    /// purpose — see the P1 regression note: new UI never goes at the top of
-    /// an existing view.
+    // MARK: - Trash
+
     @ViewBuilder
     private var trashSection: some View {
         Section {
-            NavigationLink {
-                TrashView()
+            Button {
+                destination = .trash
+                showDestination = true
             } label: {
-                HStack(spacing: 12) {
+                HStack(spacing: TapeTheme.space3) {
                     Image(systemName: "trash")
-                        .foregroundStyle(.secondary)
-                        .frame(width: 28)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(TapeTheme.ink)
+                        .frame(width: 34, height: 34)
+                        .background(TapeTheme.cream, in: RoundedRectangle(
+                            cornerRadius: TapeTheme.radiusThumb,
+                            style: .continuous
+                        ))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: TapeTheme.radiusThumb, style: .continuous)
+                                .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
+                        }
                     Text(L10n.string("trash.section"))
-                    Spacer()
+                        .font(TapeType.headline)
+                        .foregroundStyle(TapeTheme.ink)
+                    Spacer(minLength: TapeTheme.space2)
                     Text(L10n.format("trash.count", trashItems.count))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(TapeType.monoMicro)
+                        .foregroundStyle(TapeTheme.muted)
                         .accessibilityIdentifier("trashCountText")
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(TapeTheme.faint)
+                }
+                .padding(TapeTheme.space3)
+                .frame(minHeight: 56)
+                .background {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(TapeTheme.card)
+                        .shadow(color: TapeTheme.ink, radius: 0, x: 2, y: 2)
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
                 }
             }
+            .buttonStyle(TapePlainPressStyle())
             .accessibilityIdentifier("trashSectionLink")
+            .tapeRowInsets(4)
         }
     }
+
+    // MARK: - Shared chrome
+
+    private func libraryHeader(_ title: String, kicker: String) -> some View {
+        TapeSectionHeader(title: title, kicker: kicker)
+            .textCase(nil)
+            .padding(.horizontal, TapeTheme.screenPadding)
+            .padding(.top, TapeTheme.space3)
+            .padding(.bottom, TapeTheme.space1)
+    }
+
+    private func emptyCard(
+        sticker: String,
+        title: String,
+        message: String,
+        identifier: String
+    ) -> some View {
+        TapeDashedCard {
+            VStack(spacing: TapeTheme.space3) {
+                TapeRewardSticker(text: sticker, fill: TapeTheme.violet, foreground: TapeTheme.stickerInk)
+                Text(title)
+                    .font(TapeType.title2)
+                    .tracking(-0.4)
+                    .foregroundStyle(TapeTheme.ink)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier(identifier)
+                Text(message)
+                    .font(TapeType.body)
+                    .foregroundStyle(TapeTheme.muted)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    /// Pushes the requested collection when it exists; otherwise falls back to
+    /// the collections scope with the requested name pre-filled in search.
+    private func handlePendingCollectionRequestIfNeeded() {
+        guard let request = intentRouter.collectionRequest else { return }
+        let key = MediaCollection.normalizedKey(for: request.name)
+        if let collection = collections.first(where: { $0.nameKey == key }) {
+            destination = .collection(collection)
+            showDestination = true
+        } else {
+            scope = .collections
+            searchText = request.name
+        }
+        intentRouter.consumeCollectionRequest(id: request.id)
+    }
 }
+
+// MARK: - Collection row + tile
 
 private struct CollectionRow: Identifiable {
     let collection: MediaCollection
@@ -384,33 +588,146 @@ private struct CollectionRow: Identifiable {
     let duration: Double
 
     var id: UUID { collection.id }
+
+    var metaText: String {
+        "\(itemCount) 条 · \(formatDuration(duration)) · "
+            + ByteCountFormatter.string(fromByteCount: byteCount, countStyle: .file)
+    }
 }
+
+private struct CollectionTile: View {
+    let row: CollectionRow
+    let index: Int
+
+    private var fill: Color {
+        switch index % 6 {
+        case 0: TapeTheme.acid
+        case 1: TapeTheme.violetSoft
+        case 2: TapeTheme.peach
+        case 3: TapeTheme.coral
+        case 4: TapeTheme.card
+        default: TapeTheme.ink
+        }
+    }
+
+    private var ink: Color {
+        if index % 6 == 3 || index % 6 == 5 {
+            return TapeTheme.stickerInk
+        }
+        return TapeTheme.ink
+    }
+
+    private var monogram: String {
+        String(row.collection.name.prefix(1))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TapeTheme.space2) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(fill)
+                if index % 6 == 4 {
+                    // Paper grid variant.
+                    Canvas { context, size in
+                        var x: CGFloat = 0
+                        while x < size.width {
+                            var y: CGFloat = 0
+                            while y < size.height {
+                                context.fill(
+                                    Path(ellipseIn: CGRect(x: x, y: y, width: 2, height: 2)),
+                                    with: .color(TapeTheme.ink.opacity(0.25))
+                                )
+                                y += 16
+                            }
+                            x += 16
+                        }
+                    }
+                    .padding(4)
+                }
+                Text(monogram)
+                    .font(TapeFont.display(40, weight: .bold, relativeTo: .largeTitle))
+                    .foregroundStyle(ink)
+                VStack {
+                    HStack {
+                        Spacer()
+                        TapeSticker(
+                            text: "\(row.itemCount)",
+                            fill: TapeTheme.card,
+                            foreground: TapeTheme.ink,
+                            angle: index.isMultiple(of: 2) ? 4 : -4
+                        )
+                    }
+                    Spacer()
+                }
+                .padding(8)
+            }
+            .frame(height: 104)
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
+            }
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(fill)
+                    .shadow(color: TapeTheme.ink, radius: 0, x: 2, y: 2)
+            }
+
+            Text(row.collection.name)
+                .font(TapeType.headline)
+                .foregroundStyle(TapeTheme.ink)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(row.metaText)
+                .font(TapeType.monoMicro)
+                .foregroundStyle(TapeTheme.faint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .rotationEffect(.degrees(index.isMultiple(of: 2) ? -0.5 : 0.5))
+    }
+}
+
+// MARK: - Item rows
 
 struct LibraryItemRow: View {
     let item: MediaItem
 
     var body: some View {
-        HStack(spacing: 12) {
-            MediaArtworkView(item: item, size: 48)
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(spacing: TapeTheme.space3) {
+            MediaArtworkView(item: item, size: 44)
+            VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(item.title)
+                        .font(TapeType.headline)
+                        .foregroundStyle(TapeTheme.ink)
                         .fixedSize(horizontal: false, vertical: true)
                     if item.isMissing {
-                        Text("缺失")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.red)
+                        TapeSticker(text: "缺失", fill: TapeTheme.coral, angle: -4)
                     }
                 }
                 Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(TapeType.monoMicro)
+                    .foregroundStyle(TapeTheme.faint)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 4)
             Text(item.durationText)
-                .font(.caption2.monospacedDigit())
-                .foregroundStyle(.secondary)
+                .font(TapeType.monoMicro)
+                .foregroundStyle(TapeTheme.muted)
+        }
+        .padding(.horizontal, TapeTheme.space3)
+        .padding(.vertical, 9)
+        .frame(minHeight: 56)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(TapeTheme.card)
+                .shadow(color: TapeTheme.ink, radius: 0, x: 2, y: 2)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
         }
     }
 
@@ -426,7 +743,7 @@ struct LibraryItemRow: View {
     }
 }
 
-struct ContinueListeningRow: View {
+struct ContinueListeningCard: View {
     let item: MediaItem
     let state: PlaybackState
 
@@ -436,26 +753,51 @@ struct ContinueListeningRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            MediaArtworkView(item: item, size: 48)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item.title)
-                    .fixedSize(horizontal: false, vertical: true)
-                ProgressView(value: progress)
-                    .tint(Color.accentColor)
-                Text("已听 \(Int(state.position)) 秒 / \(item.durationText)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: TapeTheme.space2) {
+            HStack(spacing: TapeTheme.space2) {
+                MediaArtworkView(item: item, size: 40)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.title)
+                        .font(TapeType.headline)
+                        .foregroundStyle(TapeTheme.ink)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("已听 \(Int(state.position)) 秒 / \(item.durationText)")
+                        .font(TapeType.monoMicro)
+                        .foregroundStyle(TapeTheme.faint)
+                        .lineLimit(1)
+                }
             }
-            Spacer()
-            Image(systemName: "play.circle.fill")
-                .font(.title3)
-                .foregroundStyle(Color.accentColor)
-                .accessibilityHidden(true)
+
+            TapeProgressBar(progress: progress, fill: TapeTheme.acid, height: 8)
+
+            HStack(spacing: 4) {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 10, weight: .bold))
+                Text("继续")
+                    .font(TapeType.sticker)
+            }
+            .foregroundStyle(TapeTheme.ink)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(TapeTheme.acid, in: Capsule())
+            .overlay { Capsule().strokeBorder(TapeTheme.ink, lineWidth: 1) }
+        }
+        .padding(TapeTheme.space3)
+        .frame(width: 250, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: TapeTheme.radiusCard, style: .continuous)
+                .fill(TapeTheme.card)
+                .shadow(color: TapeTheme.ink, radius: 0, x: 3, y: 3)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: TapeTheme.radiusCard, style: .continuous)
+                .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
         }
     }
 }
+
+// MARK: - Collection detail
 
 struct LibraryCollectionDetailView: View {
     let collection: MediaCollection
@@ -465,52 +807,154 @@ struct LibraryCollectionDetailView: View {
     @Query(sort: \MediaItem.relativeFolderPath)
     private var allItems: [MediaItem]
 
+    @State private var itemDetailTarget: MediaItem?
+    @State private var showItemDetail = false
+
     private var items: [MediaItem] {
         allItems.filter { $0.collectionID == collection.id }
+    }
+
+    private var totalBytes: Int64 {
+        items.reduce(0) { $0 + $1.byteSize }
+    }
+
+    private var totalDuration: Double {
+        items.reduce(0) { $0 + ($1.durationSeconds ?? 0) }
     }
 
     var body: some View {
         List {
             Section {
-                Button {
-                    session.play(items: items)
-                } label: {
-                    Label("播放全部（\(items.count)）", systemImage: "play.fill")
-                }
-                .accessibilityIdentifier("collectionPlayAllButton")
+                VStack(alignment: .leading, spacing: TapeTheme.space3) {
+                    HStack {
+                        TapeSticker(text: "TAPE BOX", fill: TapeTheme.violet, foreground: TapeTheme.stickerInk)
+                        Spacer()
+                        Text("\(items.count) 条")
+                            .font(TapeType.monoMeta)
+                            .foregroundStyle(TapeTheme.ink.opacity(0.65))
+                    }
+                    Text(collection.name)
+                        .font(TapeType.title1)
+                        .tracking(-0.6)
+                        .foregroundStyle(TapeTheme.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("\(formatDuration(totalDuration)) · \(ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file))")
+                        .font(TapeType.monoMeta)
+                        .foregroundStyle(TapeTheme.ink.opacity(0.7))
 
-                Button {
-                    session.play(items: items, shuffle: true)
-                } label: {
-                    Label("随机播放", systemImage: "shuffle")
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: TapeTheme.space2) {
+                            playAllButton
+                            shuffleButton
+                        }
+                        VStack(spacing: TapeTheme.space2) {
+                            playAllButton
+                            shuffleButton
+                        }
+                    }
                 }
-                .accessibilityIdentifier("collectionShuffleButton")
+                .padding(TapeTheme.space4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background {
+                    RoundedRectangle(cornerRadius: TapeTheme.radiusCard, style: .continuous)
+                        .fill(TapeTheme.acid)
+                        .shadow(color: TapeTheme.ink, radius: 0, x: 4, y: 4)
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: TapeTheme.radiusCard, style: .continuous)
+                        .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
+                }
+                .tapeRowInsets(8)
             }
 
             Section {
-                LabeledContent("条目", value: "\(items.count) 条")
-                LabeledContent("总大小", value: ByteCountFormatter.string(
-                    fromByteCount: items.reduce(0) { $0 + $1.byteSize },
-                    countStyle: .file
-                ))
-                LabeledContent("总时长", value: formatDuration(
-                    items.reduce(0) { $0 + ($1.durationSeconds ?? 0) }
-                ))
+                TapeCard {
+                    VStack(spacing: TapeTheme.space2) {
+                        detailStat(label: "条目", value: "\(items.count) 条")
+                        TapeHairline()
+                        detailStat(
+                            label: "总大小",
+                            value: ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file)
+                        )
+                        TapeHairline()
+                        detailStat(label: "总时长", value: formatDuration(totalDuration))
+                    }
+                }
+                .tapeRowInsets(6)
+            } header: {
+                TapeSectionHeader(title: "统计", kicker: "CASE FILE")
+                    .textCase(nil)
+                    .padding(.horizontal, TapeTheme.screenPadding)
+                    .padding(.top, TapeTheme.space3)
             }
 
-            Section("条目") {
+            Section {
                 ForEach(items) { item in
-                    NavigationLink {
-                        LibraryItemDetailView(item: item)
+                    Button {
+                        itemDetailTarget = item
+                        showItemDetail = true
                     } label: {
                         LibraryItemRow(item: item)
                     }
+                    .buttonStyle(TapePlainPressStyle())
+                    .accessibilityElement(children: .combine)
+                    .tapeRowInsets(4)
                 }
+            } header: {
+                TapeSectionHeader(
+                    title: "条目 · \(items.count)",
+                    kicker: "ON THE SHELF"
+                )
+                .textCase(nil)
+                .padding(.horizontal, TapeTheme.screenPadding)
+                .padding(.top, TapeTheme.space3)
             }
         }
+        .listStyle(.plain)
+        .tapeScreen()
         .navigationTitle(collection.name)
+        .tapeNavigationChrome()
+        .navigationDestination(isPresented: $showItemDetail) {
+            if let itemDetailTarget {
+                LibraryItemDetailView(item: itemDetailTarget)
+            }
+        }
+    }
+
+    private var playAllButton: some View {
+        Button {
+            session.play(items: items)
+        } label: {
+            Label("播放全部（\(items.count)）", systemImage: "play.fill")
+        }
+        .buttonStyle(TapePrimaryButtonStyle())
+        .accessibilityIdentifier("collectionPlayAllButton")
+    }
+
+    private var shuffleButton: some View {
+        Button {
+            session.play(items: items, shuffle: true)
+        } label: {
+            Label("随机播放", systemImage: "shuffle")
+        }
+        .buttonStyle(TapeSecondaryButtonStyle())
+        .accessibilityIdentifier("collectionShuffleButton")
+    }
+
+    private func detailStat(label: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .font(TapeType.body)
+                .foregroundStyle(TapeTheme.muted)
+            Spacer(minLength: TapeTheme.space2)
+            Text(value)
+                .font(TapeType.monoMeta)
+                .foregroundStyle(TapeTheme.ink)
+        }
     }
 }
+
+// MARK: - Item detail
 
 struct LibraryItemDetailView: View {
     let item: MediaItem
@@ -527,120 +971,183 @@ struct LibraryItemDetailView: View {
     @State private var errorMessage: String?
     @State private var infoMessage: String?
 
+    private var infoRows: [(String, String)] {
+        var rows: [(String, String)] = [
+            ("标题", item.title),
+            ("类型", item.kind.displayName),
+            ("格式", item.fileExtension.uppercased()),
+            ("大小", ByteCountFormatter.string(fromByteCount: item.byteSize, countStyle: .file)),
+            ("时长", item.durationText)
+        ]
+        if let folder = item.folderName {
+            rows.append(("合集", folder))
+        }
+        if !item.relativeFolderPath.isEmpty {
+            rows.append(("文件夹内路径", item.relativeFolderPath))
+        }
+        rows.append(("来源", item.source.displayName))
+        rows.append(("添加时间", item.addedAt.formatted(date: .abbreviated, time: .shortened)))
+        if let fingerprint = item.fingerprint {
+            rows.append(("SHA-256", String(fingerprint.prefix(16)) + "…"))
+        }
+        return rows
+    }
+
     var body: some View {
         List {
             Section {
-                HStack {
-                    Spacer()
-                    MediaArtworkView(item: item, size: 160)
-                    Spacer()
+                VStack(spacing: TapeTheme.space3) {
+                    MediaArtworkView(item: item, size: 180)
+                    HStack(spacing: TapeTheme.space2) {
+                        TapeSticker(
+                            text: item.kind.isVideo ? "VIDEO · AUDIO ONLY" : "AUDIO",
+                            fill: item.kind.isVideo ? TapeTheme.peach : TapeTheme.acid,
+                            foreground: TapeTheme.ink,
+                            angle: -3
+                        )
+                        if item.isMissing {
+                            TapeSticker(text: "缺失", fill: TapeTheme.coral, angle: 4)
+                        }
+                    }
                 }
-                .padding(.vertical, 8)
-            }
-
-            Section("信息") {
-                LabeledContent("标题", value: item.title)
-                LabeledContent("类型", value: item.kind.displayName)
-                LabeledContent("格式", value: item.fileExtension.uppercased())
-                LabeledContent("大小", value: ByteCountFormatter.string(
-                    fromByteCount: item.byteSize,
-                    countStyle: .file
-                ))
-                LabeledContent("时长", value: item.durationText)
-                if let folder = item.folderName {
-                    LabeledContent("合集", value: folder)
-                }
-                if !item.relativeFolderPath.isEmpty {
-                    LabeledContent("文件夹内路径", value: item.relativeFolderPath)
-                }
-                LabeledContent("来源", value: item.source.displayName)
-                LabeledContent("添加时间", value: item.addedAt.formatted(
-                    date: .abbreviated,
-                    time: .shortened
-                ))
-                if let fingerprint = item.fingerprint {
-                    LabeledContent("SHA-256", value: String(fingerprint.prefix(16)) + "…")
-                }
-                if item.isMissing {
-                    Text("媒体文件缺失。重新导入相同内容可重链此条目。")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-            }
-
-            Section("存储路径") {
-                Text(item.relativePath)
-                    .font(.caption.monospaced())
-                    .textSelection(.enabled)
-                    .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, TapeTheme.space2)
+                .tapeRowInsets(8)
             }
 
             Section {
-                Button {
-                    play()
-                } label: {
-                    Label(
-                        item.kind.isVideo ? "播放音频（视频仅音轨）" : "播放音频",
-                        systemImage: "play.fill"
-                    )
-                }
-                .accessibilityIdentifier("detailPlayButton")
-
-                Button {
-                    session.playNext(itemID: item.id)
-                    infoMessage = L10n.string("library.queue.nextAdded")
-                } label: {
-                    Label("播放下一首", systemImage: "text.line.first.and.arrowtriangle.forward")
-                }
-                .accessibilityIdentifier("detailPlayNextButton")
-
-                Button {
-                    session.enqueue(itemID: item.id)
-                    infoMessage = L10n.string("library.queue.enqueued")
-                } label: {
-                    Label("加入队列", systemImage: "text.append")
-                }
-                .accessibilityIdentifier("detailEnqueueButton")
-
-                if playlists.isEmpty {
-                    Text("还没有播放列表。在资料库右上角进入「播放列表」创建。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Button {
-                        showPlaylistPicker = true
-                    } label: {
-                        Label("加入播放列表", systemImage: "music.note.list")
+                TapeCard {
+                    VStack(spacing: TapeTheme.space2) {
+                        ForEach(Array(infoRows.enumerated()), id: \.offset) { index, row in
+                            HStack(alignment: .firstTextBaseline, spacing: TapeTheme.space2) {
+                                Text(row.0)
+                                    .font(TapeType.body)
+                                    .foregroundStyle(TapeTheme.muted)
+                                Spacer(minLength: TapeTheme.space2)
+                                Text(row.1)
+                                    .font(TapeType.monoMeta)
+                                    .foregroundStyle(TapeTheme.ink)
+                                    .multilineTextAlignment(.trailing)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            if index < infoRows.count - 1 {
+                                TapeHairline()
+                            }
+                        }
+                        if item.isMissing {
+                            TapeHairline()
+                            Text("媒体文件缺失。重新导入相同内容可重链此条目。")
+                                .font(TapeType.caption)
+                                .foregroundStyle(TapeTheme.coral)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     }
-                    .accessibilityIdentifier("detailAddToPlaylistMenu")
                 }
+                .tapeRowInsets(6)
+            } header: {
+                detailHeader("信息", kicker: "CASE FILE")
+            }
 
-                Button(role: .destructive) {
-                    showDeleteConfirmation = true
-                } label: {
-                    Label("删除条目", systemImage: "trash")
+            Section {
+                TapeCard {
+                    Text(item.relativePath)
+                        .font(.system(size: 12, weight: .regular, design: .monospaced))
+                        .textSelection(.enabled)
+                        .foregroundStyle(TapeTheme.muted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .accessibilityIdentifier("detailDeleteButton")
+                .tapeRowInsets(6)
+            } header: {
+                detailHeader("存储路径", kicker: "ON DISK")
+            }
+
+            Section {
+                VStack(spacing: TapeTheme.space2) {
+                    Button {
+                        play()
+                    } label: {
+                        Label(
+                            item.kind.isVideo ? "播放音频（视频仅音轨）" : "播放音频",
+                            systemImage: "play.fill"
+                        )
+                    }
+                    .buttonStyle(TapePrimaryButtonStyle())
+                    .accessibilityIdentifier("detailPlayButton")
+
+                    Button {
+                        session.playNext(itemID: item.id)
+                        infoMessage = L10n.string("library.queue.nextAdded")
+                    } label: {
+                        Label("播放下一首", systemImage: "text.line.first.and.arrowtriangle.forward")
+                    }
+                    .buttonStyle(TapeSecondaryButtonStyle())
+                    .accessibilityIdentifier("detailPlayNextButton")
+
+                    Button {
+                        session.enqueue(itemID: item.id)
+                        infoMessage = L10n.string("library.queue.enqueued")
+                    } label: {
+                        Label("加入队列", systemImage: "text.append")
+                    }
+                    .buttonStyle(TapeSecondaryButtonStyle())
+                    .accessibilityIdentifier("detailEnqueueButton")
+
+                    if playlists.isEmpty {
+                        Text("还没有播放列表。在资料库右上角进入「播放列表」创建。")
+                            .font(TapeType.caption)
+                            .foregroundStyle(TapeTheme.muted)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, TapeTheme.space1)
+                    } else {
+                        Button {
+                            showPlaylistPicker = true
+                        } label: {
+                            Label("加入播放列表", systemImage: "music.note.list")
+                        }
+                        .buttonStyle(TapeSecondaryButtonStyle())
+                        .accessibilityIdentifier("detailAddToPlaylistMenu")
+                    }
+
+                    Button(role: .destructive) {
+                        showDeleteConfirmation = true
+                    } label: {
+                        Label("删除条目", systemImage: "trash")
+                    }
+                    .buttonStyle(TapeDestructiveButtonStyle())
+                    .accessibilityIdentifier("detailDeleteButton")
+                }
+                .tapeRowInsets(6)
             }
 
             if let infoMessage {
                 Section {
-                    Text(infoMessage)
-                        .font(.caption)
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityIdentifier("detailQueueInfoText")
+                    TapeCard(fill: TapeTheme.acid) {
+                        Text(infoMessage)
+                            .font(TapeType.body)
+                            .foregroundStyle(TapeTheme.ink)
+                            .accessibilityIdentifier("detailQueueInfoText")
+                    }
+                    .tapeRowInsets(6)
                 }
             }
 
             if let errorMessage {
-                Section("错误") {
-                    Text(errorMessage)
-                        .foregroundStyle(.red)
+                Section {
+                    TapeCard(fill: TapeTheme.coral) {
+                        Text(errorMessage)
+                            .font(TapeType.body)
+                            .foregroundStyle(TapeTheme.stickerInk)
+                    }
+                    .tapeRowInsets(6)
+                } header: {
+                    detailHeader("错误", kicker: "TROUBLE")
                 }
             }
         }
+        .listStyle(.plain)
+        .tapeScreen()
         .navigationTitle(item.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .tapeNavigationChrome()
         .sheet(isPresented: $showPlaylistPicker) {
             NavigationStack {
                 List(playlists) { playlist in
@@ -658,10 +1165,14 @@ struct LibraryItemDetailView: View {
                         }
                         showPlaylistPicker = false
                     }
+                    .buttonStyle(TapePlainPressStyle())
                     .accessibilityIdentifier("addToPlaylistOption-\(playlist.name)")
+                    .tapeRowInsets(4)
                 }
+                .listStyle(.plain)
+                .tapeScreen()
                 .navigationTitle("加入播放列表")
-                .navigationBarTitleDisplayMode(.inline)
+                .tapeNavigationChrome()
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("取消") { showPlaylistPicker = false }
@@ -679,6 +1190,13 @@ struct LibraryItemDetailView: View {
         } message: {
             Text("条目会从资料库移除，并在回收站保留 \(L10n.trashRetentionDays) 天，期间可以恢复；彻底删除时才释放 \(ByteCountFormatter.string(fromByteCount: item.byteSize, countStyle: .file))。")
         }
+    }
+
+    private func detailHeader(_ title: String, kicker: String) -> some View {
+        TapeSectionHeader(title: title, kicker: kicker)
+            .textCase(nil)
+            .padding(.horizontal, TapeTheme.screenPadding)
+            .padding(.top, TapeTheme.space3)
     }
 
     @discardableResult
@@ -717,23 +1235,21 @@ struct LibraryItemDetailView: View {
     }
 }
 
+// MARK: - Artwork
+
 struct MediaArtworkView: View {
     let item: MediaItem
     let size: CGFloat
     @State private var image: UIImage?
 
+    private var corner: CGFloat {
+        size > 60 ? 10 : TapeTheme.radiusThumb
+    }
+
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: size > 60 ? 16 : 8, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: item.kind.isVideo
-                            ? [.orange.opacity(0.85), .red.opacity(0.65)]
-                            : [Color.accentColor.opacity(0.85), .blue.opacity(0.6)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .fill(item.kind.isVideo ? TapeTheme.peach : TapeTheme.cream)
             if let image {
                 Image(uiImage: image)
                     .resizable()
@@ -741,11 +1257,20 @@ struct MediaArtworkView: View {
             } else {
                 Image(systemName: item.kind.isVideo ? "film.fill" : "waveform")
                     .font(.system(size: size * 0.36, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.92))
+                    .foregroundStyle(TapeTheme.ink)
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size > 60 ? 16 : 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
+        }
+        .background {
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .fill(TapeTheme.card)
+                .shadow(color: TapeTheme.ink, radius: 0, x: 2, y: 2)
+        }
         .accessibilityHidden(true)
         .task(id: item.artworkKey) {
             await loadImage()

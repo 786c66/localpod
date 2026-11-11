@@ -19,62 +19,86 @@ struct TrashView: View {
 
     var body: some View {
         List {
+            Section {
+                heroCard
+                    .tapeRowInsets(8)
+            }
+
             if trashItems.isEmpty {
                 Section {
-                    ContentUnavailableView(
-                        L10n.string("trash.empty.title"),
-                        systemImage: "trash",
-                        description: Text(L10n.string("trash.empty.detail"))
-                    )
-                    .accessibilityIdentifier("trashEmptyState")
+                    emptyCard
+                        .tapeRowInsets(6)
                 }
             } else {
                 Section {
                     ForEach(trashItems) { trashItem in
                         trashRow(trashItem)
+                            .tapeRowInsets(4)
                     }
                 } header: {
-                    Text(L10n.format("trash.count", trashItems.count))
-                        .accessibilityIdentifier("trashList")
+                    TapeSectionHeader(
+                        title: L10n.format("trash.count", trashItems.count),
+                        kicker: "TRASH"
+                    )
+                    .textCase(nil)
+                    .padding(.horizontal, TapeTheme.screenPadding)
+                    .padding(.top, TapeTheme.space3)
+                    .padding(.bottom, TapeTheme.space1)
+                    .accessibilityIdentifier("trashList")
                 } footer: {
                     Text(L10n.format(
                         "trash.retention.footer",
                         L10n.trashRetentionDays
                     ))
+                    .font(TapeType.caption)
+                    .foregroundStyle(TapeTheme.muted)
+                    .padding(.horizontal, TapeTheme.screenPadding)
+                    .padding(.top, TapeTheme.space1)
+                    .listRowBackground(Color.clear)
                 }
-            }
 
-            if !trashItems.isEmpty {
                 Section {
                     Button(role: .destructive) {
                         showEmptyConfirmation = true
                     } label: {
                         Label(L10n.string("trash.emptyAll"), systemImage: "trash.slash")
                     }
+                    .buttonStyle(TapeDestructiveButtonStyle())
                     .accessibilityIdentifier("trashEmptyButton")
+                    .tapeRowInsets(6)
                 }
             }
 
             if let infoMessage {
                 Section {
-                    Text(infoMessage)
-                        .font(.caption)
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityIdentifier("trashInfoText")
+                    TapeCard(fill: TapeTheme.acid) {
+                        Text(infoMessage)
+                            .font(TapeType.body)
+                            .foregroundStyle(TapeTheme.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("trashInfoText")
+                    }
+                    .tapeRowInsets(6)
                 }
             }
 
             if let errorMessage {
                 Section {
-                    Text(errorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .accessibilityIdentifier("trashErrorText")
+                    TapeCard(fill: TapeTheme.peach) {
+                        Text(errorMessage)
+                            .font(TapeType.body)
+                            .foregroundStyle(TapeTheme.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("trashErrorText")
+                    }
+                    .tapeRowInsets(6)
                 }
             }
         }
+        .listStyle(.plain)
+        .tapeScreen()
         .navigationTitle(L10n.string("trash.title"))
-        .navigationBarTitleDisplayMode(.inline)
+        .tapeNavigationChrome()
         .confirmationDialog(
             L10n.string("trash.emptyConfirm.title"),
             isPresented: $showEmptyConfirmation,
@@ -108,6 +132,60 @@ struct TrashView: View {
         }
     }
 
+    // MARK: - Hero and empty state
+
+    private var heroCard: some View {
+        TapeCard(fill: TapeTheme.peach) {
+            VStack(alignment: .leading, spacing: TapeTheme.space3) {
+                HStack(alignment: .top, spacing: TapeTheme.space2) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        TapeKicker(text: "RECYCLE BIN", color: TapeTheme.ink.opacity(0.62))
+                        Text(L10n.string("trash.title"))
+                            .font(TapeType.title1)
+                            .tracking(-0.6)
+                            .foregroundStyle(TapeTheme.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: TapeTheme.space2)
+                    TapeSticker(
+                        text: "\(L10n.trashRetentionDays) DAYS",
+                        fill: TapeTheme.coral,
+                        angle: 5
+                    )
+                }
+
+                Text(L10n.format("trash.count", trashItems.count))
+                    .font(TapeType.monoMeta)
+                    .foregroundStyle(TapeTheme.ink.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var emptyCard: some View {
+        TapeDashedCard {
+            VStack(spacing: TapeTheme.space3) {
+                TapeRewardSticker(
+                    text: "EMPTY",
+                    fill: TapeTheme.violet,
+                    foreground: TapeTheme.stickerInk
+                )
+                Text(L10n.string("trash.empty.title"))
+                    .font(TapeType.title2)
+                    .tracking(-0.4)
+                    .foregroundStyle(TapeTheme.ink)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("trashEmptyState")
+                Text(L10n.string("trash.empty.detail"))
+                    .font(TapeType.body)
+                    .foregroundStyle(TapeTheme.muted)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
     /// confirmationDialog needs a concrete Bool binding; `itemPendingPurge`
     /// is optional, so project it (same pattern as SettingsView).
     private var purgeConfirmationBinding: Binding<Bool> {
@@ -119,35 +197,46 @@ struct TrashView: View {
         )
     }
 
-    @ViewBuilder
     private func trashRow(_ trashItem: TrashItem) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "waveform")
-                .foregroundStyle(.secondary)
-                .frame(width: 28)
+        HStack(spacing: TapeTheme.space3) {
+            ZStack {
+                RoundedRectangle(cornerRadius: TapeTheme.radiusThumb, style: .continuous)
+                    .fill(TapeTheme.coralSoft)
+                Image(systemName: "waveform")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(TapeTheme.ink)
+            }
+            .frame(width: 36, height: 36)
+            .overlay {
+                RoundedRectangle(cornerRadius: TapeTheme.radiusThumb, style: .continuous)
+                    .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
+            }
+
             VStack(alignment: .leading, spacing: 3) {
                 Text(trashItem.title)
+                    .font(TapeType.headline)
+                    .foregroundStyle(TapeTheme.ink)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(L10n.format(
                     "trash.deletedAt",
                     trashItem.deletedAt.formatted(date: .abbreviated, time: .shortened),
                     daysRemaining(trashItem)
                 ))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(TapeType.monoMicro)
+                .foregroundStyle(TapeTheme.faint)
                 .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 8)
+
+            Spacer(minLength: TapeTheme.space2)
+
             // Visible actions keep VoiceOver and UI tests deterministic;
             // swipe actions below are the same operations for touch flow.
             Button {
                 restoreItem(trashItem)
             } label: {
                 Image(systemName: "arrow.uturn.backward.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(Color.accentColor)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(TapeIconButtonStyle(diameter: 36, fill: TapeTheme.acid))
             .accessibilityLabel(L10n.string("trash.restore"))
             .accessibilityIdentifier("trashRestore-\(trashItem.title)")
 
@@ -155,12 +244,26 @@ struct TrashView: View {
                 itemPendingPurge = trashItem
             } label: {
                 Image(systemName: "trash.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.red)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(TapeIconButtonStyle(
+                diameter: 36,
+                fill: TapeTheme.coral,
+                foreground: TapeTheme.stickerInk
+            ))
             .accessibilityLabel(L10n.string("trash.purgeItem"))
             .accessibilityIdentifier("trashPurge-\(trashItem.title)")
+        }
+        .padding(.horizontal, TapeTheme.space3)
+        .padding(.vertical, 10)
+        .frame(minHeight: 56)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(TapeTheme.card)
+                .shadow(color: TapeTheme.ink, radius: 0, x: 2, y: 2)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("trashItem-\(trashItem.title)")
@@ -170,7 +273,7 @@ struct TrashView: View {
             } label: {
                 Label(L10n.string("trash.restore"), systemImage: "arrow.uturn.backward")
             }
-            .tint(Color.accentColor)
+            .tint(TapeTheme.violet)
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button(role: .destructive) {
