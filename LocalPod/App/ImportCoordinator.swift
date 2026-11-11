@@ -64,6 +64,7 @@ final class ImportCoordinator {
         case inbox = "收件箱"
         case openURL = "外部打开"
         case sample = "示例内容"
+        case wifi = "Wi-Fi 上传"
 
         var displayName: String {
             switch self {
@@ -73,6 +74,7 @@ final class ImportCoordinator {
             case .inbox: L10n.string("import.run.inbox")
             case .openURL: L10n.string("import.run.openURL")
             case .sample: L10n.string("import.run.sample")
+            case .wifi: L10n.string("import.run.wifi")
             }
         }
     }
@@ -135,6 +137,9 @@ final class ImportCoordinator {
     /// item has been processed, so a repeatedly failing item cannot starve a
     /// fresh drop.
     @ObservationIgnored private var pausedFailurePaths: Set<String> = []
+    /// Completed browser batches that arrived while another import was
+    /// running. They are staged safely on disk and consumed in order.
+    @ObservationIgnored private var queuedWiFiImports: [WiFiCompletedUpload] = []
 
     func bootstrap(modelContext: ModelContext) {
         do {
@@ -147,6 +152,7 @@ final class ImportCoordinator {
         guard !didBootstrap else { return }
         didBootstrap = true
         runMaintenance(modelContext: modelContext)
+        recoverWiFiUploads(modelContext: modelContext)
         importInboxIfNeeded(modelContext: modelContext)
     }
 
@@ -341,6 +347,68 @@ final class ImportCoordinator {
         stageAndImportFile(url, kind: .openURL, modelContext: modelContext)
     }
 
+    /// Consumes a completed browser upload. If another run is active the
+    /// completed staging directory stays on disk and is imported once the
+    /// current run finishes.
+    func importWiFiSession(
+        _ completed: WiFiCompletedUpload,
+        modelContext: ModelContext
+    ) {
+        if isRunning {
+            if !queuedWiFiImports.contains(where: { $0.sessionID == completed.sessionID }) {
+                queuedWiFiImports.append(completed)
+            }
+            return
+        }
+        startWiFiImport(completed, modelContext: modelContext)
+    }
+
+    private func startWiFiImport(
+        _ completed: WiFiCompletedUpload,
+        modelContext: ModelContext
+    ) {
+        guard !isRunning else {
+            if !queuedWiFiImports.contains(where: { $0.sessionID == completed.sessionID }) {
+                queuedWiFiImports.append(completed)
+            }
+            return
+        }
+        let collectionName = completed.suggestedCollectionName
+            ?? L10n.string("collection.wifi")
+        beginRun(kind: .wifi)
+        task = Task { [weak self] in
+            await self?.runFolder(
+                rootURL: completed.directoryURL,
+                kind: .wifi,
+                source: .wifi,
+                collectionName: collectionName,
+                removeSourceAfterSuccess: false,
+                wifiSessionID: completed.sessionID,
+                modelContext: modelContext
+            )
+        }
+    }
+
+    private func recoverWiFiUploads(modelContext: ModelContext) {
+        do {
+            try WiFiUploadStorage.store.cleanupIncompleteSessions()
+            for completed in try WiFiUploadStorage.store.pendingCompletedSessions() {
+                importWiFiSession(completed, modelContext: modelContext)
+            }
+        } catch {
+            lastErrorMessage = L10n.format(
+                "error.wifi.recoveryFailed",
+                error.localizedDescription
+            )
+        }
+    }
+
+    private func startNextQueuedWiFiImportIfNeeded(modelContext: ModelContext) {
+        guard !isRunning, !queuedWiFiImports.isEmpty else { return }
+        let next = queuedWiFiImports.removeFirst()
+        startWiFiImport(next, modelContext: modelContext)
+    }
+
     func cancel() {
         guard isRunning else { return }
         isCancelling = true
@@ -411,6 +479,7 @@ final class ImportCoordinator {
         source: MediaSource,
         collectionName: String,
         removeSourceAfterSuccess: Bool,
+        wifiSessionID: UUID? = nil,
         modelContext: ModelContext
     ) async {
         let didStart = rootURL.startAccessingSecurityScopedResource()
@@ -442,17 +511,32 @@ final class ImportCoordinator {
                 reportPath: result.reportPath
             )
             lastResult = result
+            var issues = report.allIssues.map {
+                L10n.format(
+                    "import.issue.line",
+                    $0.kind.displayName,
+                    $0.relativePath,
+                    $0.message
+                )
+            }
+            // Browser uploads are copies of the user's computer files. Remove
+            // the staging directory after any completed run, including a user
+            // cancellation, so a later launch does not silently re-import a
+            // batch the user stopped. A thrown error keeps it for recovery.
+            if let wifiSessionID {
+                do {
+                    try WiFiUploadStorage.store.removeSession(wifiSessionID)
+                } catch {
+                    issues.append(L10n.format(
+                        "error.wifi.cleanupFailed",
+                        error.localizedDescription
+                    ))
+                }
+            }
             finish(
                 phase: report.cancelled ? .cancelled : .finished,
                 summary: summary,
-                issues: report.allIssues.map {
-                    L10n.format(
-                        "import.issue.line",
-                        $0.kind.displayName,
-                        $0.relativePath,
-                        $0.message
-                    )
-                },
+                issues: issues,
                 modelContext: modelContext
             )
 
@@ -1021,6 +1105,7 @@ final class ImportCoordinator {
         // Process items staged while this run was active, plus any newly stable
         // inbox item (respecting the retry suspension).
         requestInboxScan(modelContext: modelContext)
+        startNextQueuedWiFiImportIfNeeded(modelContext: modelContext)
     }
 
     private func finishWithError(_ error: Error, modelContext: ModelContext) {
@@ -1037,5 +1122,6 @@ final class ImportCoordinator {
         UIApplication.shared.isIdleTimerDisabled = false
         #endif
         requestInboxScan(modelContext: modelContext)
+        startNextQueuedWiFiImportIfNeeded(modelContext: modelContext)
     }
 }

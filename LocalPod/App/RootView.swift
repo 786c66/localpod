@@ -61,6 +61,7 @@ struct RootView: View {
             importCoordinator.bootstrap(modelContext: modelContext)
             seedDebugLibraryIfNeeded()
             seedM3FixturesIfNeeded()
+            seedP1FixturesIfNeeded()
             runLaunchAutomationIfNeeded()
             resolveOnboardingIfNeeded()
             // Local-only expiry reminder. This never prompts at launch: it
@@ -273,6 +274,14 @@ struct RootView: View {
         }
         if arguments.contains("--m3-seed-single-queue") {
             M3DebugSeed.seedSingleQueue(in: modelContext, session: session)
+        }
+        #endif
+    }
+
+    private func seedP1FixturesIfNeeded() {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--p1-seed-smart-playlists") {
+            P1DebugSeed.seedSmartPlaylists(in: modelContext)
         }
         #endif
     }

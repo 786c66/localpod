@@ -92,3 +92,23 @@
 "playback.error.audioSession" = "音频会话激活失败：%@";
 "playback.error.missingFileNamed" = "媒体文件不存在：%@";
 "playback.error.missingFile" = "媒体文件不存在或已删除。";
+
+/* Wi-Fi 上传 */
+"error.wifi.invalidPath" = "上传路径无效。";
+"error.wifi.tooManyFiles" = "本次上传的文件数量超过上限。";
+"error.wifi.fileTooLarge" = "单个文件超过大小上限。";
+"error.wifi.totalTooLarge" = "本次上传超过总大小上限。";
+"error.wifi.sessionMissing" = "上传会话已不存在。";
+"error.wifi.sessionNotComplete" = "上传会话尚未准备好结束。";
+"error.wifi.sessionAlreadyCompleted" = "上传会话已经结束。";
+"error.wifi.byteCountMismatch" = "上传文件的大小与声明不一致。";
+"error.wifi.invalidByteCount" = "上传大小无效。";
+"error.wifi.cannotCreateDirectory" = "无法创建上传目录。";
+"error.wifi.writeFailed" = "无法写入上传文件。";
+"error.wifi.sinkClosed" = "上传文件已关闭。";
+"error.wifi.serverUnavailable" = "Wi-Fi 上传服务不可用。";
+"error.wifi.unauthorized" = "PIN 不正确。";
+"error.wifi.rateLimited" = "PIN 错误次数过多，请等待一分钟后重试。";
+"error.wifi.forbiddenNetwork" = "只允许来自局域网的连接。";
+"error.wifi.requestTimeout" = "上传超时。";
+

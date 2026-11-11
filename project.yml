@@ -76,6 +76,7 @@ targets:
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
         ITSAppUsesNonExemptEncryption: false
+        NSLocalNetworkUsageDescription: 用于从同一 Wi-Fi 的电脑浏览器上传本地文件到 LocalPod。只有你主动开启 Wi-Fi 上传时才会使用局域网。
         CFBundleDocumentTypes:
           - CFBundleTypeName: Audio
             CFBundleTypeRole: Viewer

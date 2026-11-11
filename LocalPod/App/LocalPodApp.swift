@@ -35,6 +35,7 @@ struct LocalPodApp: App {
         if ProcessInfo.processInfo.arguments.contains("--m4-seed-unsupported-inbox") {
             M4DebugSupport.seedUnsupportedInbox()
         }
+        P1DebugSeed.stageWiFiUploadIfRequested()
         #endif
     }
 
@@ -52,7 +53,14 @@ struct LocalPodApp: App {
     private static func resetDebugData() {
         LocalPodStore.deleteDefaultStoreFiles()
         let supportRoot = MediaStorage.live.applicationSupportRoot
-        for directory in ["Media", "DemoInput", "AcceptanceInput", "ImportStaging", "ImportReports"] {
+        for directory in [
+            "Media",
+            "DemoInput",
+            "AcceptanceInput",
+            "ImportStaging",
+            "ImportReports",
+            "WiFiUploads"
+        ] {
             try? FileManager.default.removeItem(
                 at: supportRoot.appendingPathComponent(directory, isDirectory: true)
             )

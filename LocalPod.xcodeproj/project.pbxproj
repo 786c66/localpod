@@ -10,18 +10,22 @@
 		037014D99F4F78316432A9A3 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C240AF67ECE4340E5C07A451 /* RootView.swift */; };
 		1FB3FE976CB8BCC2CA91E229 /* PlaybackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AECD17FBD53662BDB9FDFAC /* PlaybackView.swift */; };
 		2100AD8BE19A9E930EE004C2 /* ImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF0159A431873BBF57DF3694 /* ImportCoordinator.swift */; };
+		21A28E89594C318417AF496D /* WiFiUploadStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A54E75216A376FF635D2C01 /* WiFiUploadStorage.swift */; };
 		27085B42C4116AAEA272FA8F /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7D803FA536A5958263A625E /* OnboardingView.swift */; };
 		289D7FB4F15C1D781C64222C /* LocalPodKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0FD9FD8B08DA934EFA2B4552 /* LocalPodKit */; };
+		2C410E36941974F5361139F8 /* P1WiFiUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B4D8FF6A4D7021F44F506B3 /* P1WiFiUITests.swift */; };
 		2C750406DE2646C2DFC14B80 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 361F918E598EAD9C59C223E8 /* DiagnosticsView.swift */; };
 		3D9F253E7D1B5E9839CEDEEE /* M4UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB42381B83497C220C5B45CB /* M4UITests.swift */; };
 		3E930D6A214511223DB90AC2 /* PlaylistViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78C751F6184AADE403909F1 /* PlaylistViews.swift */; };
 		41E2453FADEB97F15C7EAD44 /* SampleContent in Resources */ = {isa = PBXBuildFile; fileRef = DC4E61AF6AD15CB716921049 /* SampleContent */; };
+		427307DA6CB9184B92644F0A /* P1SmartPlaylistUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 978D426BBAE705D2442C2EB7 /* P1SmartPlaylistUITests.swift */; };
 		42CE0371FC30EA306BC2B64D /* M5LocalizationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE32A75A482AF84A59AD7605 /* M5LocalizationUITests.swift */; };
 		4C6D139BC918AAC0E64B1249 /* demo-audio.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 23346E600CEA4A18BA25978B /* demo-audio.m4a */; };
 		4F20DD44075396004A3472DA /* BenchmarkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2310D31581FEB3DC9E6D0B97 /* BenchmarkView.swift */; };
 		537088C83C23043BA2D22DDC /* InboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB082AAFCA17FAF2392BEF17 /* InboxView.swift */; };
 		544C59412F5A855C292DEAB5 /* SigningReminder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0528E3BA0C08A8F079E0F46 /* SigningReminder.swift */; };
 		54EB328580F716F57A471BFD /* L10n.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55B5F8CDBB1EAFE09D6E336F /* L10n.swift */; };
+		5E64D25A79DC6089D7319D82 /* SmartPlaylistViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 256667447715C45715C9759F /* SmartPlaylistViews.swift */; };
 		60156DF3AF1D096EE1D1EF55 /* M3DebugSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB622C565ECF037091092A17 /* M3DebugSeed.swift */; };
 		60F1E56C4F38270D9143225E /* ImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACB848B84419379A3691DB8D /* ImportView.swift */; };
 		7ADE606D3D7D40509C2CCE8A /* M4DebugSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 222D3B52B8184050320B4910 /* M4DebugSupport.swift */; };
@@ -31,6 +35,7 @@
 		86ECCF1483AABDCC432F8B2E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A4706ACE075EC1F83E5A70 /* SettingsView.swift */; };
 		98187EE9B16597D503E25C56 /* M1UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 629BFC9FD7ECCD7B7A19C1CB /* M1UITests.swift */; };
 		9900645556FC372AFED8F47E /* DocumentPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1D17F0BADA440FB407E46DA /* DocumentPicker.swift */; };
+		A43211C1E73DA0617B6D86FC /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 30F3A5C4AD486F7663F2D8E7 /* InfoPlist.strings */; };
 		ADBB7965B11E440241B1D17F /* M5DeliveryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E9F0BC6809D1861746C7FAB /* M5DeliveryUITests.swift */; };
 		B17C1E4561DAAE88CF8C2828 /* M5PerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F7BF1A32BFD81852377C2A /* M5PerformanceTests.swift */; };
 		B47A8F974E5AF2E0CCB88A48 /* M3UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4A1CFB6A6BD9067B93CA6FA /* M3UITests.swift */; };
@@ -39,7 +44,10 @@
 		B56B53B162D5DD51D04357AB /* M5UITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BE5FFCCF1BFDDC0A7C14512 /* M5UITests.swift */; };
 		BF9AF77B4614F6D39512401C /* M5SigningUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A56F4FDF7EA19CDA9FB2C07 /* M5SigningUITests.swift */; };
 		CE31EF58A442FDB490B3AF5C /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 28C2F8CEDBC61565FA14563D /* Localizable.strings */; };
+		CED122E14578EE233205BC83 /* WiFiUploadController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CE94FF4BAD0EADD4805E30B /* WiFiUploadController.swift */; };
+		D2067038FF83560B1419068C /* P1DebugSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9EC746C6921546F589F55EE /* P1DebugSeed.swift */; };
 		D62989147790BA638BBD6ED8 /* UITestLaunchSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A84D0E08C709973B8C7F00A /* UITestLaunchSupport.swift */; };
+		DB70393E86FDA4810F1D39A9 /* WiFiUploadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4D561A87F9A5B96AAF59B6F /* WiFiUploadView.swift */; };
 		DC0F4714648A8F7C99E7DACC /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFD2D2A1E3D000812950E085 /* LibraryView.swift */; };
 		E88FB4648BE59E15C934CEE6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3DC41E9533AC5BE62B52E987 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
@@ -58,21 +66,28 @@
 		00705DECE55BE2A80CE153C3 /* LocalPodUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LocalPodUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		06AE680CAD12BBEC847065DD /* M0UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M0UITests.swift; sourceTree = "<group>"; };
 		1E9F0BC6809D1861746C7FAB /* M5DeliveryUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M5DeliveryUITests.swift; sourceTree = "<group>"; };
+		1EC85DB0C315007B5918E0AF /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		222D3B52B8184050320B4910 /* M4DebugSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M4DebugSupport.swift; sourceTree = "<group>"; };
 		2310D31581FEB3DC9E6D0B97 /* BenchmarkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchmarkView.swift; sourceTree = "<group>"; };
 		23346E600CEA4A18BA25978B /* demo-audio.m4a */ = {isa = PBXFileReference; path = "demo-audio.m4a"; sourceTree = "<group>"; };
+		256667447715C45715C9759F /* SmartPlaylistViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPlaylistViews.swift; sourceTree = "<group>"; };
 		2BE5FFCCF1BFDDC0A7C14512 /* M5UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M5UITests.swift; sourceTree = "<group>"; };
 		361F918E598EAD9C59C223E8 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
+		3A54E75216A376FF635D2C01 /* WiFiUploadStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiUploadStorage.swift; sourceTree = "<group>"; };
 		3DC41E9533AC5BE62B52E987 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4AECD17FBD53662BDB9FDFAC /* PlaybackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackView.swift; sourceTree = "<group>"; };
+		4CE94FF4BAD0EADD4805E30B /* WiFiUploadController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiUploadController.swift; sourceTree = "<group>"; };
 		54D4EEED27269F62571E13A6 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		55B5F8CDBB1EAFE09D6E336F /* L10n.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = L10n.swift; sourceTree = "<group>"; };
 		562ADF714076DD62E7590544 /* M2UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M2UITests.swift; sourceTree = "<group>"; };
 		629BFC9FD7ECCD7B7A19C1CB /* M1UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M1UITests.swift; sourceTree = "<group>"; };
 		6A84D0E08C709973B8C7F00A /* UITestLaunchSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestLaunchSupport.swift; sourceTree = "<group>"; };
+		6B4D8FF6A4D7021F44F506B3 /* P1WiFiUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P1WiFiUITests.swift; sourceTree = "<group>"; };
 		802390B4491E30D754B0FB2A /* demo-long-audio.m4a */ = {isa = PBXFileReference; path = "demo-long-audio.m4a"; sourceTree = "<group>"; };
+		82757C742777D6B85C64F8F4 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		8A56F4FDF7EA19CDA9FB2C07 /* M5SigningUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M5SigningUITests.swift; sourceTree = "<group>"; };
 		8BA0DF86D0C69BC29BE9F624 /* LocalPodApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalPodApp.swift; sourceTree = "<group>"; };
+		978D426BBAE705D2442C2EB7 /* P1SmartPlaylistUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P1SmartPlaylistUITests.swift; sourceTree = "<group>"; };
 		A0528E3BA0C08A8F079E0F46 /* SigningReminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningReminder.swift; sourceTree = "<group>"; };
 		A76F3D1F54687DC6C9E03182 /* LocalPodKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = LocalPodKit; path = LocalPodKit; sourceTree = SOURCE_ROOT; };
 		AB082AAFCA17FAF2392BEF17 /* InboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxView.swift; sourceTree = "<group>"; };
@@ -80,6 +95,7 @@
 		B0F7BF1A32BFD81852377C2A /* M5PerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M5PerformanceTests.swift; sourceTree = "<group>"; };
 		B3A4706ACE075EC1F83E5A70 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		B4A1CFB6A6BD9067B93CA6FA /* M3UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M3UITests.swift; sourceTree = "<group>"; };
+		B4D561A87F9A5B96AAF59B6F /* WiFiUploadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiUploadView.swift; sourceTree = "<group>"; };
 		BB622C565ECF037091092A17 /* M3DebugSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M3DebugSeed.swift; sourceTree = "<group>"; };
 		C240AF67ECE4340E5C07A451 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		C78C751F6184AADE403909F1 /* PlaylistViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistViews.swift; sourceTree = "<group>"; };
@@ -93,6 +109,7 @@
 		EE32A75A482AF84A59AD7605 /* M5LocalizationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M5LocalizationUITests.swift; sourceTree = "<group>"; };
 		F1D17F0BADA440FB407E46DA /* DocumentPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentPicker.swift; sourceTree = "<group>"; };
 		F7D803FA536A5958263A625E /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		F9EC746C6921546F589F55EE /* P1DebugSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P1DebugSeed.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -120,6 +137,7 @@
 			isa = PBXGroup;
 			children = (
 				C78C751F6184AADE403909F1 /* PlaylistViews.swift */,
+				256667447715C45715C9759F /* SmartPlaylistViews.swift */,
 			);
 			path = Playlists;
 			sourceTree = "<group>";
@@ -145,6 +163,7 @@
 		529CEEDF940D3D35F383A8B8 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				30F3A5C4AD486F7663F2D8E7 /* InfoPlist.strings */,
 				28C2F8CEDBC61565FA14563D /* Localizable.strings */,
 				23346E600CEA4A18BA25978B /* demo-audio.m4a */,
 				802390B4491E30D754B0FB2A /* demo-long-audio.m4a */,
@@ -191,6 +210,7 @@
 			isa = PBXGroup;
 			children = (
 				B3A4706ACE075EC1F83E5A70 /* SettingsView.swift */,
+				B4D561A87F9A5B96AAF59B6F /* WiFiUploadView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -239,6 +259,8 @@
 				B0F7BF1A32BFD81852377C2A /* M5PerformanceTests.swift */,
 				8A56F4FDF7EA19CDA9FB2C07 /* M5SigningUITests.swift */,
 				2BE5FFCCF1BFDDC0A7C14512 /* M5UITests.swift */,
+				978D426BBAE705D2442C2EB7 /* P1SmartPlaylistUITests.swift */,
+				6B4D8FF6A4D7021F44F506B3 /* P1WiFiUITests.swift */,
 				6A84D0E08C709973B8C7F00A /* UITestLaunchSupport.swift */,
 			);
 			path = LocalPodUITests;
@@ -251,8 +273,11 @@
 				8BA0DF86D0C69BC29BE9F624 /* LocalPodApp.swift */,
 				BB622C565ECF037091092A17 /* M3DebugSeed.swift */,
 				222D3B52B8184050320B4910 /* M4DebugSupport.swift */,
+				F9EC746C6921546F589F55EE /* P1DebugSeed.swift */,
 				C240AF67ECE4340E5C07A451 /* RootView.swift */,
 				A0528E3BA0C08A8F079E0F46 /* SigningReminder.swift */,
+				4CE94FF4BAD0EADD4805E30B /* WiFiUploadController.swift */,
+				3A54E75216A376FF635D2C01 /* WiFiUploadStorage.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -383,6 +408,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E88FB4648BE59E15C934CEE6 /* Assets.xcassets in Resources */,
+				A43211C1E73DA0617B6D86FC /* InfoPlist.strings in Resources */,
 				CE31EF58A442FDB490B3AF5C /* Localizable.strings in Resources */,
 				41E2453FADEB97F15C7EAD44 /* SampleContent in Resources */,
 				4C6D139BC918AAC0E64B1249 /* demo-audio.m4a in Resources */,
@@ -409,12 +435,17 @@
 				60156DF3AF1D096EE1D1EF55 /* M3DebugSeed.swift in Sources */,
 				7ADE606D3D7D40509C2CCE8A /* M4DebugSupport.swift in Sources */,
 				27085B42C4116AAEA272FA8F /* OnboardingView.swift in Sources */,
+				D2067038FF83560B1419068C /* P1DebugSeed.swift in Sources */,
 				1FB3FE976CB8BCC2CA91E229 /* PlaybackView.swift in Sources */,
 				3E930D6A214511223DB90AC2 /* PlaylistViews.swift in Sources */,
 				037014D99F4F78316432A9A3 /* RootView.swift in Sources */,
 				86ECCF1483AABDCC432F8B2E /* SettingsView.swift in Sources */,
 				80A51DA75F7704434827020C /* SigningInfo.swift in Sources */,
 				544C59412F5A855C292DEAB5 /* SigningReminder.swift in Sources */,
+				5E64D25A79DC6089D7319D82 /* SmartPlaylistViews.swift in Sources */,
+				CED122E14578EE233205BC83 /* WiFiUploadController.swift in Sources */,
+				21A28E89594C318417AF496D /* WiFiUploadStorage.swift in Sources */,
+				DB70393E86FDA4810F1D39A9 /* WiFiUploadView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -432,6 +463,8 @@
 				B17C1E4561DAAE88CF8C2828 /* M5PerformanceTests.swift in Sources */,
 				BF9AF77B4614F6D39512401C /* M5SigningUITests.swift in Sources */,
 				B56B53B162D5DD51D04357AB /* M5UITests.swift in Sources */,
+				427307DA6CB9184B92644F0A /* P1SmartPlaylistUITests.swift in Sources */,
+				2C410E36941974F5361139F8 /* P1WiFiUITests.swift in Sources */,
 				D62989147790BA638BBD6ED8 /* UITestLaunchSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -454,6 +487,15 @@
 				54D4EEED27269F62571E13A6 /* zh-Hans */,
 			);
 			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+		30F3A5C4AD486F7663F2D8E7 /* InfoPlist.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				1EC85DB0C315007B5918E0AF /* en */,
+				82757C742777D6B85C64F8F4 /* zh-Hans */,
+			);
+			name = InfoPlist.strings;
 			sourceTree = "<group>";
 		};
 /* End PBXVariantGroup section */

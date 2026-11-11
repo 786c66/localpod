@@ -128,6 +128,19 @@ struct SettingsView: View {
 
                 sampleSection
 
+                Section {
+                    NavigationLink {
+                        WiFiUploadView()
+                    } label: {
+                        Label(L10n.string("wifi.title"), systemImage: "wifi")
+                    }
+                    .accessibilityIdentifier("wifiUploadLink")
+                } header: {
+                    Text(L10n.string("settings.wifi.section"))
+                } footer: {
+                    Text(L10n.string("settings.wifi.footer"))
+                }
+
                 Section("导入历史") {
                     if importSessions.isEmpty {
                         Text("还没有导入记录。")

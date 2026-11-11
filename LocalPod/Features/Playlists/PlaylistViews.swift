@@ -73,6 +73,8 @@ struct PlaylistListView: View {
                     }
                 }
             }
+
+            SmartPlaylistHubSection()
         }
         .navigationTitle("播放列表")
         .toolbar {

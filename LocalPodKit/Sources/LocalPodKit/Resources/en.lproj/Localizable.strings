@@ -93,3 +93,23 @@
 "playback.error.audioSession" = "Failed to activate audio session: %@";
 "playback.error.missingFileNamed" = "Media file not found: %@";
 "playback.error.missingFile" = "The media file is missing or was deleted.";
+
+/* Wi-Fi upload */
+"error.wifi.invalidPath" = "Invalid upload path.";
+"error.wifi.tooManyFiles" = "Too many files in this upload.";
+"error.wifi.fileTooLarge" = "The file is too large.";
+"error.wifi.totalTooLarge" = "This upload exceeds the size limit.";
+"error.wifi.sessionMissing" = "The upload session no longer exists.";
+"error.wifi.sessionNotComplete" = "The upload session is not ready to finish.";
+"error.wifi.sessionAlreadyCompleted" = "The upload session is already complete.";
+"error.wifi.byteCountMismatch" = "The uploaded file size did not match the declared size.";
+"error.wifi.invalidByteCount" = "Invalid upload size.";
+"error.wifi.cannotCreateDirectory" = "Unable to create the upload folder.";
+"error.wifi.writeFailed" = "Unable to write the uploaded file.";
+"error.wifi.sinkClosed" = "The upload file is closed.";
+"error.wifi.serverUnavailable" = "The Wi-Fi upload server is unavailable.";
+"error.wifi.unauthorized" = "Incorrect PIN.";
+"error.wifi.rateLimited" = "Too many incorrect PIN attempts. Wait a minute and try again.";
+"error.wifi.forbiddenNetwork" = "Only connections from the local network are allowed.";
+"error.wifi.requestTimeout" = "The upload timed out.";
+

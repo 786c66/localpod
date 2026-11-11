@@ -134,6 +134,13 @@ struct ImportView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+
+                    NavigationLink {
+                        WiFiUploadView()
+                    } label: {
+                        Label(L10n.string("wifi.importLink"), systemImage: "wifi")
+                    }
+                    .accessibilityIdentifier("wifiUploadImportLink")
                 } header: {
                     Text("最近导入")
                 }
