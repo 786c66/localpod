@@ -36,12 +36,34 @@ final class M1UITests: XCTestCase {
         add(attachment)
     }
 
+    /// Import runs now live in Settings → Diagnostics. Dismiss the sheet
+    /// before switching root tabs.
+    private func closeSettings(in app: XCUIApplication) {
+        let close = app.descendants(matching: .any)["settingsCloseButton"]
+        if close.exists {
+            close.tap()
+        }
+    }
+
     private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
         var attempts = 0
         while !(element.exists && element.isHittable), attempts < 8 {
             app.swipeUp()
             attempts += 1
         }
+    }
+
+    private func openDiagnostics(in app: XCUIApplication) {
+        let settings = app.descendants(matching: .any)["librarySettingsButton"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 20), "Missing library settings entry")
+        settings.tap()
+        let link = app.descendants(matching: .any)["settingsDiagnosticsLink"]
+        reveal(link, in: app)
+        link.tap()
+        XCTAssertTrue(
+            app.navigationBars["诊断"].waitForExistence(timeout: 20),
+            "Diagnostics page did not open"
+        )
     }
 
     func testAcceptanceImportReportDedupAndLibrary() throws {
@@ -54,13 +76,19 @@ final class M1UITests: XCTestCase {
         attach(app, name: "M1-import-report")
 
         let importAgain = app.descendants(matching: .any)["importAcceptanceFolderButton"]
+        reveal(importAgain, in: app)
         XCTAssertTrue(importAgain.waitForExistence(timeout: 10))
         importAgain.tap()
+        // Reopening the page puts its top-of-page import status back in view
+        // without a downward sheet-dismiss gesture.
+        closeSettings(in: app)
+        openDiagnostics(in: app)
         waitForLabel(app, identifier: "importCategorySummary", contains: "导入 0", timeout: 120)
         let secondCategory = app.descendants(matching: .any)["importCategorySummary"]
         XCTAssertTrue(secondCategory.label.contains("重复 98"))
         XCTAssertTrue(secondCategory.label.contains("不支持 2"))
 
+        closeSettings(in: app)
         app.buttons["资料库"].tap()
         let stats = waitForLabel(app, identifier: "libraryStatsText", contains: "97 条", timeout: 20)
         XCTAssertTrue(stats.label.contains("1 个合集"), "Repeated import must not create another collection")
@@ -93,12 +121,17 @@ final class M1UITests: XCTestCase {
         reveal(cancel, in: app)
         XCTAssertTrue(cancel.waitForExistence(timeout: 10))
         cancel.tap()
+        // Reopen the page: the result card is at its top, and a long downward
+        // swipe from the top would dismiss the Settings sheet.
+        closeSettings(in: app)
+        openDiagnostics(in: app)
 
         XCTAssertTrue(
             app.descendants(matching: .any)["importCancelledText"].waitForExistence(timeout: 30)
         )
         attach(app, name: "M1-import-cancelled")
 
+        closeSettings(in: app)
         app.buttons["资料库"].tap()
         let stats = app.descendants(matching: .any)["libraryStatsText"]
         XCTAssertTrue(stats.waitForExistence(timeout: 20))
@@ -126,6 +159,7 @@ final class M1UITests: XCTestCase {
         XCTAssertFalse(detail.label.contains("staging 0"), "Expected a stale staging session to be cleaned")
         attach(relaunched, name: "M1-maintenance-after-kill")
 
+        closeSettings(in: relaunched)
         relaunched.buttons["资料库"].tap()
         let stats = relaunched.descendants(matching: .any)["libraryStatsText"]
         XCTAssertTrue(stats.waitForExistence(timeout: 20))
@@ -136,6 +170,7 @@ final class M1UITests: XCTestCase {
         let app = makeApp(["--m0-reset-data", "--m1-auto-acceptance-import"])
         waitForLabel(app, identifier: "importCategorySummary", contains: "导入 97", timeout: 120)
 
+        closeSettings(in: app)
         app.buttons["资料库"].tap()
         waitForLabel(app, identifier: "libraryStatsText", contains: "97 条", timeout: 20)
 

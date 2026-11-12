@@ -66,7 +66,7 @@ final class M5UITests: XCTestCase {
 
     func testEmptyInboxAndImportStates() throws {
         let app = makeApp(["--m0-reset-data", "--m5-skip-onboarding"])
-        tapTab("收件箱", in: app)
+        openSettingsLink("settingsInboxLink", in: app)
 
         let inboxEmpty = element(app, "inboxEmptyState")
         XCTAssertTrue(
@@ -78,9 +78,13 @@ final class M5UITests: XCTestCase {
         XCTAssertTrue(pending.label.contains("0"), "unexpected pending label \(pending.label)")
         attach(app, name: "M5-empty-inbox")
 
-        tapTab("导入", in: app)
+        // Back to the Settings root, then into the import page.
+        element(app, "settingsCloseButton").tap()
+        openSettingsLink("settingsImportLink", in: app)
+        let recentEmpty = element(app, "importRecentEmptyState")
+        reveal(recentEmpty, in: app)
         XCTAssertTrue(
-            element(app, "importRecentEmptyState").waitForExistence(timeout: 20),
+            recentEmpty.waitForExistence(timeout: 20),
             "Recent-import section should show an empty state"
         )
     }
@@ -159,11 +163,16 @@ final class M5UITests: XCTestCase {
 
         let speed = element(app, "speedOption-1.0")
         reveal(speed, in: app)
+        revealSpeedChip("speedOption-1.0", in: app)
         XCTAssertTrue(
             speed.label.contains("1.0×"),
             "unexpected speed chip label \(speed.label)"
         )
 
+        // Queue is collapsed by default; open it to reach its actions.
+        let expand = element(app, "queueExpandButton")
+        reveal(expand, in: app)
+        expand.tap()
         let shuffle = element(app, "queueShuffleButton")
         reveal(shuffle, in: app)
         XCTAssertEqual(shuffle.label, "随机播放")
@@ -205,11 +214,15 @@ final class M5UITests: XCTestCase {
 
         let speed = element(app, "speedOption-1.0")
         reveal(speed, in: app)
+        revealSpeedChip("speedOption-1.0", in: app)
         XCTAssertTrue(speed.isHittable, "speed chips must stay reachable at XXXL")
         attach(app, name: "M5-accessibility-xxxl")
 
         // The queue header becomes a wrapping/scrollable group at
         // accessibility sizes; its first action must still be reachable.
+        let expand = element(app, "queueExpandButton")
+        reveal(expand, in: app)
+        expand.tap()
         let shuffle = element(app, "queueShuffleButton")
         reveal(shuffle, in: app)
         XCTAssertTrue(shuffle.isHittable, "queue actions must stay reachable at XXXL")
@@ -257,10 +270,35 @@ final class M5UITests: XCTestCase {
 
     /// Match the existing M0-M4 suites: SwiftUI on this iOS runtime exposes
     /// tab items as buttons by their visible label, not through `XCUIElement.tabBars`.
+    /// Open Settings from the library gear and push one of its destinations.
+    private func openSettingsLink(_ identifier: String, in app: XCUIApplication) {
+        let settings = element(app, "librarySettingsButton")
+        XCTAssertTrue(settings.waitForExistence(timeout: 20))
+        settings.tap()
+        let link = element(app, identifier)
+        reveal(link, in: app)
+        link.tap()
+    }
+
     private func tapTab(_ label: String, in app: XCUIApplication) {
         let button = app.buttons[label].firstMatch
         XCTAssertTrue(button.waitForExistence(timeout: 20), "Missing tab \(label)")
         button.tap()
+    }
+
+    /// The speed row scrolls horizontally once all nine presets are shown.
+    private func revealSpeedChip(_ identifier: String, in app: XCUIApplication) {
+        let chip = element(app, identifier)
+        let rates = ["0.5", "0.8", "1.0", "1.2", "1.5", "1.8", "2.0", "2.5", "3.0"]
+        var attempts = 0
+        while !chip.isHittable, attempts < 8 {
+            let anchor = rates
+                .map { element(app, "speedOption-\($0)") }
+                .first { $0.exists && $0.isHittable }
+            guard let anchor else { break }
+            anchor.swipeLeft()
+            attempts += 1
+        }
     }
 
     private func waitForDisappearance(_ element: XCUIElement, timeout: TimeInterval) {
@@ -284,14 +322,14 @@ final class M5UITests: XCTestCase {
 
         var attempts = 0
         while !(element.exists && element.isHittable), attempts < maxSwipes {
-            app.swipeUp()
+            swipeListUp(in: app)
             attempts += 1
         }
         if element.exists && element.isHittable { return }
 
         var resets = 0
         while !(element.exists && element.isHittable), resets < 8 {
-            app.swipeDown()
+            swipeListDown(in: app)
             resets += 1
         }
 
@@ -303,6 +341,20 @@ final class M5UITests: XCTestCase {
             element.isHittable,
             "Element \(element) is not hittable after scrolling"
         )
+    }
+
+    /// The progress scrubber's DragGesture covers the window center on the
+    /// playback screen; start swipes below it so the List scrolls.
+    private func swipeListUp(in app: XCUIApplication) {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.8))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.3))
+        start.press(forDuration: 0.05, thenDragTo: end)
+    }
+
+    private func swipeListDown(in app: XCUIApplication) {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.3))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.8))
+        start.press(forDuration: 0.05, thenDragTo: end)
     }
 
     private func attach(_ app: XCUIApplication, name: String) {

@@ -102,18 +102,33 @@ final class M3UITests: XCTestCase {
         // position is reachable, then scroll down.
         var resets = 0
         while !(element.exists && element.isHittable), resets < 6 {
-            app.swipeDown()
+            swipeListDown(in: app)
             resets += 1
         }
         var attempts = 0
         while !(element.exists && element.isHittable), attempts < maxSwipes {
-            app.swipeUp()
+            swipeListUp(in: app)
             attempts += 1
         }
         XCTAssertTrue(
             element.waitForExistence(timeout: 2),
             "Element \(element) did not appear after scrolling"
         )
+    }
+
+    /// The progress scrubber owns a full-width DragGesture at mid-screen, so a
+    /// window-center swipe is consumed by it instead of scrolling the List.
+    /// Start near the bottom edge, below the scrubber.
+    private func swipeListUp(in app: XCUIApplication) {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.8))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.3))
+        start.press(forDuration: 0.05, thenDragTo: end)
+    }
+
+    private func swipeListDown(in app: XCUIApplication) {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.3))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.8))
+        start.press(forDuration: 0.05, thenDragTo: end)
     }
 
     /// SwiftUI List is lazy: rows outside the viewport are not in the
@@ -135,6 +150,26 @@ final class M3UITests: XCTestCase {
         let button = app.buttons[label].firstMatch
         XCTAssertTrue(button.waitForExistence(timeout: 10), "Missing tab \(label)")
         button.tap()
+    }
+
+    /// Nine speed presets do not fit on a phone: the row scrolls
+    /// horizontally, so presets after 1.0 need a left swipe before they can
+    /// be tapped. Swiping on a visible chip drives the surrounding scroll view.
+    private func tapSpeedChip(_ identifier: String, in app: XCUIApplication) {
+        let chip = element(app, identifier)
+        XCTAssertTrue(chip.waitForExistence(timeout: 10), "Missing \(identifier)")
+        let rates = ["0.5", "0.8", "1.0", "1.2", "1.5", "1.8", "2.0", "2.5", "3.0"]
+        var attempts = 0
+        while !chip.isHittable, attempts < 8 {
+            let anchor = rates
+                .map { element(app, "speedOption-\($0)") }
+                .first { $0.exists && $0.isHittable }
+            guard let anchor else { break }
+            anchor.swipeLeft()
+            attempts += 1
+        }
+        XCTAssertTrue(chip.isHittable, "\(identifier) did not become reachable")
+        chip.tap()
     }
 
     private func goBack(in app: XCUIApplication) {
@@ -229,6 +264,11 @@ final class M3UITests: XCTestCase {
         let queueCount = element(app, "queueCountText")
         reveal(queueCount, in: app)
         waitForLabel(queueCount, equals: "队列 · 3", timeout: 10)
+
+        // The queue is collapsed by default now; reveal it before reading rows.
+        let expand = element(app, "queueExpandButton")
+        reveal(expand, in: app)
+        expand.tap()
 
         let rowA = element(app, "queueRow-队列测试 A")
         let rowB = element(app, "queueRow-队列测试 B")
@@ -442,9 +482,7 @@ final class M3UITests: XCTestCase {
             "unexpected status \(status.label)"
         )
 
-        let speed = element(app, "speedOption-3.0")
-        reveal(speed, in: app)
-        speed.tap()
+        tapSpeedChip("speedOption-3.0", in: app)
         waitForLabel(
             element(app, "playbackRateText"),
             equals: "3.0×",

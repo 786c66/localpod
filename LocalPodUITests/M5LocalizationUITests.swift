@@ -35,11 +35,19 @@ final class M5LocalizationUITests: XCTestCase {
         continueButton.tap()
         waitForDisappearance(screen, timeout: 10)
 
-        for tab in ["Library", "Import", "Playback", "Inbox", "Diagnostics"] {
+        for tab in ["Library", "Playback"] {
             let button = app.buttons[tab].firstMatch
             XCTAssertTrue(
                 button.waitForExistence(timeout: 20),
                 "Missing English tab \(tab)"
+            )
+        }
+        // Import, Inbox and Diagnostics moved into Settings and must no
+        // longer occupy the tab bar.
+        for removedTab in ["Import", "Inbox", "Diagnostics"] {
+            XCTAssertFalse(
+                app.buttons[removedTab].firstMatch.exists,
+                "\(removedTab) must not be a root tab"
             )
         }
         XCTAssertFalse(
@@ -118,6 +126,9 @@ final class M5LocalizationUITests: XCTestCase {
         reveal(slider, in: app)
         XCTAssertEqual(slider.label, "Playback Progress")
 
+        let expand = element(app, "queueExpandButton")
+        reveal(expand, in: app)
+        expand.tap()
         let shuffle = element(app, "queueShuffleButton")
         reveal(shuffle, in: app)
         XCTAssertEqual(shuffle.label, "Shuffle")
@@ -161,11 +172,15 @@ final class M5LocalizationUITests: XCTestCase {
             locale: UITestLocale.english
         )
 
-        tapTab("Import", in: app)
+        openSettingsLink("settingsDiagnosticsLink", in: app)
         let addButton = element(app, "sampleAddButton")
-        XCTAssertTrue(addButton.waitForExistence(timeout: 20))
+        reveal(addButton, in: app)
         XCTAssertEqual(addButton.label, "Add Sample Content")
         addButton.tap()
+        // Diagnostics shows the import status at the top; reopen to see it
+        // without scrolling the sheet away.
+        closeSettings(in: app)
+        openSettingsLink("settingsDiagnosticsLink", in: app)
 
         let summary = waitForLabel(
             app,
@@ -178,6 +193,7 @@ final class M5LocalizationUITests: XCTestCase {
             "unexpected English summary \(summary.label)"
         )
 
+        closeSettings(in: app)
         tapTab("Library", in: app)
         let stats = waitForLabel(
             app,
@@ -229,6 +245,23 @@ final class M5LocalizationUITests: XCTestCase {
         app.descendants(matching: .any)[identifier]
     }
 
+    private func openSettingsLink(_ identifier: String, in app: XCUIApplication) {
+        let settings = element(app, "librarySettingsButton")
+        XCTAssertTrue(settings.waitForExistence(timeout: 20))
+        settings.tap()
+        let link = element(app, identifier)
+        reveal(link, in: app)
+        link.tap()
+    }
+
+    private func closeSettings(in app: XCUIApplication) {
+        // Pushed destinations expose their Done toolbar item outside the
+        // Button element type on this runtime; query any descendant.
+        let close = element(app, "settingsCloseButton")
+        XCTAssertTrue(close.waitForExistence(timeout: 20), "Missing settings close")
+        close.tap()
+    }
+
     private func tapTab(_ label: String, in app: XCUIApplication) {
         let button = app.buttons[label].firstMatch
         XCTAssertTrue(button.waitForExistence(timeout: 20), "Missing tab \(label)")
@@ -272,14 +305,14 @@ final class M5LocalizationUITests: XCTestCase {
 
         var attempts = 0
         while !(element.exists && element.isHittable), attempts < maxSwipes {
-            app.swipeUp()
+            swipeListUp(in: app)
             attempts += 1
         }
         if element.exists && element.isHittable { return }
 
         var resets = 0
         while !(element.exists && element.isHittable), resets < 8 {
-            app.swipeDown()
+            swipeListDown(in: app)
             resets += 1
         }
 
@@ -291,6 +324,20 @@ final class M5LocalizationUITests: XCTestCase {
             element.isHittable,
             "Element \(element) is not hittable after scrolling"
         )
+    }
+
+    /// The progress scrubber's DragGesture covers the window center on the
+    /// playback screen; start swipes below it so the List scrolls.
+    private func swipeListUp(in app: XCUIApplication) {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.8))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.3))
+        start.press(forDuration: 0.05, thenDragTo: end)
+    }
+
+    private func swipeListDown(in app: XCUIApplication) {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.3))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.8))
+        start.press(forDuration: 0.05, thenDragTo: end)
     }
 
     private func attach(_ app: XCUIApplication, name: String) {

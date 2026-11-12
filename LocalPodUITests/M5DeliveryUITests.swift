@@ -10,12 +10,13 @@ final class M5DeliveryUITests: XCTestCase {
 
     func testAddSamplesShowsThreeItemsWithProvenanceAndSummary() throws {
         let app = makeApp(["--m0-reset-data", "--m5-skip-onboarding"])
-        tapTab("导入", in: app)
+        openDiagnostics(in: app)
 
         let addButton = element(app, "sampleAddButton")
-        XCTAssertTrue(addButton.waitForExistence(timeout: 20))
+        reveal(addButton, in: app)
         XCTAssertTrue(addButton.isEnabled, "sampleAddButton should be enabled")
         addButton.tap()
+        reopenDiagnostics(in: app)
 
         let summary = waitForLabel(
             app,
@@ -31,6 +32,7 @@ final class M5DeliveryUITests: XCTestCase {
         XCTAssertTrue(progress.label.contains("文件 3/3"))
         attach(app, name: "M5-sample-import-summary")
 
+        dismissSettings(in: app)
         tapTab("资料库", in: app)
         let stats = waitForLabel(
             app,
@@ -66,10 +68,11 @@ final class M5DeliveryUITests: XCTestCase {
     func testSettingsDeletesSamplesAndReAddRestoresThem() throws {
         let app = makeApp(["--m0-reset-data", "--m5-skip-onboarding"])
         addSamples(in: app)
+        dismissSettings(in: app)
         tapTab("资料库", in: app)
         _ = waitForLabel(app, identifier: "libraryStatsText", contains: "3 条", timeout: 20)
 
-        openSettings(in: app)
+        openDiagnostics(in: app)
         let countElement = element(app, "sampleCountText")
         reveal(countElement, in: app)
         let count = waitForLabel(
@@ -116,11 +119,12 @@ final class M5DeliveryUITests: XCTestCase {
         XCTAssertTrue(emptyStats.label.contains("0 条"))
         XCTAssertEqual(libraryRows(in: app).count, 0, "Samples must disappear from the library")
 
-        tapTab("导入", in: app)
+        openDiagnostics(in: app)
         let addButton = element(app, "sampleAddButton")
         reveal(addButton, in: app)
         addButton.tap()
 
+        dismissSettings(in: app)
         tapTab("资料库", in: app)
         let restoredStats = waitForLabel(
             app,
@@ -141,16 +145,18 @@ final class M5DeliveryUITests: XCTestCase {
     func testRelaunchAddSamplesDeduplicatesWithoutGrowth() throws {
         let app = makeApp(["--m0-reset-data", "--m5-skip-onboarding"])
         addSamples(in: app)
+        dismissSettings(in: app)
         tapTab("资料库", in: app)
         _ = waitForLabel(app, identifier: "libraryStatsText", contains: "3 条", timeout: 20)
         XCTAssertTrue(libraryRows(in: app).firstMatch.waitForExistence(timeout: 20))
         app.terminate()
 
         let relaunched = makeApp(["--m5-skip-onboarding"])
-        tapTab("导入", in: relaunched)
+        openDiagnostics(in: relaunched)
         let addButton = element(relaunched, "sampleAddButton")
-        XCTAssertTrue(addButton.waitForExistence(timeout: 20))
+        reveal(addButton, in: relaunched)
         addButton.tap()
+        reopenDiagnostics(in: relaunched)
 
         let summary = waitForLabel(
             relaunched,
@@ -168,6 +174,7 @@ final class M5DeliveryUITests: XCTestCase {
         )
         attach(relaunched, name: "M5-sample-dedup-relaunch")
 
+        dismissSettings(in: relaunched)
         tapTab("资料库", in: relaunched)
         let stats = waitForLabel(
             relaunched,
@@ -185,15 +192,39 @@ final class M5DeliveryUITests: XCTestCase {
     // MARK: - Helpers
 
     private func addSamples(in app: XCUIApplication) {
-        tapTab("导入", in: app)
+        openDiagnostics(in: app)
         let addButton = element(app, "sampleAddButton")
-        XCTAssertTrue(addButton.waitForExistence(timeout: 20))
+        reveal(addButton, in: app)
         addButton.tap()
+        reopenDiagnostics(in: app)
         _ = waitForLabel(
             app,
             identifier: "importCategorySummary",
             contains: "导入 3",
             timeout: 60
+        )
+    }
+
+    /// The import status sits at the top of the Diagnostics page, while the
+    /// sample controls live further down. Reopening the page is the reliable
+    /// way to see the summary without a downward swipe (which would drag the
+    /// Settings sheet away).
+    private func reopenDiagnostics(in app: XCUIApplication) {
+        dismissSettings(in: app)
+        openDiagnostics(in: app)
+    }
+
+    /// Sample content no longer ships visibly: it is generated only from
+    /// Settings → 诊断 → 测试与示例内容. The diagnostics List is lazy, so the
+    /// sample controls still need to be scrolled into view after navigating.
+    private func openDiagnostics(in app: XCUIApplication) {
+        openSettings(in: app)
+        let diagnostics = element(app, "settingsDiagnosticsLink")
+        reveal(diagnostics, in: app)
+        diagnostics.tap()
+        XCTAssertTrue(
+            app.navigationBars["诊断"].waitForExistence(timeout: 20),
+            "Diagnostics page did not open"
         )
     }
 

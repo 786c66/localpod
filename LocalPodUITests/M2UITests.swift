@@ -37,14 +37,11 @@ final class M2UITests: XCTestCase {
             ("speedOption-1.0", "1.0×"),
             ("speedOption-1.5", "1.5×"),
             ("speedOption-2.0", "2.0×"),
-            ("speedOption-3.0", "3.0×"),
-            ("speedOption-1.0", "1.0×")
+            ("speedOption-2.5", "2.5×"),
+            ("speedOption-3.0", "3.0×")
         ]
         for preset in presets {
-            let option = app.descendants(matching: .any)[preset.identifier]
-            XCTAssertTrue(option.waitForExistence(timeout: 10))
-            reveal(option, in: app)
-            option.tap()
+            tapSpeedChip(preset.identifier, in: app)
             waitForLabelContains(rateText, text: preset.label, timeout: 5)
         }
 
@@ -219,6 +216,25 @@ final class M2UITests: XCTestCase {
             app.swipeUp()
             attempts += 1
         }
+    }
+
+    /// Nine presets no longer fit on a phone: the chip row scrolls
+    /// horizontally, so swipe on a visible chip until the target is hittable.
+    private func tapSpeedChip(_ identifier: String, in app: XCUIApplication) {
+        let chip = app.descendants(matching: .any)[identifier]
+        XCTAssertTrue(chip.waitForExistence(timeout: 10), "Missing \(identifier)")
+        let rates = ["0.5", "0.8", "1.0", "1.2", "1.5", "1.8", "2.0", "2.5", "3.0"]
+        var attempts = 0
+        while !chip.isHittable, attempts < 8 {
+            let anchor = rates
+                .map { app.descendants(matching: .any)["speedOption-\($0)"] }
+                .first { $0.exists && $0.isHittable }
+            guard let anchor else { break }
+            anchor.swipeLeft()
+            attempts += 1
+        }
+        XCTAssertTrue(chip.isHittable, "\(identifier) did not become reachable")
+        chip.tap()
     }
 
     private func waitForLabel(
