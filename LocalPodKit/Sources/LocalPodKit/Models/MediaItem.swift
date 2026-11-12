@@ -35,8 +35,8 @@ public enum MediaSource: String, Codable, Sendable, CaseIterable {
     }
 }
 
-public typealias MediaItem = LocalPodSchemaV2.MediaItem
-public typealias MediaCollection = LocalPodSchemaV2.MediaCollection
+public typealias MediaItem = LocalPodSchemaV7.MediaItem
+public typealias MediaCollection = LocalPodSchemaV7.MediaCollection
 public typealias ImportSession = LocalPodSchemaV2.ImportSession
 public typealias PlaybackState = LocalPodSchemaV3.PlaybackState
 public typealias QueueEntry = LocalPodSchemaV4.QueueEntry
@@ -46,7 +46,7 @@ public typealias PlaylistEntry = LocalPodSchemaV4.PlaylistEntry
 public typealias LinkedFolder = LocalPodSchemaV5.LinkedFolder
 public typealias TrashItem = LocalPodSchemaV6.TrashItem
 
-public extension LocalPodSchemaV2.MediaItem {
+public extension LocalPodSchemaV7.MediaItem {
     var kind: MediaKind {
         get { MediaKind(rawValue: kindRaw) ?? .audio }
         set { kindRaw = newValue.rawValue }
@@ -86,8 +86,23 @@ public extension LocalPodSchemaV2.MediaItem {
     }
 }
 
-public extension LocalPodSchemaV2.MediaCollection {
+public extension LocalPodSchemaV7.MediaCollection {
     static func normalizedKey(for name: String) -> String {
         name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    var sortMode: CollectionSortMode {
+        get { CollectionSortMode(rawValue: sortModeRaw) ?? .natural }
+        set { sortModeRaw = newValue.rawValue }
+    }
+}
+
+public extension LocalPodSchemaV7.MediaItem {
+    /// Source-relative path of a linked item inside its linked folder.
+    var linkedSourceRelativePath: String {
+        if relativeFolderPath.isEmpty {
+            return originalFileName
+        }
+        return "\(relativeFolderPath)/\(originalFileName)"
     }
 }

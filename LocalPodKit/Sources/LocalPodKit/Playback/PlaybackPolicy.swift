@@ -9,10 +9,10 @@ public enum PlaybackPolicy {
         0.5, 0.8, 1.0, 1.2, 1.5, 1.8, 2.0, 2.5, 3.0
     ]
 
-    /// The five acceptance presets shown as one-tap chips in the player.
-    public static let featuredSpeedPresets: [Float] = [
-        0.5, 1.0, 1.5, 2.0, 3.0
-    ]
+    /// One-tap chips in the player. All supported speeds are featured so the
+    /// owner can reach the intermediate steps (0.8/1.2/1.8/2.5) without a
+    /// hidden menu; the row scrolls horizontally when it does not fit.
+    public static let featuredSpeedPresets: [Float] = speedPresets
 
     public static let minimumSpeed: Float = 0.5
     public static let maximumSpeed: Float = 3.0

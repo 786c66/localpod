@@ -13,7 +13,10 @@ final class M5SigningUITests: XCTestCase {
             "--m5-fake-signing-expiry-days",
             "5"
         ])
-        tapTab("诊断", in: app)
+        openSettings(in: app)
+        let diagnostics = element(app, "settingsDiagnosticsLink")
+        reveal(diagnostics, in: app)
+        diagnostics.tap()
 
         let banner = element(app, "signingExpiryBanner")
         XCTAssertTrue(

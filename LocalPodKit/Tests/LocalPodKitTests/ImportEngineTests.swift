@@ -59,6 +59,110 @@ final class ImportEngineTests: XCTestCase {
         )
     }
 
+    private static func importLinkedFolder(
+        source: URL,
+        roots: Roots,
+        folderID: UUID = UUID(),
+        existing: Set<String> = [],
+        relink: Set<String> = [],
+        probe: any MediaProbing = FakeMediaProbe(),
+        cloudDownloader: any CloudDownloading = FakeCloudDownloader(),
+        progress: @escaping @Sendable (ImportProgress) -> Void = { _ in }
+    ) async throws -> ImportRunResult {
+        try await ImportEngine().importLinkedFolder(
+            rootURL: source,
+            source: .files,
+            rootName: source.lastPathComponent,
+            linkedFolderID: folderID,
+            artworkRootURL: roots.artwork,
+            existingFingerprints: existing,
+            relinkFingerprints: relink,
+            options: ImportEngine.Options(locale: Locale(identifier: "zh-Hans")),
+            probe: probe,
+            cloudDownloader: cloudDownloader,
+            progress: progress
+        )
+    }
+
+    func testLinkedImportLeavesFilesInPlaceAndCopiesNothing() async throws {
+        let source = try TemporaryDirectory()
+        let roots = try Self.makeRoots()
+        try source.write("Season 1/Episode 001.m4a", bytes: 128)
+        try source.write("Season 1/Episode 002.m4a", bytes: 256)
+
+        let folderID = UUID()
+        let recorder = ProgressRecorder()
+        let result = try await Self.importLinkedFolder(
+            source: source.url,
+            roots: roots,
+            folderID: folderID,
+            progress: { recorder.append($0) }
+        )
+
+        XCTAssertEqual(result.importedCount, 2)
+        XCTAssertEqual(result.copiedBytes, 0)
+        XCTAssertEqual(result.failedCount, 0)
+        XCTAssertEqual(recorder.last?.phase, .finished)
+        XCTAssertTrue(recorder.all.contains { $0.phase == .linking })
+
+        for file in result.importedFiles {
+            XCTAssertTrue(file.isLinked)
+            XCTAssertEqual(file.linkedFolderID, folderID)
+            XCTAssertEqual(
+                file.destinationURL.standardizedFileURL,
+                file.sourceURL.standardizedFileURL
+            )
+            XCTAssertTrue(
+                FileManager.default.fileExists(atPath: file.destinationURL.path)
+            )
+            XCTAssertEqual(file.fingerprint.count, 64)
+        }
+
+        // Linking does not create Media/: an absent folder is the strongest
+        // proof that nothing was copied.
+        let mediaContents = (try? FileManager.default.contentsOfDirectory(
+            atPath: roots.media.path
+        )) ?? []
+        XCTAssertTrue(mediaContents.filter { !$0.hasPrefix(".") }.isEmpty)
+        let stagingContents = (try? FileManager.default.contentsOfDirectory(
+            atPath: roots.staging.path
+        )) ?? []
+        XCTAssertTrue(stagingContents.isEmpty)
+    }
+
+    func testLinkedImportDeduplicatesAgainstExistingFingerprints() async throws {
+        let source = try TemporaryDirectory()
+        let roots = try Self.makeRoots()
+        try source.write("Episode 001.m4a", bytes: 128)
+
+        let first = try await Self.importLinkedFolder(source: source.url, roots: roots)
+        let fingerprint = try XCTUnwrap(first.importedFiles.first?.fingerprint)
+
+        let second = try await Self.importLinkedFolder(
+            source: source.url,
+            roots: roots,
+            existing: [fingerprint]
+        )
+        XCTAssertEqual(second.importedCount, 0)
+        XCTAssertEqual(second.duplicateCount, 1)
+        XCTAssertTrue(second.importedFiles.isEmpty)
+    }
+
+    func testLinkedImportReportsProbeFailureWithoutTouchingSource() async throws {
+        let source = try TemporaryDirectory()
+        let roots = try Self.makeRoots()
+        let url = try source.write("bad.m4a", bytes: 64)
+
+        let result = try await Self.importLinkedFolder(
+            source: source.url,
+            roots: roots,
+            probe: FailingMediaProbe()
+        )
+        XCTAssertEqual(result.importedCount, 0)
+        XCTAssertEqual(result.failedCount, 1)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+    }
+
     func testImportsAllFilesAndReportsProgress() async throws {
         let source = try TemporaryDirectory()
         let roots = try Self.makeRoots()

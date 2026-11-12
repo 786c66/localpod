@@ -36,7 +36,7 @@
 
 **推荐技术决策**
 
-- 导入采用“**复制入库**”，不做长期外部引用；security-scoped bookmark 只用于 P1 的“链接文件夹/增量重扫”。
+- 文件夹导入采用“**原地读取**”（2026-11 修订，见 ADR-001）：持久化 security-scoped bookmark，不复制媒体；打开方式/收件箱/Wi-Fi 等单文件渠道仍复制进沙盒。
 - 播放统一用 **AVPlayer**，只输出音频；音频用自定义 SwiftUI 播放器，不使用 `AVPlayerViewController`/视频渲染层；不用 AVAudioPlayer 作为主引擎。
 - 持久化固定用 **SwiftData**；M0 用 5k 条数据做基准，只做批处理/索引/分页优化，不再讨论更换持久化框架。
 - 当前侧载版**不建 Share Extension target**；用 Files 选择器、“用 LocalPod 打开”、AirDrop 到 Files、Finder 覆盖导入（Wi-Fi 放 P1）。代码保留 `ImportInbox` 抽象，未来上架/付费账号可加扩展，主架构不变。
@@ -400,7 +400,7 @@ Files / iCloud / AirDrop / Open in / Finder / Wi-Fi
 | 渠道 | 入口/关键 API | 处理位置 | 注意点 |
 |---|---|---|---|
 | Files 单/多文件 | `UIDocumentPickerViewController(forOpeningContentTypes:asCopy:false)`；`allowsMultipleSelection = true` | 主 App | 使用 security scope；逐文件复制 |
-| Files 文件夹 | 同上，`UTType.folder`；`asCopy: false` | 主 App | 递归枚举；MVP 一次一个文件夹，P1 支持多选 |
+| Files 文件夹 | 同上，`UTType.folder`；`asCopy: false` | 主 App | 递归枚举；**原地读取**，持久化 security-scoped bookmark，不复制媒体（2026-11 修订） |
 | iCloud Drive | 同一个 document picker | 主 App | 未下载文件要触发下载并显示进度 |
 | AirDrop / 打开方式 | `CFBundleDocumentTypes`；`scene(_:openURLContexts:)` / `onOpenURL` | 主 App | 区分“已拷贝到 Inbox”和“security-scoped 外部 URL” |
 | Finder 文件共享 | `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace` | 主 App | 扫 `Documents/Import`；等文件大小稳定后再导入 |
@@ -420,7 +420,7 @@ Files / iCloud / AirDrop / Open in / Finder / Wi-Fi
    - 深度上限 32 层；文件数上限 20,000（超过提示分批导入）；
    - UTType 兼容 `.audio` / `.movie` / `.audiovisualContent`；无 content type 时回退扩展名，再交给探测阶段判断。
 5. **生成计划**：按自然排序（`localizedStandardCompare`）排列；统计文件数、总字节、未知类型数；做磁盘预检；展示确认页（尤其是 >1GB 或 >1000 个文件）。
-6. **复制/探测/提交**：进入 3.6.3 流水线。
+6. **原地登记（文件夹）/ 复制（单文件）**：文件夹导入直接用源 URL 指纹 + 探测 + 提交数据库，不复制媒体；打开方式/收件箱/Wi-Fi 等单文件渠道仍进入 3.6.3 流水线。
 7. **报告**：展示成功、重复、不支持、失败；失败项可重试；报告写入 `ImportReports/`。
 
 实现细节：
@@ -430,7 +430,7 @@ Files / iCloud / AirDrop / Open in / Finder / Wi-Fi
 - 文件名只用于展示；物理名用 UUID + 原扩展名，避免重名、非法字符、路径穿越。
 - 对来自第三方 provider 的文件，逐个用 `NSFileCoordinator` 协调读取；单文件失败不影响整批。
 
-#### 3.6.3 复制入库流水线
+#### 3.6.3 复制入库流水线（单文件渠道；文件夹导入跳过复制）
 
 ```text
 扫描 → 计划 → 复制到 Staging（流式 SHA-256）→ 探测元数据/轨道 → 去重
@@ -450,16 +450,19 @@ Files / iCloud / AirDrop / Open in / Finder / Wi-Fi
 
 #### 3.6.4 权限与 security-scoped bookmark
 
-- 从 document picker 拿到的 URL 在 `asCopy: false` 时是 security-scoped；使用前 `startAccessingSecurityScopedResource()`，用完 `stopAccessingSecurityScopedResource()`。文件夹的 scope 覆盖其子项，但**不要长期持有**，只在扫描/复制期间持有。
-- **MVP 的复制模式不持久化 bookmark**：复制完成后文件已在 App 容器内，不再依赖外部权限。只记录来源名称/类型用于展示。
-- P1 的“链接文件夹/增量重扫”才需要持久化：
-  - 用 `bookmarkData()` 创建 bookmark，存为数据库 `Data`；
-  - 启动/重扫时 `URL(resolvingBookmarkData:options:relativeTo:bookmarkDataIsStale:)`；
-  - 检查 `bookmarkDataIsStale`，stale 时重新创建；解析失败或权限丢失时，UI 显示“重新授权”，让用户重新选择文件夹；
-  - 重新授权后按相对路径/指纹匹配，尽量保留已有条目。
+- 从 document picker 拿到的 URL 在 `asCopy: false` 时是 security-scoped；使用前 `startAccessingSecurityScopedResource()`，用完 `stopAccessingSecurityScopedResource()`。文件夹的 scope 覆盖其子项；不要长期持有，只在扫描/播放读取期间持有。
+- **2026-11 修订：文件夹导入改为原地读取（ADR-001）**。复制入库不再是文件夹导入的默认路径：
+  - 用户选中文件夹后，用 `bookmarkData()` 持久化到 `LinkedFolder.bookmarkData`；`LSSupportsOpeningDocumentsInPlace = YES` 让 provider 保持原位置语义。
+  - 每次扫描/重扫 `URL(resolvingBookmarkData:options:relativeTo:bookmarkDataIsStale:)`；`bookmarkDataIsStale` 时在持有 scope 的同一路径内刷新 bookmark 并写回。
+  - 解析失败或权限丢失：`LinkedFolder.isStale = true`，设置页显示“重新链接”，用户重选文件夹后按相对路径修正 `linkedFolderID`/`relativePath`，保留播放进度、队列和播放列表引用。
+  - iCloud 占位文件：枚举时读取 `ubiquitousItemDownloadingStatus`，`.notDownloaded` 先 `startDownloadingUbiquitousItem(at:)` 并轮询，下载完成后才指纹/探测；离线或下载失败按单文件计入失败，不复制。
+  - 外部文件被删除/移动：启动/回前台 reconcile 解析每个链接文件夹的 bookmark，对无法访问的条目置 `isMissing`；文件恢复后自动清除缺失标记。库内删除/回收站只删数据库行，绝不删除源文件。
+  - 播放期间由 `PlaybackSession` 解析并持有该条目的 security scope，切歌/停止时释放；锁屏后台播放同样持有，直到播放结束。
+  - 单文件渠道（打开方式、收件箱、Wi-Fi）仍走临时位置 → `Media` 的复制流水线：这些 URL 没有稳定的用户可见文件夹可长期 bookmark。
+  - 备份只记录链接元数据（`isLinked`、`linkedFolderID`、`collectionPosition` 等），不含 bookmark 二进制；恢复后链接条目先标记缺失，重新链接文件夹后恢复。
 - iOS 上没有 macOS 的 `.withSecurityScope` 创建选项；iOS 的 document picker URL 自带作用域语义，核心是 `startAccessingSecurityScopedResource()` 与 bookmark 解析。不要照抄 macOS 代码。
-- bookmark 会因文件/文件夹被移动、重命名、provider 更换、App 重装、iCloud 状态变化而失效；**这是不能把“外部引用”作为 MVP 主路径的原因**。复制入库最稳。
-- 如果未来做外部引用，播放期间必须持有 scope；锁屏后台播放时 scope 丢失会直接断播，这也是复制模式的另一个优势。
+- bookmark 仍会因文件夹被移动、重命名、provider 更换、App 重装、iCloud 状态变化而失效；现在通过 stale 刷新 + 显式重授权 UI + 缺失标记来承担这一代价，而不是复制双份文件。
+- 播放期间必须持有 scope；scope 丢失会直接断播。这也是链接模式下 `PlaybackSession` 必须保留 `stop` 闭包的原因（见 `LinkedFolderStore.resolve`）。
 
 #### 3.6.5 iCloud Drive 与第三方 provider
 
@@ -716,7 +719,7 @@ idle → preparing → ready → playing ⇄ paused
 
 | # | 风险 | 影响 | 概率 | 缓解 | 验证方式 |
 |---|---|---|---|---|---|
-| 1 | 文件夹权限/security-scoped bookmark 失效 | 导入失败、播放中断、用户丢库 | 中高 | 复制入库为主；bookmark 只用于 P1 链接文件夹；stale 检测 + 重新授权；绝不存绝对路径 | M0/M1 真机：移动/重命名文件夹、重装、iCloud 切换 |
+| 1 | 文件夹权限/security-scoped bookmark 失效 | 导入失败、播放中断、用户丢库 | 中高 | 文件夹原地读取（ADR-001）：bookmark 持久化 + stale 刷新 + 重授权引导 + 缺失标记；单文件渠道复制入库；绝不存绝对路径 | M0/M1 真机：移动/重命名文件夹、重装、iCloud 切换 |
 | 2 | 大文件导入的内存/进度/磁盘/前台限制 | OOM、卡死、磁盘满、导入中断 | 中 | 分块复制、staging、哈希流式、磁盘预检、前台提示、idle timer、取消/清理 | 10GB 单文件、5000 文件、低存储设备 |
 | 3 | iCloud 未下载/占位文件 | 枚举卡住、读取失败、体验像“卡死” | 高 | 检测下载状态、触发下载、NSFileCoordinator、进度/离线文案 | 关闭 iCloud 下载、飞行模式、第三方 provider |
 | 4 | **免费账号 7 天签名过期** | App 停止启动，需重签 | 高（确定发生） | SideStore/AltStore 自动续签或 Xcode 重签；同一 bundle ID；数据备份；到期前提醒 | 安装后检查 profile 日期；重签后数据仍在 |
@@ -741,7 +744,7 @@ idle → preparing → ready → playing ⇄ paused
 ### 4.1 文件夹权限与 bookmark 失效（重点）
 
 - 根因：外部 URL 的访问权是“授权会话”而不是永久路径；文件夹移动/重命名、provider 变化、App 重装、iCloud 状态变化都可能让 bookmark stale 或解析失败。
-- 策略：**MVP 复制入库**，导入完成即脱离外部权限；只有 P1 的“链接文件夹”才持久化 bookmark，并准备“重新授权”流程。
+- 策略（2026-11 修订）：**文件夹导入原地读取**，持久化 bookmark 并准备“重新授权”流程；解析失败/外部删除时把条目标记缺失，不删除数据库记录。单文件渠道（打开方式、收件箱、Wi-Fi）仍复制进沙盒，因为它们没有可长期 bookmark 的用户文件夹。
 - 细节：`startAccessingSecurityScopedResource()` 必须配对；文件夹 scope 覆盖子项，但不要跨会话长期持有；解析 bookmark 时检查 stale 并重建；失败时按相对路径/指纹匹配已有条目。
 - 验收：移动/重命名源文件夹后再导入不崩溃；链接文件夹（P1）失效时 UI 能引导重新选择；重装后数据库无绝对路径导致的“全库失效”。
 
@@ -1175,7 +1178,8 @@ idle → preparing → ready → playing ⇄ paused
 
 | 编号 | 决策 | 理由 | 代价/触发条件 |
 |---|---|---|---|
-| ADR-001 | 导入采用复制入库 | 避免 bookmark 失效、后台 scope 丢失、iCloud 占位；文件稳定可备份/删除 | 占用双份空间（源文件仍在 Files）；→ P1 可加“链接文件夹” |
+| ADR-001（2026-11 修订，取代复制入库） | 文件夹导入改为原地读取：持久化 security-scoped bookmark，`LSSupportsOpeningDocumentsInPlace`，不再复制媒体进沙盒 | 不占双份空间；源文件改动/重扫即时可见；bookmark 解析失败可重授权，stale 自动刷新；iCloud 占位按需下载；外部文件消失标记缺失 | 源文件夹被移动/删除后条目缺失，需要重新选择文件夹；备份不含 bookmark，恢复后需重新链接；播放期间必须持有 scope（锁屏后台由 PlaybackSession 持有） |
+| ADR-001-旧（已废弃） | 导入采用复制入库 | 当时为规避 bookmark 失效、后台 scope 丢失、iCloud 占位 | 占用双份空间；2026-11 起由原地读取取代 |
 | ADR-002 | AVPlayer 单引擎，只输出音频 | 音频/视频音轨/倍速/音调/AirPlay 统一；不维护视频渲染 UI | 视频文件无画面、无 PiP；产品边界需明确沟通 |
 | ADR-003 | SwiftData（iOS 17+，固定） | 开发快、与 SwiftUI 集成好；iOS 17 已定 | 批量导入/迁移仍需谨慎；只做批处理/索引/分页优化，不换框架 |
 | ADR-004 | 当前不做 Share Extension，保留 `ImportInbox` 抽象 | 免费账号无 App Groups，扩展无法与主 App 共享容器 | 少一个分享入口；未来付费账号/上架时加 App Group + extension |

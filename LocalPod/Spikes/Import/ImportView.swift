@@ -5,6 +5,9 @@ import UniformTypeIdentifiers
 import LocalPodKit
 
 struct ImportView: View {
+    /// Pushed inside Settings (its NavigationStack) instead of owning one.
+    var embedded = false
+
     private enum ActiveSheet: String, Identifiable {
         case folder
         case report
@@ -17,76 +20,75 @@ struct ImportView: View {
     private var allItems: [MediaItem]
 
     @State private var activeSheet: ActiveSheet?
+    @State private var showWiFiUpload = false
 
     private var importedItems: [MediaItem] {
         allItems.filter { $0.source != .benchmark }
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Button {
-                        coordinator.importSampleContent(modelContext: modelContext)
-                    } label: {
-                        Label("添加示例内容", systemImage: "sparkles")
-                    }
-                    .disabled(coordinator.isRunning || !coordinator.isSampleImportAvailable)
-                    .accessibilityIdentifier("sampleAddButton")
-                } header: {
-                    Text("示例内容")
-                } footer: {
-                    Text("导入 3 段自生成的短语音示例，归入「示例内容」合集。可随时在设置中一键删除，不会影响你导入的内容。")
+        Group {
+            if embedded {
+                content
+            } else {
+                NavigationStack {
+                    content
                 }
+            }
+        }
+    }
 
+    private var content: some View {
+        List {
                 Section {
-                    Button {
-                        activeSheet = .folder
-                    } label: {
-                        Label("选择文件夹（文件 App）", systemImage: "folder.badge.plus")
-                    }
-                    .disabled(coordinator.isRunning)
-                    .accessibilityIdentifier("chooseFolderButton")
-
-                    Button {
-                        coordinator.importDemoFolder(modelContext: modelContext)
-                    } label: {
-                        Label("导入内置演示文件夹（100 个文件，3 层）", systemImage: "testtube.2")
-                    }
-                    .disabled(coordinator.isRunning)
-                    .accessibilityIdentifier("importDemoFolderButton")
-
-                    #if DEBUG
-                    Button {
-                        coordinator.importAcceptanceFolder(modelContext: modelContext)
-                    } label: {
-                        Label("导入验收文件夹（100 文件，含 2 不支持 + 1 重复）", systemImage: "checklist")
-                    }
-                    .disabled(coordinator.isRunning)
-                    .accessibilityIdentifier("importAcceptanceFolderButton")
-                    #endif
-                } header: {
-                    Text("导入")
-                } footer: {
-                    Text("递归扫描选中的文件夹，只处理 UTType.audio 与 UTType.movie；文件复制进沙盒并计算 SHA-256，重复内容会跳过。导入中请保持 App 在前台。")
-                }
-
-                if let summary = coordinator.summary {
-                    Section("上次结果") {
-                        Text("导入 \(summary.importedCount) · 重复 \(summary.duplicateCount) · 不支持 \(summary.unsupportedCount) · 失败 \(summary.failedCount)")
-                            .font(.callout)
-                            .accessibilityIdentifier("importCategorySummary")
-                        if summary.cancelled {
-                            Text("任务已取消，已完成导入的文件会保留。")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                                .accessibilityIdentifier("importCancelledText")
+                    TapeCard {
+                        VStack(alignment: .leading, spacing: TapeTheme.space3) {
+                            HStack(alignment: .firstTextBaseline) {
+                                TapeKicker(text: "FOLDERS")
+                                Spacer(minLength: 8)
+                                Text("AUDIO ONLY")
+                                    .font(TapeType.monoMicro)
+                                    .foregroundStyle(TapeTheme.faint)
+                            }
+                            Text("把声音装进磁带盒")
+                                .font(TapeType.title3)
+                                .foregroundStyle(TapeTheme.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text("扫描文件夹及子文件夹；视频文件只取音轨，不显示画面。")
+                                .font(TapeType.caption)
+                                .foregroundStyle(TapeTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button {
+                                activeSheet = .folder
+                            } label: {
+                                Label("选择文件夹（文件 App）", systemImage: "folder.badge.plus")
+                            }
+                            .buttonStyle(TapePrimaryButtonStyle())
+                            .disabled(coordinator.isRunning)
+                            .opacity(coordinator.isRunning ? 0.5 : 1)
+                            .accessibilityIdentifier("chooseFolderButton")
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .tapeRowInsets(6)
                 }
 
-                if coordinator.phase != .idle || coordinator.isRunning {
-                    progressSection
+                if hasImportStatus {
+                    Section {
+                        TapeCard {
+                            ImportStatusView()
+                        }
+                        .tapeRowInsets(6)
+                    } header: {
+                        sectionHeader(title: L10n.string("导入状态"), kicker: "STATUS")
+                    } footer: {
+                        Text("文件夹以原地读取方式播放，不会复制文件。导入期间请保持 App 在前台。")
+                            .font(TapeType.captionSmall)
+                            .foregroundStyle(TapeTheme.muted)
+                            .padding(.horizontal, TapeTheme.space4)
+                            .padding(.top, TapeTheme.space1)
+                            .listRowBackground(Color.clear)
+                    }
                 }
 
                 if let summary = coordinator.summary {
@@ -94,59 +96,91 @@ struct ImportView: View {
                 }
 
                 if !coordinator.issueMessages.isEmpty {
-                    Section("问题与跳过") {
-                        ForEach(Array(coordinator.issueMessages.prefix(20)), id: \.self) { message in
-                            Text(message)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                    Section {
+                        TapeCard {
+                            VStack(alignment: .leading, spacing: TapeTheme.space2) {
+                                ForEach(Array(coordinator.issueMessages.prefix(20)), id: \.self) { message in
+                                    Text(message)
+                                        .font(TapeType.captionSmall)
+                                        .foregroundStyle(TapeTheme.muted)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                if coordinator.issueMessages.count > 20 {
+                                    Text("另有 \(coordinator.issueMessages.count - 20) 条未显示")
+                                        .font(TapeType.monoMicro)
+                                        .foregroundStyle(TapeTheme.faint)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         }
-                        if coordinator.issueMessages.count > 20 {
-                            Text("另有 \(coordinator.issueMessages.count - 20) 条未显示")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                        }
+                        .tapeRowInsets(6)
+                    } header: {
+                        sectionHeader(title: L10n.string("问题与跳过"), kicker: "ISSUES")
                     }
                 }
 
                 Section {
                     if importedItems.isEmpty {
-                        ContentUnavailableView {
-                            Label("还没有导入内容", systemImage: "tray.and.arrow.down")
-                                .accessibilityIdentifier("importRecentEmptyState")
-                        } description: {
-                            Text("点上方「选择文件夹」开始；子文件夹会被递归扫描。")
-                        } actions: {
-                            Button("选择文件夹") {
-                                activeSheet = .folder
+                        TapeDashedCard {
+                            VStack(spacing: TapeTheme.space2) {
+                                Text("还没有导入内容")
+                                    .font(TapeType.body)
+                                    .foregroundStyle(TapeTheme.ink)
+                                    .accessibilityIdentifier("importRecentEmptyState")
+                                Text("点上方「选择文件夹」开始；子文件夹会被递归扫描，文件保留在原位置。")
+                                    .font(TapeType.captionSmall)
+                                    .foregroundStyle(TapeTheme.muted)
+                                    .multilineTextAlignment(.center)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
-                            .disabled(coordinator.isRunning)
-                            .accessibilityIdentifier("importEmptyChooseFolderButton")
+                            .frame(maxWidth: .infinity)
                         }
-                        .frame(maxWidth: .infinity)
-                        .listRowBackground(Color.clear)
+                        .tapeRowInsets(6)
                     } else {
-                        ForEach(Array(importedItems.prefix(5))) { item in
-                            LibraryItemRow(item: item)
+                        TapeCard {
+                            VStack(spacing: TapeTheme.space1) {
+                                ForEach(Array(importedItems.prefix(5))) { item in
+                                    LibraryItemRow(item: item)
+                                }
+                                if importedItems.count > 5 {
+                                    Text("共 \(importedItems.count) 条，完整资料库见「资料库」标签。")
+                                        .font(TapeType.captionSmall)
+                                        .foregroundStyle(TapeTheme.muted)
+                                }
+                            }
                         }
-                        if importedItems.count > 5 {
-                            Text("共 \(importedItems.count) 条，完整资料库见「资料库」标签。")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                        .tapeRowInsets(6)
                     }
 
-                    NavigationLink {
-                        WiFiUploadView()
+                    Button {
+                        showWiFiUpload = true
                     } label: {
-                        Label(L10n.string("wifi.importLink"), systemImage: "wifi")
+                        TapeRow(
+                            thumbText: "W",
+                            thumbFill: TapeTheme.violet,
+                            icon: "wifi",
+                            title: L10n.string("import.wifi.title"),
+                            subtitle: L10n.string("import.wifi.subtitle"),
+                            trailingIcon: "chevron.right"
+                        )
                     }
+                    .buttonStyle(TapePlainPressStyle())
                     .accessibilityIdentifier("wifiUploadImportLink")
+                    .tapeRowInsets(4)
                 } header: {
-                    Text("最近导入")
+                    if !importedItems.isEmpty {
+                        sectionHeader(title: L10n.string("最近导入"), kicker: "RECENT TAPES")
+                    }
                 }
             }
-            .navigationTitle("LocalPod")
+            .listStyle(.plain)
+            .tapeScreen()
+            .navigationTitle("导入与文件夹")
+            .tapeNavigationChrome()
             .accessibilityIdentifier("importScreen")
+            .navigationDestination(isPresented: $showWiFiUpload) {
+                WiFiUploadView()
+            }
             .sheet(item: $activeSheet) { sheet in
                 switch sheet {
                 case .folder:
@@ -163,117 +197,197 @@ struct ImportView: View {
                     ImportReportView(result: coordinator.lastResult)
                 }
             }
+    }
+
+    private func sectionHeader(title: String, kicker: String) -> some View {
+        TapeSectionHeader(title: title, kicker: kicker)
+            .textCase(nil)
+            .padding(.horizontal, TapeTheme.screenPadding)
+            .padding(.top, TapeTheme.space3)
+            .padding(.bottom, TapeTheme.space1)
+    }
+
+    /// Last run summary and live progress live at the top of the import page.
+    private var hasImportStatus: Bool {
+        coordinator.summary != nil
+            || coordinator.phase != .idle
+            || coordinator.isRunning
+            || coordinator.lastErrorMessage != nil
+    }
+
+    private func resultSection(_ summary: ImportCoordinator.RunSummary) -> some View {
+        Section {
+            TapeCard {
+                VStack(alignment: .leading, spacing: TapeTheme.space2) {
+                    resultLine("来源", summary.kind.displayName)
+                    resultLine("扫描", "\(summary.totalCandidates) 个文件")
+                    resultLine("支持格式", "\(summary.supportedFiles) 个")
+                    resultLine("导入", "\(summary.importedCount) 个")
+                    if summary.relinkedCount > 0 {
+                        resultLine("重链", "\(summary.relinkedCount) 个")
+                    }
+                    if summary.duplicateCount > 0 {
+                        resultLine("重复跳过", "\(summary.duplicateCount) 个")
+                    }
+                    if summary.unsupportedCount > 0 {
+                        resultLine("不支持的格式", "\(summary.unsupportedCount) 个")
+                    }
+                    if summary.failedCount > 0 {
+                        resultLine("失败", "\(summary.failedCount) 个")
+                    }
+                    resultLine("复制", formatBytes(summary.copiedBytes))
+                    resultLine("耗时", L10n.format("import.durationSeconds", summary.duration))
+                    if let reportPath = summary.reportPath {
+                        Text("报告：\(reportPath)")
+                            .font(TapeType.monoMicro)
+                            .foregroundStyle(TapeTheme.faint)
+                            .lineLimit(1)
+                    }
+                    if coordinator.lastResult != nil {
+                        Button {
+                            activeSheet = .report
+                        } label: {
+                            Label("查看完整报告", systemImage: "doc.text.magnifyingglass")
+                        }
+                        .buttonStyle(TapeSecondaryButtonStyle())
+                        .accessibilityIdentifier("viewImportReportButton")
+                    }
+                    Button("清除结果") {
+                        coordinator.clearResult()
+                    }
+                    .buttonStyle(TapePlainPressStyle())
+                    .font(TapeType.monoMeta)
+                    .foregroundStyle(TapeTheme.muted)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .tapeRowInsets(6)
+        } header: {
+            sectionHeader(title: L10n.string("详细结果"), kicker: "DETAILS")
         }
     }
 
-    @ViewBuilder
-    private var progressSection: some View {
-        Section("进度") {
-            HStack {
-                Text(coordinator.currentKind?.displayName ?? L10n.string("common.import"))
-                Spacer()
-                Text(coordinator.isCancelling ? L10n.string("正在取消…") : coordinator.phase.displayName)
-                    .foregroundStyle(.secondary)
+    private func resultLine(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .font(TapeType.caption)
+                .foregroundStyle(TapeTheme.muted)
+            Spacer(minLength: 8)
+            Text(value)
+                .font(TapeType.monoMeta)
+                .foregroundStyle(TapeTheme.ink)
+        }
+    }
+
+    private func formatBytes(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+}
+
+/// Shared import progress/summary card. Shown on the Import page and on the
+/// Diagnostics page so a manual run can be triggered and watched from Settings.
+struct ImportStatusView: View {
+    @Environment(ImportCoordinator.self) private var coordinator
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TapeTheme.space2) {
+            if let summary = coordinator.summary {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("上次结果")
+                        .font(TapeType.monoMeta)
+                        .foregroundStyle(TapeTheme.faint)
+                    Text("导入 \(summary.importedCount) · 重复 \(summary.duplicateCount) · 不支持 \(summary.unsupportedCount) · 失败 \(summary.failedCount)")
+                        .font(TapeType.body)
+                        .foregroundStyle(TapeTheme.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("importCategorySummary")
+                }
+                if summary.cancelled {
+                    Text("任务已取消，已完成导入的文件会保留。")
+                        .font(TapeType.captionSmall)
+                        .foregroundStyle(TapeTheme.coral)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("importCancelledText")
+                }
             }
 
-            if let progress = coordinator.progress {
-                ProgressView(value: progress.fractionCompleted)
-                Text("文件 \(progress.completedFiles)/\(progress.totalFiles) · \(formatBytes(progress.copiedBytes)) / \(formatBytes(progress.totalBytes))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("importProgressText")
-                if let name = progress.currentFileName {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(name)
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        if progress.phase == .downloading {
-                            if let fraction = progress.currentFileDownloadFraction {
-                                ProgressView(value: fraction)
-                            } else {
-                                ProgressView()
+            if coordinator.phase != .idle || coordinator.isRunning {
+                HStack {
+                    Text(coordinator.currentKind?.displayName ?? L10n.string("common.import"))
+                        .font(TapeType.monoMeta)
+                        .foregroundStyle(TapeTheme.muted)
+                    Spacer(minLength: 8)
+                    Text(coordinator.isCancelling ? L10n.string("正在取消…") : coordinator.phase.displayName)
+                        .font(TapeType.monoMeta)
+                        .foregroundStyle(TapeTheme.muted)
+                }
+
+                if let progress = coordinator.progress {
+                    ProgressView(value: progress.fractionCompleted)
+                        .tint(TapeTheme.ink)
+                    Text("文件 \(progress.completedFiles)/\(progress.totalFiles) · \(formatBytes(progress.copiedBytes)) / \(formatBytes(progress.totalBytes))")
+                        .font(TapeType.monoMicro)
+                        .foregroundStyle(TapeTheme.muted)
+                        .accessibilityIdentifier("importProgressText")
+                    if let name = progress.currentFileName {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(name)
+                                .font(TapeType.monoMicro)
+                                .foregroundStyle(TapeTheme.faint)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            if progress.phase == .downloading {
+                                if let fraction = progress.currentFileDownloadFraction {
+                                    ProgressView(value: fraction)
+                                        .tint(TapeTheme.ink)
+                                } else {
+                                    ProgressView()
+                                }
+                                Text("正在从 iCloud 下载…")
+                                    .font(TapeType.captionSmall)
+                                    .foregroundStyle(TapeTheme.muted)
                             }
-                            Text("正在从 iCloud 下载…")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
                         }
                     }
+                } else if coordinator.isRunning {
+                    ProgressView()
+                        .tint(TapeTheme.ink)
                 }
-            } else {
-                ProgressView()
-            }
 
-            if coordinator.isRunning {
-                Button(role: .destructive) {
-                    coordinator.cancel()
-                } label: {
-                    Label(coordinator.isCancelling ? "正在取消…" : "取消导入", systemImage: "xmark.circle")
+                if coordinator.isRunning {
+                    Button(role: .destructive) {
+                        coordinator.cancel()
+                    } label: {
+                        Label(
+                            coordinator.isCancelling ? "正在取消…" : "取消导入",
+                            systemImage: "xmark.circle"
+                        )
+                    }
+                    .buttonStyle(TapeDestructiveButtonStyle())
+                    .disabled(coordinator.isCancelling)
+                    .accessibilityIdentifier("cancelImportButton")
                 }
-                .disabled(coordinator.isCancelling)
-                .accessibilityIdentifier("cancelImportButton")
             }
 
             if let error = coordinator.lastErrorMessage {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("导入遇到问题。请确认文件仍在本机、格式受支持且存储空间充足，然后重试。")
-                        .font(.caption)
-                        .foregroundStyle(.red)
+                        .font(TapeType.captionSmall)
+                        .foregroundStyle(TapeTheme.coral)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("importErrorHeadline")
                     Text(error)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(TapeType.monoMicro)
+                        .foregroundStyle(TapeTheme.muted)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("importErrorDetail")
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
     }
 
-    private func resultSection(_ summary: ImportCoordinator.RunSummary) -> some View {
-        Section("详细结果") {
-            LabeledContent("来源", value: summary.kind.displayName)
-            LabeledContent("扫描", value: "\(summary.totalCandidates) 个文件")
-            LabeledContent("支持格式", value: "\(summary.supportedFiles) 个")
-            LabeledContent("导入", value: "\(summary.importedCount) 个")
-            if summary.relinkedCount > 0 {
-                LabeledContent("重链", value: "\(summary.relinkedCount) 个")
-            }
-            if summary.duplicateCount > 0 {
-                LabeledContent("重复跳过", value: "\(summary.duplicateCount) 个")
-            }
-            if summary.unsupportedCount > 0 {
-                LabeledContent("不支持的格式", value: "\(summary.unsupportedCount) 个")
-            }
-            if summary.failedCount > 0 {
-                LabeledContent("失败", value: "\(summary.failedCount) 个")
-            }
-            LabeledContent("复制", value: formatBytes(summary.copiedBytes))
-            LabeledContent(
-                "耗时",
-                value: L10n.format("import.durationSeconds", summary.duration)
-            )
-            if let reportPath = summary.reportPath {
-                Text("报告：\(reportPath)")
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-            }
-            if coordinator.lastResult != nil {
-                Button {
-                    activeSheet = .report
-                } label: {
-                    Label("查看完整报告", systemImage: "doc.text.magnifyingglass")
-                }
-                .accessibilityIdentifier("viewImportReportButton")
-            }
-            Button("清除结果") {
-                coordinator.clearResult()
-            }
-        }
-    }
 
     private func formatBytes(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)

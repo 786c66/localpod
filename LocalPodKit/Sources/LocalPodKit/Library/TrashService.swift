@@ -35,6 +35,12 @@ public struct TrashItemSnapshot: Codable, Sendable, Equatable {
     public var isFavorite: Bool
     public var notes: String?
     public var playlistEntries: [PlaylistEntrySnapshot]
+    // V7 in-place fields. Optional so snapshots written by older builds keep
+    // decoding after the app updates.
+    public var isLinked: Bool?
+    public var linkedFolderID: UUID?
+    public var linkedBookmarkData: Data?
+    public var collectionPosition: Int?
 
     /// Captures the item plus its playlist membership before trashing.
     init(
@@ -62,7 +68,11 @@ public struct TrashItemSnapshot: Codable, Sendable, Equatable {
             importSessionID: item.importSessionID,
             isFavorite: item.isFavorite,
             notes: item.notes,
-            playlistEntries: playlistEntries
+            playlistEntries: playlistEntries,
+            isLinked: item.isLinked,
+            linkedFolderID: item.linkedFolderID,
+            linkedBookmarkData: item.linkedBookmarkData,
+            collectionPosition: item.collectionPosition
         )
     }
 
@@ -87,7 +97,11 @@ public struct TrashItemSnapshot: Codable, Sendable, Equatable {
         importSessionID: UUID?,
         isFavorite: Bool,
         notes: String?,
-        playlistEntries: [PlaylistEntrySnapshot] = []
+        playlistEntries: [PlaylistEntrySnapshot] = [],
+        isLinked: Bool? = nil,
+        linkedFolderID: UUID? = nil,
+        linkedBookmarkData: Data? = nil,
+        collectionPosition: Int? = nil
     ) {
         self.id = id
         self.title = title
@@ -110,6 +124,10 @@ public struct TrashItemSnapshot: Codable, Sendable, Equatable {
         self.isFavorite = isFavorite
         self.notes = notes
         self.playlistEntries = playlistEntries
+        self.isLinked = isLinked
+        self.linkedFolderID = linkedFolderID
+        self.linkedBookmarkData = linkedBookmarkData
+        self.collectionPosition = collectionPosition
     }
 
     /// Rebuilds the MediaItem with the exact same identity, timestamps, and
@@ -137,7 +155,11 @@ public struct TrashItemSnapshot: Codable, Sendable, Equatable {
             importSessionID: importSessionID,
             isMissing: isMissing,
             isFavorite: isFavorite,
-            notes: notes
+            notes: notes,
+            isLinked: isLinked ?? false,
+            linkedFolderID: linkedFolderID,
+            linkedBookmarkData: linkedBookmarkData,
+            collectionPosition: collectionPosition ?? 0
         )
     }
 }
@@ -239,7 +261,10 @@ public final class TrashService {
         // still created, and restore will simply produce a missing item.
         var stagedMedia = false
         let trashDir = try storage.trashItemURL(itemID: itemID)
-        if let mediaURL = try? storage.url(forRelativePath: item.relativePath),
+        // Linked items reference the user's own file; trashing the library
+        // row must never move or delete it.
+        if !item.isLinked,
+           let mediaURL = try? storage.url(forRelativePath: item.relativePath),
            FileManager.default.fileExists(atPath: mediaURL.path) {
             if !FileManager.default.fileExists(atPath: trashDir.path) {
                 try FileManager.default.createDirectory(
@@ -312,12 +337,13 @@ public final class TrashService {
             throw TrashError.itemStillInLibrary
         }
 
+        let isLinked = snapshot.isLinked ?? false
         var mediaRestored = false
         let trashDir = try storage.trashItemURL(itemID: itemID)
         let stagedURL = trashDir.appendingPathComponent(
             (snapshot.relativePath as NSString).lastPathComponent
         )
-        if FileManager.default.fileExists(atPath: stagedURL.path) {
+        if !isLinked, FileManager.default.fileExists(atPath: stagedURL.path) {
             let destinationURL = try storage.url(forRelativePath: snapshot.relativePath)
             try FileManager.default.createDirectory(
                 at: destinationURL.deletingLastPathComponent(),
@@ -329,7 +355,12 @@ public final class TrashService {
             mediaRestored = true
         }
 
-        context.insert(snapshot.makeMediaItem(isMissing: !mediaRestored))
+        // A linked item is never staged, so "restored" only tells us whether a
+        // copy came back. Linked rows start non-missing and the next
+        // maintenance pass re-checks the source bookmark.
+        context.insert(snapshot.makeMediaItem(
+            isMissing: isLinked ? false : !mediaRestored
+        ))
 
         var restoredEntries = 0
         for entry in snapshot.playlistEntries {
@@ -355,7 +386,7 @@ public final class TrashService {
 
         return TrashRestoreResult(
             title: snapshot.title,
-            mediaFileRestored: mediaRestored,
+            mediaFileRestored: isLinked || mediaRestored,
             restoredPlaylistEntryCount: restoredEntries
         )
     }
@@ -442,8 +473,11 @@ public final class TrashService {
             try? fileManager.removeItem(at: trashDir)
         }
 
-        // File that was never staged (or staged under a legacy path).
-        if let mediaURL = try? storage.url(forRelativePath: snapshot.relativePath) {
+        // File that was never staged (or staged under a legacy path). Linked
+        // items have no copy in the container; their source file is not ours
+        // to delete.
+        if snapshot.isLinked != true,
+           let mediaURL = try? storage.url(forRelativePath: snapshot.relativePath) {
             try? fileManager.removeItem(at: mediaURL)
         }
 

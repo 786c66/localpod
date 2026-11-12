@@ -172,6 +172,83 @@ final class SchemaMigrationTests: XCTestCase {
         try context.save()
     }
 
+    // MARK: - V6 → V7 (linked imports + collection ordering)
+
+    func testV6StoreMigratesToV7WithDefaults() throws {
+        let root = try TemporaryDirectory()
+        let storeURL = root.url.appendingPathComponent("LocalPod.store")
+
+        try makeV6Store(at: storeURL)
+        let container = try openV7Store(at: storeURL)
+        let context = container.mainContext
+
+        let items = try context.fetch(FetchDescriptor<MediaItem>())
+        XCTAssertEqual(items.count, 1)
+        let item = try XCTUnwrap(items.first)
+        XCTAssertEqual(item.title, "M6 item")
+        XCTAssertEqual(item.relativePath, "Media/m6.m4a")
+        XCTAssertFalse(item.isLinked)
+        XCTAssertNil(item.linkedFolderID)
+        XCTAssertNil(item.linkedBookmarkData)
+        XCTAssertEqual(item.collectionPosition, 0)
+
+        let collections = try context.fetch(FetchDescriptor<MediaCollection>())
+        XCTAssertEqual(collections.count, 1)
+        XCTAssertEqual(collections.first?.sortMode, .natural)
+
+        // The V7 fields are writable right after migration.
+        item.isLinked = true
+        item.linkedFolderID = UUID()
+        item.collectionPosition = 3
+        collections.first?.sortMode = .manual
+        try context.save()
+
+        let reloaded = try context.fetch(FetchDescriptor<MediaItem>()).first
+        XCTAssertTrue(reloaded?.isLinked ?? false)
+        XCTAssertEqual(reloaded?.collectionPosition, 3)
+        XCTAssertEqual(
+            try context.fetch(FetchDescriptor<MediaCollection>()).first?.sortMode,
+            .manual
+        )
+    }
+
+    private func makeV6Store(at url: URL) throws {
+        let schema = Schema(versionedSchema: LocalPodSchemaV6.self)
+        let configuration = ModelConfiguration(schema: schema, url: url)
+        let container = try ModelContainer(
+            for: schema,
+            migrationPlan: nil,
+            configurations: [configuration]
+        )
+        let context = container.mainContext
+        let collection = LocalPodSchemaV2.MediaCollection(
+            name: "M6 合集",
+            nameKey: "m6 合集",
+            lastImportedAt: Date()
+        )
+        context.insert(collection)
+        context.insert(LocalPodSchemaV2.MediaItem(
+            title: "M6 item",
+            relativePath: "Media/m6.m4a",
+            kind: .audio,
+            fileExtension: "m4a",
+            byteSize: 321,
+            durationSeconds: 90,
+            collectionID: collection.id
+        ))
+        try context.save()
+    }
+
+    private func openV7Store(at url: URL) throws -> ModelContainer {
+        let schema = Schema(versionedSchema: LocalPodSchemaV7.self)
+        let configuration = ModelConfiguration(schema: schema, url: url)
+        return try ModelContainer(
+            for: schema,
+            migrationPlan: LocalPodMigrationPlan.self,
+            configurations: [configuration]
+        )
+    }
+
     private func makeV1Store(at url: URL) throws {
         let schema = Schema(versionedSchema: LocalPodSchemaV1.self)
         let configuration = ModelConfiguration(schema: schema, url: url)

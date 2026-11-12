@@ -19,6 +19,7 @@
 "import.phase.scanning" = "Scanning";
 "import.phase.downloading" = "Downloading from iCloud";
 "import.phase.copying" = "Copying";
+"import.phase.linking" = "Reading in Place";
 "import.phase.probing" = "Reading Metadata";
 "import.phase.finished" = "Finished";
 "import.phase.cancelled" = "Cancelled";
@@ -124,3 +125,17 @@
 "backup.error.version" = "This backup was made by a different version (schema %lld; this app supports %lld). Update the app and try again.";
 "backup.error.readFailed" = "Unable to read the backup file: %@";
 "backup.error.writeFailed" = "Unable to write the backup file: %@";
+
+/* Playback status and collection sorting (播放状态与合集排序) */
+"playback.status.notStarted" = "Not started";
+"playback.status.inProgress" = "In progress";
+"playback.status.finished" = "Finished";
+"collection.sort.natural" = "Natural order";
+"collection.sort.naturalDescending" = "Natural, reversed";
+"collection.sort.name" = "By name";
+"collection.sort.importedAt" = "By import date";
+"collection.sort.manual" = "Manual order";
+
+/* In-place imports (原地导入) */
+"error.fingerprint.open" = "Could not open the file: %@";
+"error.fingerprint.read" = "Could not read the file: %@";

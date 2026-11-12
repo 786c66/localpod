@@ -131,6 +131,77 @@ public final class FolderImportService {
         )
     }
 
+    /// In-place variant: the source folder stays where it is and is referenced
+    /// through a security-scoped bookmark owned by `LinkedFolder` row
+    /// `linkedFolderID`. Nothing enters `Media/`, so the commit marks every
+    /// item as linked.
+    public func importLinkedFolder(
+        rootURL: URL,
+        source: MediaSource,
+        rootName: String,
+        linkedFolderID: UUID,
+        collectionName: String? = nil,
+        in context: ModelContext,
+        options: ImportEngine.Options = ImportEngine.Options(),
+        probe: any MediaProbing = AVMediaProbe(),
+        cloudDownloader: any CloudDownloading = ICloudDownloader(),
+        progress: @escaping @Sendable (ImportProgress) -> Void = { _ in }
+    ) async throws -> FolderImportResult {
+        let existingFingerprints = try library.fingerprints(in: context)
+        let relinkFingerprints = try library.missingFingerprints(in: context)
+        let sessionID = UUID()
+        let artworkRoot = try storage.artworkRootURL()
+
+        let report = try await engine.importLinkedFolder(
+            rootURL: rootURL,
+            source: source,
+            rootName: rootName,
+            sessionID: sessionID,
+            linkedFolderID: linkedFolderID,
+            artworkRootURL: artworkRoot,
+            existingFingerprints: existingFingerprints,
+            relinkFingerprints: relinkFingerprints,
+            options: options,
+            probe: probe,
+            cloudDownloader: cloudDownloader,
+            progress: progress
+        )
+
+        let commit = try library.commit(
+            report: report,
+            collectionName: collectionName ?? rootName,
+            in: context
+        )
+
+        let reportPath = writeReport(report)
+        let session = ImportSession(
+            id: report.sessionID,
+            startedAt: report.startedAt,
+            endedAt: report.finishedAt,
+            source: report.source,
+            rootName: report.rootName,
+            totalCandidates: report.totalCandidates,
+            supportedFiles: report.supportedFiles,
+            totalBytes: report.totalBytes,
+            importedCount: report.importedCount,
+            duplicateCount: report.duplicateCount,
+            unsupportedCount: report.unsupportedCount,
+            failedCount: report.failedCount,
+            relinkedCount: report.relinkedCount,
+            cancelled: report.cancelled,
+            reportPath: reportPath,
+            status: report.status
+        )
+        context.insert(session)
+        try context.save()
+
+        return FolderImportResult(
+            report: report,
+            commit: commit,
+            reportPath: reportPath
+        )
+    }
+
     private func writeReport(_ report: ImportRunResult) -> String? {
         let fileManager = FileManager.default
         let directory = storage.applicationSupportRoot

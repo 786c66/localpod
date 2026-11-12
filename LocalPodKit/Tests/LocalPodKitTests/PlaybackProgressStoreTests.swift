@@ -118,4 +118,70 @@ final class PlaybackProgressStoreTests: XCTestCase {
         XCTAssertEqual(try store.resumePosition(for: second), 20)
         XCTAssertEqual(try stateCount(), 2)
     }
+
+    // MARK: - Status switching (item 4)
+
+    func testStatusStartsNotStarted() throws {
+        XCTAssertEqual(try store.status(for: UUID()), .notStarted)
+    }
+
+    func testStatusInProgressAfterPlayStart() throws {
+        let id = UUID()
+        try store.recordPlayStart(itemID: id, duration: 300)
+        XCTAssertEqual(try store.status(for: id), .inProgress)
+    }
+
+    func testMarkUnfinishedResetsEndPosition() throws {
+        let id = UUID()
+        try store.recordPlayStart(itemID: id, duration: 300)
+        try store.markFinished(itemID: id, duration: 300)
+        XCTAssertEqual(try store.status(for: id), .finished)
+
+        try store.markUnfinished(itemID: id)
+        XCTAssertEqual(try store.status(for: id), .inProgress)
+        // A position parked at the end is rewound so the next write cannot
+        // immediately re-finish the item.
+        XCTAssertEqual(try store.state(for: id)?.position, 0)
+        XCTAssertEqual(try store.resumePosition(for: id), 0)
+    }
+
+    func testMarkUnfinishedKeepsMidPosition() throws {
+        let id = UUID()
+        try store.save(itemID: id, position: 120, duration: 300, isFinished: true)
+
+        try store.markUnfinished(itemID: id)
+        XCTAssertEqual(try store.state(for: id)?.position, 120)
+    }
+
+    func testResetProgressClearsContinueStripState() throws {
+        let id = UUID()
+        try store.recordPlayStart(itemID: id, duration: 300)
+        try store.save(itemID: id, position: 42, duration: 300, isFinished: false)
+
+        try store.resetProgress(itemID: id)
+        XCTAssertEqual(try store.status(for: id), .notStarted)
+        XCTAssertEqual(try store.state(for: id)?.position, 0)
+        XCTAssertEqual(try store.state(for: id)?.playCount, 0)
+        XCTAssertNil(try store.state(for: id)?.lastPlayedAt)
+    }
+
+    func testResetProgressOnFinishedItemAllowsReplayFromStart() throws {
+        let id = UUID()
+        try store.recordPlayStart(itemID: id, duration: 300)
+        try store.markFinished(itemID: id, duration: 300)
+        try store.resetProgress(itemID: id)
+
+        XCTAssertEqual(try store.status(for: id), .notStarted)
+        XCTAssertEqual(try store.resumePosition(for: id), 0)
+    }
+
+    func testStatusDisplayNamesAreLocalized() {
+        for status in PlaybackStatus.allCases {
+            let zh = status.displayName(locale: Locale(identifier: "zh-Hans"))
+            let en = status.displayName(locale: Locale(identifier: "en"))
+            XCTAssertFalse(zh.contains("playback.status"), "\(status) zh")
+            XCTAssertFalse(en.contains("playback.status"), "\(status) en")
+            XCTAssertNotEqual(zh, en, "\(status) should differ between zh and en")
+        }
+    }
 }

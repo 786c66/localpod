@@ -530,6 +530,183 @@ public enum LocalPodSchemaV6: VersionedSchema {
     }
 }
 
+/// How the items inside one imported folder (a collection) are ordered.
+/// Stored on `MediaCollection`; manual order lives on each item's
+/// `collectionPosition`.
+public enum CollectionSortMode: String, CaseIterable, Codable, Sendable {
+    case natural
+    case naturalDescending
+    case name
+    case importedAt
+    case manual
+
+    public var displayName: String {
+        displayName(locale: nil)
+    }
+
+    public func displayName(locale: Locale?) -> String {
+        switch self {
+        case .natural: LocalPodLocalization.string("collection.sort.natural", locale: locale)
+        case .naturalDescending:
+            LocalPodLocalization.string("collection.sort.naturalDescending", locale: locale)
+        case .name: LocalPodLocalization.string("collection.sort.name", locale: locale)
+        case .importedAt:
+            LocalPodLocalization.string("collection.sort.importedAt", locale: locale)
+        case .manual: LocalPodLocalization.string("collection.sort.manual", locale: locale)
+        }
+    }
+}
+
+/// V7 adds the two features that need new persisted state:
+/// - collection ordering (`MediaCollection.sortModeRaw` + per-item
+///   `collectionPosition`, both defaulted so the migration is lightweight);
+/// - in-place imports (`MediaItem.isLinked`, `linkedFolderID`,
+///   `linkedBookmarkData`). Linked items own no media copy; the bookmark is
+///   the durable reference to the user's file/folder.
+///
+/// All unchanged entities from V2–V6 are reused as-is.
+public enum LocalPodSchemaV7: VersionedSchema {
+    public static var versionIdentifier: Schema.Version { Schema.Version(7, 0, 0) }
+
+    public static var models: [any PersistentModel.Type] {
+        [
+            MediaItem.self,
+            MediaCollection.self,
+            LocalPodSchemaV2.ImportSession.self,
+            LocalPodSchemaV3.PlaybackState.self,
+            LocalPodSchemaV4.QueueEntry.self,
+            LocalPodSchemaV4.QueueState.self,
+            LocalPodSchemaV4.Playlist.self,
+            LocalPodSchemaV4.PlaylistEntry.self,
+            LocalPodSchemaV5.LinkedFolder.self,
+            LocalPodSchemaV6.TrashItem.self
+        ]
+    }
+
+    @Model
+    public final class MediaItem {
+        public var id: UUID = UUID()
+        public var title: String = ""
+        public var sortTitle: String = ""
+        public var originalFileName: String = ""
+        /// Path relative to Application Support for copied imports. Empty for
+        /// linked items (their file lives outside the container).
+        public var relativePath: String = ""
+        /// Path inside the imported folder, e.g. "Season 1/Disc 1".
+        public var relativeFolderPath: String = ""
+        public var kindRaw: String = MediaKind.audio.rawValue
+        public var fileExtension: String = ""
+        public var byteSize: Int64 = 0
+        public var durationSeconds: Double?
+        public var addedAt: Date = Date()
+        public var folderName: String?
+        public var sourceRaw: String = MediaSource.imported.rawValue
+        public var sourceName: String?
+        /// SHA-256 of the file contents. Used for deduplication and relinking.
+        public var fingerprint: String?
+        public var collectionID: UUID?
+        public var artworkKey: String?
+        public var importSessionID: UUID?
+        public var isMissing: Bool = false
+        public var isFavorite: Bool = false
+        public var notes: String?
+        /// True when the item references the user's file in place instead of
+        /// a container copy. Playback resolves a security-scoped bookmark.
+        public var isLinked: Bool = false
+        /// Folder imports: the `LinkedFolder` row that owns the bookmark.
+        public var linkedFolderID: UUID?
+        /// Single-file links (open-in, future single-file pickers): a
+        /// security-scoped bookmark to the file itself.
+        public var linkedBookmarkData: Data?
+        /// Order inside the collection when `sortMode == .manual`.
+        public var collectionPosition: Int = 0
+
+        public init(
+            id: UUID = UUID(),
+            title: String,
+            sortTitle: String? = nil,
+            originalFileName: String = "",
+            relativePath: String,
+            relativeFolderPath: String = "",
+            kind: MediaKind,
+            fileExtension: String,
+            byteSize: Int64,
+            durationSeconds: Double? = nil,
+            addedAt: Date = Date(),
+            folderName: String? = nil,
+            source: MediaSource = .imported,
+            sourceName: String? = nil,
+            fingerprint: String? = nil,
+            collectionID: UUID? = nil,
+            artworkKey: String? = nil,
+            importSessionID: UUID? = nil,
+            isMissing: Bool = false,
+            isFavorite: Bool = false,
+            notes: String? = nil,
+            isLinked: Bool = false,
+            linkedFolderID: UUID? = nil,
+            linkedBookmarkData: Data? = nil,
+            collectionPosition: Int = 0
+        ) {
+            self.id = id
+            self.title = title
+            self.sortTitle = sortTitle ?? title
+            self.originalFileName = originalFileName
+            self.relativePath = relativePath
+            self.relativeFolderPath = relativeFolderPath
+            self.kindRaw = kind.rawValue
+            self.fileExtension = fileExtension
+            self.byteSize = byteSize
+            self.durationSeconds = durationSeconds
+            self.addedAt = addedAt
+            self.folderName = folderName
+            self.sourceRaw = source.rawValue
+            self.sourceName = sourceName
+            self.fingerprint = fingerprint
+            self.collectionID = collectionID
+            self.artworkKey = artworkKey
+            self.importSessionID = importSessionID
+            self.isMissing = isMissing
+            self.isFavorite = isFavorite
+            self.notes = notes
+            self.isLinked = isLinked
+            self.linkedFolderID = linkedFolderID
+            self.linkedBookmarkData = linkedBookmarkData
+            self.collectionPosition = collectionPosition
+        }
+    }
+
+    @Model
+    public final class MediaCollection {
+        public var id: UUID = UUID()
+        public var name: String = ""
+        public var nameKey: String = ""
+        public var createdAt: Date = Date()
+        public var sortOrder: Int = 0
+        public var lastImportedAt: Date = Date()
+        /// `CollectionSortMode.rawValue`; string-backed for forward migration.
+        public var sortModeRaw: String = CollectionSortMode.natural.rawValue
+
+        public init(
+            id: UUID = UUID(),
+            name: String,
+            nameKey: String,
+            createdAt: Date = Date(),
+            sortOrder: Int = 0,
+            lastImportedAt: Date = Date(),
+            sortMode: CollectionSortMode = .natural
+        ) {
+            self.id = id
+            self.name = name
+            self.nameKey = nameKey
+            self.createdAt = createdAt
+            self.sortOrder = sortOrder
+            self.lastImportedAt = lastImportedAt
+            self.sortModeRaw = sortMode.rawValue
+        }
+    }
+}
+
 public enum LocalPodMigrationPlan: SchemaMigrationPlan {
     public static var schemas: [any VersionedSchema.Type] {
         [
@@ -538,12 +715,20 @@ public enum LocalPodMigrationPlan: SchemaMigrationPlan {
             LocalPodSchemaV3.self,
             LocalPodSchemaV4.self,
             LocalPodSchemaV5.self,
-            LocalPodSchemaV6.self
+            LocalPodSchemaV6.self,
+            LocalPodSchemaV7.self
         ]
     }
 
     public static var stages: [MigrationStage] {
-        [migrateV1toV2, migrateV2toV3, migrateV3toV4, migrateV4toV5, migrateV5toV6]
+        [
+            migrateV1toV2,
+            migrateV2toV3,
+            migrateV3toV4,
+            migrateV4toV5,
+            migrateV5toV6,
+            migrateV6toV7
+        ]
     }
 
     public static let migrateV1toV2 = MigrationStage.lightweight(
@@ -570,6 +755,11 @@ public enum LocalPodMigrationPlan: SchemaMigrationPlan {
         fromVersion: LocalPodSchemaV5.self,
         toVersion: LocalPodSchemaV6.self
     )
+
+    public static let migrateV6toV7 = MigrationStage.lightweight(
+        fromVersion: LocalPodSchemaV6.self,
+        toVersion: LocalPodSchemaV7.self
+    )
 }
 
 public enum LocalPodStore {
@@ -587,7 +777,7 @@ public enum LocalPodStore {
     }
 
     public static func makeContainer(inMemory: Bool = false) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: LocalPodSchemaV6.self)
+        let schema = Schema(versionedSchema: LocalPodSchemaV7.self)
         let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: inMemory

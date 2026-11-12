@@ -1,8 +1,8 @@
 # 真机验证清单（M0–P2 汇总）
 
-> 日期：2026-11-11
+> 日期：2026-11-12
 > 工程：`/Users/xlf/Dev/code/localpod`
-> 一句话：M0–M5 与 P1/P2（Wi-Fi 上传、智能播放列表、链接文件夹、回收站、备份/导出、章节、通知、快捷指令/Siri）的**全部模拟器自动化已通过**（LocalPodKit 245 个单元/集成测试、53 个 UI 测试全量回归 0 失败，2026-11-11）；本清单是唯一未验证的面——把散在 6 份报告里的「待真机/未计为通过」项汇总成一张可勾选的清单，逐项带来源。
+> 一句话：M0–M5 与 P1/P2（Wi-Fi 上传、智能播放列表、链接文件夹、回收站、备份/导出、章节、通知、快捷指令/Siri）的**全部模拟器自动化已通过**（LocalPodKit 270 个单元/集成测试、53 个 UI 测试全量回归 0 失败，2026-11-12）；本清单是唯一未验证的面——把散在 6 份报告里的「待真机/未计为通过」项汇总成一张可勾选的清单，逐项带来源。
 > 使用方法：
 > 1. iPhone 连接 Xcode，按 [`docs/M0-SIGNING.md`](M0-SIGNING.md) 第 1–2 节完成准备与首次安装（概要：Xcode 登录免费 Apple ID → iPhone 开启开发者模式 → LocalPod target 选 Personal Team 自动签名 → Run → 首次启动被拦时到 设置 → 通用 → VPN 与设备管理 信任开发者证书 → 诊断页记录到期时间）。本文不重复全文；7 天到期后的重签步骤见该文档第 4 节，对应本清单第 1 节。
 > 2. 按第 1–11 节顺序（即一次测试会话的自然流程：安装 → 播放核心 → 导入渠道 → Wi-Fi → 链接文件夹 → 回收站 → 其他 → 备份/导出 → 章节 → 通知 → 快捷指令/Siri）逐项验证并勾选；每项写了做什么、预期结果、失败时看哪里。
@@ -14,10 +14,10 @@
 
 - [ ] **首次安装**：按 `docs/M0-SIGNING.md` 第 1–2 节以 Personal Team 安装到 iPhone。预期 Run 成功、启动无崩溃。失败看：Xcode 签名报错、iPhone 设置 → 通用 → VPN 与设备管理 是否已信任证书、免费账号设备数限制。（来源：docs/M0-DEVICE-CHECKLIST.md §1、docs/M0-SIGNING.md §2）
 - [ ] **无 entitlements 阻碍**：确认安装/启动不因缺少 App Group 等 capability 失败（本工程无 entitlements/App Group）。失败看：Xcode 报错是否提到 provisioning/entitlement。（来源：docs/M4-REPORT.md §6）
-- [ ] **诊断页记录**：打开诊断页，记录描述文件名称、Team、App ID、到期时间、剩余天数并截图；预期顶部出现签名横幅。（来源：docs/M0-DEVICE-CHECKLIST.md §1、docs/M5-INSTALL-RESIGN-BACKUP.md §6）
+- [ ] **诊断页记录**：资料库 → 齿轮 → 诊断，记录描述文件名称、Team、App ID、到期时间、剩余天数并截图；预期顶部出现签名横幅。（来源：docs/M0-DEVICE-CHECKLIST.md §1、docs/M5-INSTALL-RESIGN-BACKUP.md §6）
 - [ ] **签名到期提醒通知**：设置 → 签名 → 「签名到期提醒」先关再开，允许通知（首次启动不会弹权限框，必须切一次开关）；等到期前 2 天 10:00 观察本地通知是否送达。拒绝权限/专注模式/通知摘要时确认诊断页横幅仍兜底。失败看：iOS 设置 → 通知 → LocalPod、专注模式设置。（来源：docs/M5-INSTALL-RESIGN-BACKUP.md §3、§6；docs/M5-REPORT.md §6）
 - [ ] **（可选，DEBUG）假到期横幅**：Xcode Scheme 加启动参数 `--m5-fake-signing-expiry-days 3`，确认诊断横幅显示 3 天；Release 构建不受影响。（来源：docs/M5-INSTALL-RESIGN-BACKUP.md §6）
-- [ ] **建立可核对的数据**：导入内置示例 + 至少一个自己的媒体文件夹，创建播放列表，播放一条留下进度并加入队列；记录资料库条目数、缺失数、合集数、媒体总大小（作为到期/重签/备份各项的对照基线）。（来源：docs/M5-INSTALL-RESIGN-BACKUP.md §6、docs/M0-SIGNING.md §3）
+- [ ] **建立可核对的数据**：资料库 → 齿轮 → 诊断 →「测试与示例内容」生成示例（正式流程不再自动出现示例），再导入至少一个自己的媒体文件夹，创建播放列表，播放一条留下进度并加入队列；记录资料库条目数、缺失数、合集数、媒体总大小（作为到期/重签/备份各项的对照基线）。（来源：docs/M5-INSTALL-RESIGN-BACKUP.md §6、docs/M0-SIGNING.md §3）
 - [ ] **7 天到期行为**：等描述文件过期（以诊断页剩余天数为准）。预期 App 图标仍在但启动被系统拒绝；**此时不要删除 App**。（来源：docs/M0-DEVICE-CHECKLIST.md §1、docs/M5-INSTALL-RESIGN-BACKUP.md §3.1、§6）
 - [ ] **同一 Bundle ID 覆盖重签**：保持 `com.localpod.app` 不变，Xcode 重新 Run 覆盖安装。预期安装成功、诊断页到期时间刷新约 7 天。（来源：docs/M5-INSTALL-RESIGN-BACKUP.md §6、docs/M0-SIGNING.md §4）
 - [ ] **重签后数据保留**：核对资料库条目数不变、旧媒体可播放、进度/队列/播放列表/设置仍在，截图。失败先查：是否误删过 App、是否改过 Bundle ID（二者都会换沙盒容器导致数据丢失）。（来源：docs/M0-DEVICE-CHECKLIST.md §1、docs/M5-INSTALL-RESIGN-BACKUP.md §4、§6）
@@ -74,7 +74,7 @@
 - [ ] **真实 iCloud 未下载文件**：选含未下载占位文件的 iCloud 文件夹。预期显示下载进度、断网有明确错误提示、联网后重试成功。已有模拟器自动化覆盖（下载重试/失败分类/本地文件 no-op 单元测试），真实 iCloud 需真机。（来源：docs/M1-REPORT.md §6、docs/M0-DEVICE-CHECKLIST.md §5、docs/M4-REPORT.md §6）
 - [ ] **最老机型导入性能**：最老支持 iPhone（iOS 17）导入 3 层 100 个媒体文件的真实文件夹，记录耗时/峰值内存；5000 文件导入峰值内存 < 200 MB；资料库 5000 条滚动不明显卡顿。模拟器等价路径已通过，真机复核。（来源：docs/M1-REPORT.md §6、docs/M0-DEVICE-CHECKLIST.md §4、docs/M0-REPORT.md §7）
 - [ ] **资料库搜索/筛选交互**：人工确认资料库搜索框、筛选/排序菜单在真实设备上的交互（模拟器运行时的搜索控件未暴露给 XCUITest，自动化未覆盖）。（来源：docs/M1-REPORT.md §6）
-- [ ] **1 GB 大文件夹导入**：选择 ≥1 GB 音频文件夹导入，记录扫描/复制/探测耗时、峰值内存、失败与去重；建议基线 < 2 分钟，按设备实测调整。（来源：docs/M5-REPORT.md §6）
+- [ ] **1 GB 大文件夹导入**：选择 ≥1 GB 音频文件夹导入，记录扫描/指纹/探测耗时、峰值内存、失败与去重；建议基线 < 2 分钟，按设备实测调整。预期磁盘占用不因导入增加媒体副本（原地读取）。（来源：docs/M5-REPORT.md §6）
 - [ ] **4K 视频容器**：导入 4K mp4/mov，确认仅音轨导入/播放正常；不验证画面/旋转。（来源：docs/M5-REPORT.md §6）
 
 ### AirDrop / 打开方式 / Finder
@@ -102,12 +102,16 @@
 - [ ] **上传中切后台**：上传中回桌面/切其他 App。预期服务器立即停止；已传文件保留，重进 App 后有完成标记的批次经启动恢复导入。已有模拟器自动化覆盖（`--p1-wifi-staged-upload` 启动恢复用例），真机复核真实中断时机。（来源：docs/P1-REPORT.md §6）
 - [ ] **免费账号安装后的全流程**：完成第 1 节签名安装后，在本机把上面各项完整走一遍（本地网络权限与上传全流程依赖真机安装）。（来源：docs/P1-REPORT.md §6）
 
-## 5. 链接文件夹（P2）
+## 5. 链接文件夹与原地导入（P2 / 2026-11）
 
 > 模拟器已有种子/过期调试参数与 UI 用例（`P2LinkedFolderUITests`）；以下验证真实 File Provider 的 bookmark 行为。
 
 - [ ] **iCloud Drive/第三方 provider 链接**：通过文件 App 选择 iCloud Drive 或第三方 provider（如 Dropbox）文件夹建立链接。预期真实 security-scoped bookmark 解析成功、首次同步导入正确、增量同步只导入新增文件。失败看：设置页「链接的文件夹」区的过期徽标与错误提示、导入报告。（来源：PLAN.md §5.10）
 - [ ] **provider 掉线 → 过期 → 重选**：让 provider 掉线或源文件夹不可用（登出/删 App/断网）。预期链接标记为过期并显示徽标；走「重选」流程后同步恢复，不产生重复导入。（来源：PLAN.md §5.10）
+- [ ] **原地读取与磁盘占用**：导入真实文件夹后在 iOS 设置 → 通用 → iPhone 储存空间 对比导入前后占用；预期不增加整份媒体副本（只增加数据库、封面缓存与少量元数据）。（来源：PLAN.md ADR-001、§3.6.4）
+- [ ] **外部删除 → 缺失标记 → 恢复**：在文件 App（或 Finder）删除/移动已链接文件夹中的一个文件 → 回 App 触发回前台维护。预期条目进入缺失状态并显示徽标；把文件放回后重扫恢复，不产生重复条目。（来源：PLAN.md §3.6.4）
+- [ ] **重授权后重扫**：制造 stale bookmark（重启设备/provider 路径变化后），在过期徽标上重选同一文件夹。预期授权成功、bookmark 刷新、同步立即补扫期间的增删，条目 ID 不漂移。（来源：PLAN.md §3.6.4）
+- [ ] **iCloud 占位文件**：链接含未下载占位文件的 iCloud 文件夹。预期首次同步触发下载并显示进度；断网时有明确错误，联网重试成功；不把占位文件当 0 字节音频导入。（来源：PLAN.md §3.6.4）
 
 ## 6. 回收站（P2）
 

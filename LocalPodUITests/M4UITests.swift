@@ -29,6 +29,30 @@ final class M4UITests: XCTestCase {
         return element
     }
 
+    private func closeSettings(in app: XCUIApplication) {
+        let close = element(app, "settingsCloseButton")
+        if close.exists {
+            close.tap()
+        }
+    }
+
+    private func element(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
+        app.descendants(matching: .any)[identifier]
+    }
+
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
+        var attempts = 0
+        while !(element.exists && element.isHittable), attempts < 16 {
+            app.swipeUp()
+            attempts += 1
+        }
+        var resets = 0
+        while !(element.exists && element.isHittable), resets < 8 {
+            app.swipeDown()
+            resets += 1
+        }
+    }
+
     private func attach(_ app: XCUIApplication, name: String) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name
@@ -56,6 +80,7 @@ final class M4UITests: XCTestCase {
         XCTAssertTrue(runReport.label.contains("ImportReports"))
         attach(app, name: "M4-open-in-imported")
 
+        closeSettings(in: app)
         app.buttons["资料库"].tap()
         let stats = waitForLabel(app, identifier: "libraryStatsText", contains: "1 条", timeout: 20)
         XCTAssertTrue(stats.label.contains("1 条"))
@@ -90,6 +115,7 @@ final class M4UITests: XCTestCase {
         XCTAssertTrue(secondSummary.label.contains("失败 0"))
         attach(app, name: "M4-open-in-dedup")
 
+        closeSettings(in: app)
         app.buttons["资料库"].tap()
         let relaunchedStats = waitForLabel(
             app,
@@ -149,6 +175,7 @@ final class M4UITests: XCTestCase {
         XCTAssertTrue(finalPending.label.contains("待处理 0"))
         attach(app, name: "M4-foreground-imported")
 
+        closeSettings(in: app)
         app.buttons["资料库"].tap()
         let stats = waitForLabel(app, identifier: "libraryStatsText", contains: "1 条", timeout: 20)
         XCTAssertTrue(stats.label.contains("1 条"))
@@ -185,6 +212,7 @@ final class M4UITests: XCTestCase {
         )
         attach(app, name: "M4-unsupported-quarantined")
 
+        closeSettings(in: app)
         app.buttons["资料库"].tap()
         let stats = waitForLabel(app, identifier: "libraryStatsText", contains: "0 条", timeout: 20)
         XCTAssertTrue(stats.label.contains("0 条"))
@@ -201,7 +229,20 @@ final class M4UITests: XCTestCase {
         )
         XCTAssertTrue(relaunchedStats.label.contains("0 条"))
 
-        app.buttons["收件箱"].tap()
+        // Inbox is now a Settings destination below the fold; open the sheet
+        // from the library gear, then scroll the link into view before
+        // asserting. The list is lazy, so an offscreen row does not exist yet.
+        let settingsButton = element(app, "librarySettingsButton")
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 20))
+        settingsButton.tap()
+        XCTAssertTrue(
+            element(app, "settingsCloseButton").waitForExistence(timeout: 20),
+            "Settings sheet did not open"
+        )
+        let inboxLink = element(app, "settingsInboxLink")
+        reveal(inboxLink, in: app)
+        XCTAssertTrue(inboxLink.waitForExistence(timeout: 20))
+        inboxLink.tap()
         let relaunchedSkipped = waitForLabel(
             app,
             identifier: "inboxSkippedCount",

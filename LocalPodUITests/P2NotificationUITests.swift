@@ -44,6 +44,10 @@ final class P2NotificationUITests: XCTestCase {
             "Expected one imported inbox file: \(inboxSummary.label)"
         )
 
+        // Inbox is a Settings subpage now: the auto-inbox launch link opens
+        // that sheet directly. Close it before switching tabs — the tab bar
+        // sits behind the sheet and is not hittable while it is up.
+        closeSettings(in: app)
         tapTab("资料库", in: app)
         openSettings(in: app)
 
@@ -113,6 +117,21 @@ final class P2NotificationUITests: XCTestCase {
         let button = app.buttons[label].firstMatch
         XCTAssertTrue(button.waitForExistence(timeout: 20), "Missing tab \(label)")
         button.tap()
+    }
+
+    private func closeSettings(in app: XCUIApplication) {
+        let close = element(app, "settingsCloseButton")
+        XCTAssertTrue(close.waitForExistence(timeout: 20), "Missing settings close")
+        close.tap()
+        let gone = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: close
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [gone], timeout: 10),
+            .completed,
+            "Settings sheet did not dismiss"
+        )
     }
 
     private func openSettings(in app: XCUIApplication) {

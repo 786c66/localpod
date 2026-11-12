@@ -182,11 +182,17 @@ public final class LibraryService {
         var pendingSave = 0
 
         for imported in report.importedFiles {
-            let relativePath = try storage.relativePath(for: imported.destinationURL)
+            // Linked imports never write a copy, so there is no container
+            // path to store; playback resolves the bookmark instead.
+            let relativePath = imported.isLinked
+                ? ""
+                : try storage.relativePath(for: imported.destinationURL)
 
             if imported.isRelink,
                let existing = index[imported.fingerprint] {
                 existing.relativePath = relativePath
+                existing.isLinked = imported.isLinked
+                existing.linkedFolderID = imported.linkedFolderID
                 existing.fileExtension = imported.fileExtension
                 existing.byteSize = imported.byteSize
                 existing.fileSize = imported.byteSize
@@ -195,6 +201,7 @@ public final class LibraryService {
                 existing.isMissing = false
                 existing.sourceName = report.rootName
                 existing.importSessionID = report.sessionID
+                existing.collectionPosition = inserted + relinked
                 if existing.collectionID == nil {
                     existing.collectionID = collection.id
                 }
@@ -218,7 +225,10 @@ public final class LibraryService {
                     fingerprint: imported.fingerprint,
                     collectionID: collection.id,
                     artworkKey: imported.artworkKey,
-                    importSessionID: report.sessionID
+                    importSessionID: report.sessionID,
+                    isLinked: imported.isLinked,
+                    linkedFolderID: imported.linkedFolderID,
+                    collectionPosition: inserted + relinked
                 )
                 context.insert(item)
                 inserted += 1
@@ -276,7 +286,9 @@ public final class LibraryService {
         var removedMedia = false
         var removedArtwork = false
 
-        if let url = try? storage.url(forRelativePath: item.relativePath),
+        // Linked items reference the user's file; never delete the source.
+        if !item.isLinked,
+           let url = try? storage.url(forRelativePath: item.relativePath),
            FileManager.default.fileExists(atPath: url.path) {
             try FileManager.default.removeItem(at: url)
             removedMedia = true
@@ -358,7 +370,8 @@ public final class LibraryService {
         for item in items {
             freedBytes += item.byteSize
 
-            if let url = try? storage.url(forRelativePath: item.relativePath),
+            if !item.isLinked,
+               let url = try? storage.url(forRelativePath: item.relativePath),
                fileManager.fileExists(atPath: url.path),
                (try? fileManager.removeItem(at: url)) != nil {
                 removedMediaFiles += 1
@@ -476,16 +489,55 @@ public final class LibraryService {
         var referencedArtworkKeys = Set<String>()
         var needsSave = false
 
+        // Resolve each linked folder at most once per maintenance pass and
+        // keep the security scope alive until every item has been checked.
+        var linkedAccesses: [LinkedFolderStore.ResolvedAccess] = []
+        defer {
+            for access in linkedAccesses { access.stop() }
+        }
+        var linkedRoots: [UUID: URL] = [:]
+        let linkedFolderIDs = Set(items.compactMap { $0.isLinked ? $0.linkedFolderID : nil })
+        for folderID in linkedFolderIDs {
+            var descriptor = FetchDescriptor<LinkedFolder>(
+                predicate: #Predicate { $0.id == folderID }
+            )
+            descriptor.fetchLimit = 1
+            guard let folder = try? context.fetch(descriptor).first else { continue }
+            switch LinkedFolderStore.resolve(folder.bookmarkData) {
+            case .success(let access):
+                linkedRoots[folderID] = access.url
+                linkedAccesses.append(access)
+                if let refreshed = access.refreshedBookmark {
+                    folder.bookmarkData = refreshed
+                    folder.isStale = false
+                    needsSave = true
+                }
+                if folder.isStale {
+                    folder.isStale = false
+                    needsSave = true
+                }
+            case .failure:
+                if !folder.isStale {
+                    folder.isStale = true
+                    needsSave = true
+                }
+            }
+        }
+
         for item in items {
-            referencedRelativePaths.insert(item.relativePath)
             if let artworkKey = item.artworkKey {
                 referencedArtworkKeys.insert(artworkKey)
             }
             let exists: Bool
-            if let url = try? storage.url(forRelativePath: item.relativePath) {
-                exists = FileManager.default.fileExists(atPath: url.path)
+            if item.isLinked {
+                exists = linkedFileExists(item, linkedRoots: linkedRoots)
             } else {
-                exists = false
+                referencedRelativePaths.insert(item.relativePath)
+                if let url = try? storage.url(forRelativePath: item.relativePath) {
+                    exists = FileManager.default.fileExists(atPath: url.path)
+                } else {
+                    exists = false
+                }
             }
             if !exists, !item.isMissing {
                 item.isMissing = true
@@ -573,5 +625,28 @@ public final class LibraryService {
         }
 
         return summary
+    }
+
+    /// Existence check for an in-place item. Folder links reuse the scope
+    /// resolved once per reconcile pass; single-file links resolve their own
+    /// bookmark and release it immediately.
+    private func linkedFileExists(
+        _ item: MediaItem,
+        linkedRoots: [UUID: URL]
+    ) -> Bool {
+        if let folderID = item.linkedFolderID, let root = linkedRoots[folderID] {
+            let url = root.appendingPathComponent(item.linkedSourceRelativePath)
+            return FileManager.default.fileExists(atPath: url.path)
+        }
+        if let bookmark = item.linkedBookmarkData {
+            switch LinkedFolderStore.resolve(bookmark) {
+            case .success(let access):
+                defer { access.stop() }
+                return FileManager.default.fileExists(atPath: access.url.path)
+            case .failure:
+                return false
+            }
+        }
+        return false
     }
 }

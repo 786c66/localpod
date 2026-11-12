@@ -10,6 +10,7 @@ struct LocalPodApp: App {
     private let container: ModelContainer
 
     init() {
+        TapeAppearance.configure()
         #if DEBUG
         let launchArguments = ProcessInfo.processInfo.arguments
         if launchArguments.contains("--m0-reset-data") {

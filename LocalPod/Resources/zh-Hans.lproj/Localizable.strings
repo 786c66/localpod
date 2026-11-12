@@ -433,6 +433,8 @@
 "playback.demo.launchArgumentSubtitle" = "启动参数";
 "playback.demo.longAudioTitle" = "长音频测试";
 "playback.libraryFallback" = "资料库";
+"playback.queue.collapse" = "收起当前队列";
+"playback.queue.expand" = "展开当前队列";
 "playlist.createTitle" = "新建播放列表";
 "playlist.renameTitle" = "重命名播放列表";
 "settings.audioOnly" = "仅音频";
@@ -539,3 +541,16 @@
 "wifi.status.running" = "正在监听局域网";
 "wifi.stop" = "停止 Wi-Fi 上传";
 "wifi.title" = "Wi-Fi 上传";
+
+"快速导入" = "快速导入";
+"把声音装进磁带盒" = "把声音装进磁带盒";
+"扫描文件夹及子文件夹；视频文件只取音轨，不显示画面。" = "扫描文件夹及子文件夹；视频文件只取音轨，不显示画面。";
+"重复内容会跳过；导入期间请保持 App 在前台。" = "重复内容会跳过；导入期间请保持 App 在前台。";
+"import.sample.title" = "添加示例内容";
+"import.sample.subtitle" = "3 段自生成短语音 · 可随时删除";
+"import.demo.title" = "导入内置演示文件夹";
+"import.demo.subtitle" = "100 个文件 · 3 层子文件夹";
+"import.acceptance.title" = "导入验收文件夹";
+"import.acceptance.subtitle" = "100 文件 · 含 2 不支持 + 1 重复";
+"import.wifi.title" = "通过 Wi-Fi 上传";
+"import.wifi.subtitle" = "浏览器传文件到本机";

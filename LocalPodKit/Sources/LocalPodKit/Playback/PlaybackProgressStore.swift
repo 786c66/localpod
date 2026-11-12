@@ -1,6 +1,25 @@
 import Foundation
 import SwiftData
 
+/// Coarse, user-facing playback status for one library item.
+public enum PlaybackStatus: String, Sendable, Equatable, CaseIterable {
+    case notStarted
+    case inProgress
+    case finished
+
+    public var displayName: String {
+        displayName(locale: nil)
+    }
+
+    public func displayName(locale: Locale?) -> String {
+        switch self {
+        case .notStarted: LocalPodLocalization.string("playback.status.notStarted", locale: locale)
+        case .inProgress: LocalPodLocalization.string("playback.status.inProgress", locale: locale)
+        case .finished: LocalPodLocalization.string("playback.status.finished", locale: locale)
+        }
+    }
+}
+
 /// Small persistence façade for per-item playback progress. It is deliberately
 /// separate from `LibraryService`: progress writes happen every second during
 /// playback and must not invalidate `MediaItem` rows/observed library lists.
@@ -97,6 +116,42 @@ public final class PlaybackProgressStore {
         state.isFinished = true
         state.updatedAt = Date()
         try context.save()
+    }
+
+    /// Status switch: mark a finished (or untouched) item as unfinished.
+    /// A position parked at the very end is reset so playback does not
+    /// immediately re-finish on the next progress write.
+    @discardableResult
+    public func markUnfinished(itemID: UUID) throws -> PlaybackState {
+        let state = try findOrCreate(itemID: itemID)
+        state.isFinished = false
+        if state.duration > 0, state.position >= state.duration - 1 {
+            state.position = 0
+        }
+        state.updatedAt = Date()
+        try context.save()
+        return state
+    }
+
+    /// Manual reset: back to "never played". The continue-listening strip
+    /// filters on `playCount`, so this removes the item from it.
+    @discardableResult
+    public func resetProgress(itemID: UUID) throws -> PlaybackState {
+        let state = try findOrCreate(itemID: itemID)
+        state.position = 0
+        state.isFinished = false
+        state.playCount = 0
+        state.lastPlayedAt = nil
+        state.updatedAt = Date()
+        try context.save()
+        return state
+    }
+
+    /// Coarse status used by the library UI.
+    public func status(for itemID: UUID) throws -> PlaybackStatus {
+        guard let state = try state(for: itemID) else { return .notStarted }
+        if state.isFinished { return .finished }
+        return state.playCount > 0 ? .inProgress : .notStarted
     }
 
     public func deleteState(for itemID: UUID) throws {

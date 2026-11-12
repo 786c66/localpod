@@ -10,15 +10,20 @@ final class M0UITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["--m0-reset-data"]
         app.launchPinned()
-        app.buttons["导入"].tap()
+        // Import moved into Settings; demo material lives on Diagnostics.
+        openDiagnostics(in: app)
 
         let importButton = app.descendants(matching: .any)["importDemoFolderButton"]
+        reveal(importButton, in: app)
         XCTAssertTrue(importButton.waitForExistence(timeout: 20))
         importButton.tap()
 
         // Progress is transient and can be off screen by the time XCUITest
-        // regains control, so assert the completed summary instead. Progress
+        // regains control, so assert the completed summary instead. Reopening
+        // Diagnostics puts its top-of-page import status in view. Progress
         // and cancellation UI are covered by the M1 slow-copy tests.
+        closeSettings(in: app)
+        openDiagnostics(in: app)
         let resultText = app.descendants(matching: .any)["importCategorySummary"]
         XCTAssertTrue(resultText.waitForExistence(timeout: 120))
         XCTAssertTrue(resultText.label.contains("导入 100"))
@@ -45,11 +50,15 @@ final class M0UITests: XCTestCase {
         app.launchArguments = ["--m0-reset-data", "--m0-auto-benchmark"]
         app.launchPinned()
 
+        // --m0-auto-benchmark opens Settings → 诊断; the benchmark entry is a
+        // row at the bottom of that (lazy) List.
         let benchmarkLink = app.descendants(matching: .any)["benchmarkLink"]
+        reveal(benchmarkLink, in: app)
         XCTAssertTrue(benchmarkLink.waitForExistence(timeout: 20))
         benchmarkLink.tap()
 
         let insertButton = app.descendants(matching: .any)["benchmarkInsertButton"]
+        reveal(insertButton, in: app)
         XCTAssertTrue(insertButton.waitForExistence(timeout: 20))
         insertButton.tap()
 
@@ -63,6 +72,7 @@ final class M0UITests: XCTestCase {
         attachScreenshot(app, name: "M0-benchmark-insert-finished")
 
         let listLink = app.descendants(matching: .any)["benchmarkListLink"]
+        reveal(listLink, in: app)
         XCTAssertTrue(listLink.waitForExistence(timeout: 10))
         listLink.tap()
 
@@ -92,6 +102,41 @@ final class M0UITests: XCTestCase {
         XCTAssertTrue(pending.waitForExistence(timeout: 10))
         XCTAssertTrue(pending.label.contains("0"))
         attachScreenshot(app, name: "M0-inbox-imported-from-finder")
+    }
+
+    private func openDiagnostics(in app: XCUIApplication) {
+        let settings = app.descendants(matching: .any)["librarySettingsButton"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 20), "Missing library settings entry")
+        settings.tap()
+        let link = app.descendants(matching: .any)["settingsDiagnosticsLink"]
+        reveal(link, in: app)
+        link.tap()
+        XCTAssertTrue(
+            app.navigationBars["诊断"].waitForExistence(timeout: 20),
+            "Diagnostics page did not open"
+        )
+    }
+
+    private func closeSettings(in app: XCUIApplication) {
+        let close = app.descendants(matching: .any)["settingsCloseButton"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10), "Missing settings Done button")
+        close.tap()
+    }
+
+    private func reveal(
+        _ element: XCUIElement,
+        in app: XCUIApplication,
+        maxSwipes: Int = 16
+    ) {
+        var attempts = 0
+        while !(element.exists && element.isHittable), attempts < maxSwipes {
+            app.swipeUp()
+            attempts += 1
+        }
+        XCTAssertTrue(
+            element.waitForExistence(timeout: 5),
+            "Missing element \(element) after scrolling"
+        )
     }
 
     private func attachScreenshot(_ app: XCUIApplication, name: String) {
