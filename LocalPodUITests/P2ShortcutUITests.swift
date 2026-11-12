@@ -142,9 +142,7 @@ final class P2ShortcutUITests: XCTestCase {
                 collectionRow.waitForExistence(timeout: 5),
                 "fallback did not switch the library to the collections scope"
             )
-            // The search field is the app-owned librarySearchField anchor,
-            // not a system searchable field.
-            let search = element(app, "librarySearchField")
+            let search = app.searchFields.firstMatch
             XCTAssertTrue(search.waitForExistence(timeout: 5))
             XCTAssertEqual(
                 search.value as? String,

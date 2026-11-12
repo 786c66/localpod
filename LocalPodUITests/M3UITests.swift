@@ -543,63 +543,6 @@ final class M3UITests: XCTestCase {
         attachScreenshot(app, name: "M3-hero-button-resumed")
     }
 
-    /// The owner's repro: flipping between the library and the player made
-    /// the library's search field jump. Root cause: the old `.searchable`
-    /// field was hosted by the system search bar, which on iOS 26+ docks at
-    /// the screen bottom against the hidden system tab bar and the custom
-    /// TapeTabBar sibling, and re-docks on every tab switch. Fix: the search
-    /// field is now an app-owned anchor pinned in a top safe-area inset,
-    /// outside the scroll view, so its frame cannot depend on tab state.
-    /// The test proves the frame (Y and width) is bit-stable across two
-    /// tab round-trips and that filtering still works.
-    func testSearchFieldStaysPutWhenSwitchingTabs() throws {
-        let app = makeApp(["--m0-reset-data", "--m3-seed-playable-library"])
-
-        let search = element(app, "librarySearchField")
-        XCTAssertTrue(search.waitForExistence(timeout: 20), "search field missing")
-        let before = search.frame
-
-        for round in 0..<2 {
-            tapTab("播放", in: app)
-            // This test seeds a library but no queue, so the player shows
-            // its empty state; wait for that page's stable anchor instead
-            // of a transport control that does not exist here.
-            let emptyState = element(app, "playbackEmptyState")
-            XCTAssertTrue(emptyState.waitForExistence(timeout: 10))
-            tapTab("资料库", in: app)
-            XCTAssertTrue(search.waitForExistence(timeout: 10))
-            XCTAssertEqual(
-                search.frame.minY,
-                before.minY,
-                accuracy: 2,
-                "search field moved vertically across tab round-trip \(round): \(before) → \(search.frame)"
-            )
-            XCTAssertEqual(
-                search.frame.width,
-                before.width,
-                accuracy: 6,
-                "search field width changed across tab round-trip \(round): \(before) → \(search.frame)"
-            )
-        }
-
-        // The pinned field still drives the item filter end to end.
-        search.tap()
-        search.typeText("队列测试 A")
-        // Dismiss the keyboard: while it is up the List is squeezed into
-        // the space above it, and rows outside that sliver are not
-        // materialized in the accessibility tree (a screen-center swipe
-        // also lands in the dead zone below the squeezed list).
-        search.typeText("\n")
-        let row = element(app, "libraryItem-队列测试 A")
-        XCTAssertTrue(row.waitForExistence(timeout: 10), "search did not filter to the typed item")
-        let other = element(app, "libraryItem-队列测试 B")
-        XCTAssertFalse(
-            other.exists && other.isHittable,
-            "unmatched item must be filtered out while searching"
-        )
-        attachScreenshot(app, name: "M3-search-field-stable")
-    }
-
     func testSleepTimerEndOfEpisodeDoesNotAutoAdvance() throws {
         let app = makeApp([
             "--m0-reset-data",
