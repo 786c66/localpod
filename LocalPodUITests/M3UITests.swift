@@ -531,6 +531,55 @@ final class M3UITests: XCTestCase {
         attachScreenshot(app, name: "M3-sleep-end-of-episode")
     }
 
+    /// The hero play button on the library home is the player state mirror:
+    /// it shows 暂停 while the queue is playing, and tapping it pauses; when
+    /// nothing plays it resumes the queue's current item. The playback
+    /// position carries over both ways.
+    func testHeroPlayButtonMirrorsPlayerState() throws {
+        let app = makeApp([
+            "--m0-reset-data",
+            "--m3-seed-playable-library",
+            "--m3-seed-queue",
+            "--m3-auto-play-first"
+        ])
+
+        let playPause = element(app, "playPauseButton")
+        reveal(playPause, in: app)
+        waitForLabel(playPause, equals: "暂停", timeout: 20)
+
+        // Playing on the player screen → the home button must show 暂停.
+        tapTab("资料库", in: app)
+        let hero = element(app, "libraryHeroPlayButton")
+        XCTAssertTrue(hero.waitForExistence(timeout: 10))
+        reveal(hero, in: app)
+        waitForLabel(hero, equals: "暂停", timeout: 10)
+
+        // Tapping it pauses; the player screen shows the same state.
+        hero.tap()
+        waitForLabel(hero, equals: "播放", timeout: 10)
+
+        tapTab("播放", in: app)
+        reveal(playPause, in: app)
+        waitForLabel(playPause, equals: "播放", timeout: 10)
+
+        // Pausing there mirrors back to the home button's 播放.
+        tapTab("资料库", in: app)
+        reveal(hero, in: app)
+        waitForLabel(hero, equals: "播放", timeout: 10)
+
+        // Resume from home: the queue's current item starts again, and the
+        // player screen must agree (same title, playing state).
+        hero.tap()
+        waitForLabel(hero, equals: "暂停", timeout: 10)
+        tapTab("播放", in: app)
+        reveal(playPause, in: app)
+        waitForLabel(playPause, equals: "暂停", timeout: 10)
+        let title = element(app, "currentPlaybackTitle")
+        reveal(title, in: app)
+        XCTAssertEqual(title.label, "队列测试 A", "resume must stay on the queue's current item")
+        attachScreenshot(app, name: "M3-hero-button-resumed")
+    }
+
     // MARK: - Continue listening and settings
 
     func testContinueListeningExcludesFinishedItems() throws {

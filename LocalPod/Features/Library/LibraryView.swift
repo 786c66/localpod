@@ -268,17 +268,7 @@ struct LibraryView: View {
                     }
                 }
                 Spacer(minLength: TapeTheme.space2)
-                if let recent = libraryItems.first(where: { !$0.isMissing }) {
-                    Button {
-                        session.play(item: recent)
-                    } label: {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 17, weight: .bold))
-                    }
-                    .buttonStyle(TapeIconButtonStyle(diameter: 44, fill: TapeTheme.card))
-                    .accessibilityIdentifier("libraryHeroPlayButton")
-                    .accessibilityLabel("播放最近条目")
-                }
+                heroPlayButton
             }
 
             Text("\(libraryItems.count) 条 · \(collections.count) 个合集 · \(ByteCountFormatter.string(fromByteCount: totalBytes, countStyle: .file))")
@@ -307,6 +297,37 @@ struct LibraryView: View {
         .overlay {
             RoundedRectangle(cornerRadius: TapeTheme.radiusCard, style: .continuous)
                 .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
+        }
+    }
+
+    /// The hero button mirrors the player screen exactly: it drives and
+    /// reflects the shared PlaybackController, not a "play newest" shortcut.
+    /// Playing → pause toggle with the pause glyph; otherwise resume whatever
+    /// the queue holds via togglePlayPause, which for a paused/ready item
+    /// resumes it and for an ended item restarts it from zero — the same
+    /// semantics as the player's own button. A fresh launch with a persisted
+    /// queue but nothing loaded yet loads the queue's current entry first
+    /// (`resumeForShortcut`); if the button shows at all there is always
+    /// something it can start.
+    @ViewBuilder
+    private var heroPlayButton: some View {
+        let hasCurrent = session.playback.currentItem != nil
+        let hasQueue = session.queue.currentItemID != nil
+        if hasCurrent || hasQueue {
+            Button {
+                if session.playback.currentItem == nil {
+                    session.resumeForShortcut()
+                } else {
+                    session.playback.togglePlayPause()
+                }
+            } label: {
+                Image(systemName: session.playback.isPlaying ? "pause.fill" : "play.fill")
+                    .font(.system(size: 17, weight: .bold))
+            }
+            .buttonStyle(TapeIconButtonStyle(diameter: 44, fill: TapeTheme.card))
+            .accessibilityIdentifier("libraryHeroPlayButton")
+            .accessibilityLabel(session.playback.isPlaying ? "暂停" : "播放")
+            .accessibilityHint(session.playback.isPlaying ? "暂停当前音频" : "继续播放当前音频")
         }
     }
 
