@@ -58,7 +58,24 @@ public enum LinkedFolderStore {
     /// needs the URL, to release the security scope.
     public struct ResolvedAccess: Sendable {
         public let url: URL
+        /// True when the stored bookmark was stale but the URL still resolved.
+        /// Callers should persist `refreshedBookmark` so the next launch does
+        /// not have to repair it again.
+        public let isStale: Bool
+        public let refreshedBookmark: Data?
         public let stop: @Sendable () -> Void
+
+        public init(
+            url: URL,
+            isStale: Bool = false,
+            refreshedBookmark: Data? = nil,
+            stop: @escaping @Sendable () -> Void
+        ) {
+            self.url = url
+            self.isStale = isStale
+            self.refreshedBookmark = refreshedBookmark
+            self.stop = stop
+        }
 
         /// Runs `body` with the folder accessible, releasing the security
         /// scope in all paths. Use this instead of touching `url`/`stop`
@@ -89,25 +106,43 @@ public enum LinkedFolderStore {
                 relativeTo: nil,
                 bookmarkDataIsStale: &isStale
             )
-            let fileExists = FileManager.default.fileExists(atPath: url.path)
-            if isStale || !fileExists {
+            guard FileManager.default.fileExists(atPath: url.path) else {
+                // The source was moved, renamed, or deleted. The bookmark may
+                // not flag this on every runtime, so existence has the final
+                // word.
                 return .failure(.staleBookmark)
             }
-            if url.startAccessingSecurityScopedResource() {
-                return .success(ResolvedAccess(
-                    url: url,
-                    stop: { url.stopAccessingSecurityScopedResource() }
-                ))
+
+            let didStart = url.startAccessingSecurityScopedResource()
+            let stop: @Sendable () -> Void
+            if didStart {
+                stop = { url.stopAccessingSecurityScopedResource() }
+            } else {
+                stop = {}
             }
+
             // Bookmark resolved but access was refused (or none was needed).
             // App-internal URLs legitimately return false here and remain
             // readable, so probe before reporting a denial.
-            var isDirectory: ObjCBool = false
-            if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
-               isDirectory.boolValue {
-                return .success(ResolvedAccess(url: url, stop: {}))
+            if !didStart, !FileManager.default.isReadableFile(atPath: url.path) {
+                return .failure(.accessDenied)
             }
-            return .failure(.accessDenied)
+
+            // A stale bookmark that still resolves is repaired here: creating
+            // fresh bookmark data while the security scope is active gives the
+            // caller something durable to persist (the "re-authorize" path
+            // that does not require the user to re-pick the folder).
+            var refreshed: Data?
+            if isStale {
+                refreshed = try? url.bookmarkData()
+            }
+
+            return .success(ResolvedAccess(
+                url: url,
+                isStale: isStale,
+                refreshedBookmark: refreshed,
+                stop: stop
+            ))
         } catch {
             return .failure(.staleBookmark)
         }
@@ -167,6 +202,23 @@ public enum LinkedFolderStore {
     }
 
     // MARK: - Row bookkeeping
+
+    /// Source keys of the items that reference `folderID` in place. This is
+    /// the precise ownership set for linked folders (folder names may repeat).
+    public static func existingSourceKeys(
+        forLinkedFolderID folderID: UUID,
+        in context: ModelContext
+    ) throws -> Set<String> {
+        let items = try context.fetch(FetchDescriptor<MediaItem>(
+            predicate: #Predicate { $0.linkedFolderID == folderID }
+        ))
+        return Set(items.map {
+            existingSourceKey(
+                relativeFolderPath: $0.relativeFolderPath,
+                originalFileName: $0.originalFileName
+            )
+        })
+    }
 
     /// Builds the set of source keys a folder still "owns" in the library.
     ///

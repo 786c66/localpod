@@ -94,6 +94,11 @@ public struct BackupItem: Codable, Sendable, Equatable {
     public var isMissing: Bool
     public var isFavorite: Bool
     public var notes: String?
+    // V7 optional fields: old backup documents keep decoding.
+    public var isLinked: Bool?
+    public var linkedFolderID: UUID?
+    public var linkedBookmarkData: Data?
+    public var collectionPosition: Int?
 
     public init(
         id: UUID,
@@ -116,7 +121,11 @@ public struct BackupItem: Codable, Sendable, Equatable {
         importSessionID: UUID?,
         isMissing: Bool,
         isFavorite: Bool,
-        notes: String?
+        notes: String?,
+        isLinked: Bool? = nil,
+        linkedFolderID: UUID? = nil,
+        linkedBookmarkData: Data? = nil,
+        collectionPosition: Int? = nil
     ) {
         self.id = id
         self.title = title
@@ -139,6 +148,10 @@ public struct BackupItem: Codable, Sendable, Equatable {
         self.isMissing = isMissing
         self.isFavorite = isFavorite
         self.notes = notes
+        self.isLinked = isLinked
+        self.linkedFolderID = linkedFolderID
+        self.linkedBookmarkData = linkedBookmarkData
+        self.collectionPosition = collectionPosition
     }
 }
 
@@ -146,11 +159,18 @@ public struct BackupCollection: Codable, Sendable, Equatable {
     public var id: UUID
     public var name: String
     public var sortOrder: Int
+    public var sortModeRaw: String?
 
-    public init(id: UUID, name: String, sortOrder: Int) {
+    public init(
+        id: UUID,
+        name: String,
+        sortOrder: Int,
+        sortModeRaw: String? = nil
+    ) {
         self.id = id
         self.name = name
         self.sortOrder = sortOrder
+        self.sortModeRaw = sortModeRaw
     }
 }
 
@@ -471,11 +491,20 @@ public final class BackupService {
                     importSessionID: item.importSessionID,
                     isMissing: item.isMissing,
                     isFavorite: item.isFavorite,
-                    notes: item.notes
+                    notes: item.notes,
+                    isLinked: item.isLinked,
+                    linkedFolderID: item.linkedFolderID,
+                    linkedBookmarkData: item.linkedBookmarkData,
+                    collectionPosition: item.collectionPosition
                 )
             },
             collections: collections.map {
-                BackupCollection(id: $0.id, name: $0.name, sortOrder: $0.sortOrder)
+                BackupCollection(
+                    id: $0.id,
+                    name: $0.name,
+                    sortOrder: $0.sortOrder,
+                    sortModeRaw: $0.sortModeRaw
+                )
             },
             playlists: backupPlaylists,
             playbackStates: backupStates,
@@ -553,7 +582,9 @@ public final class BackupService {
                 id: backup.id,
                 name: backup.name,
                 nameKey: nameKey,
-                sortOrder: backup.sortOrder
+                sortOrder: backup.sortOrder,
+                sortMode: CollectionSortMode(rawValue: backup.sortModeRaw ?? "")
+                    ?? .natural
             )
             context.insert(collection)
             collectionByID[backup.id] = collection
@@ -580,7 +611,13 @@ public final class BackupService {
                 result.itemsMatched += 1
                 continue
             }
-            let isMissing = !fileExists(relativePath: backup.relativePath)
+            // Linked bookmarks are device/provider specific and the linked
+            // folder rows are deliberately not part of a backup. Restored
+            // linked rows start missing; the next maintenance pass clears the
+            // flag when the original file is still reachable.
+            let isMissing = (backup.isLinked ?? false)
+                ? true
+                : !fileExists(relativePath: backup.relativePath)
             let item = MediaItem(
                 id: backup.id,
                 title: backup.title,
@@ -602,7 +639,11 @@ public final class BackupService {
                 importSessionID: backup.importSessionID,
                 isMissing: isMissing,
                 isFavorite: backup.isFavorite,
-                notes: backup.notes
+                notes: backup.notes,
+                isLinked: backup.isLinked ?? false,
+                linkedFolderID: backup.linkedFolderID,
+                linkedBookmarkData: backup.linkedBookmarkData,
+                collectionPosition: backup.collectionPosition ?? 0
             )
             context.insert(item)
             itemByID[backup.id] = item

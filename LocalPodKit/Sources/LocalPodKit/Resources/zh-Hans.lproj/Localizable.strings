@@ -18,6 +18,7 @@
 "import.phase.scanning" = "扫描中";
 "import.phase.downloading" = "从 iCloud 下载";
 "import.phase.copying" = "复制中";
+"import.phase.linking" = "原地读取中";
 "import.phase.probing" = "读取元数据";
 "import.phase.finished" = "完成";
 "import.phase.cancelled" = "已取消";
@@ -123,3 +124,17 @@
 "backup.error.version" = "该备份来自不同版本（格式 %lld，当前支持 %lld）。请先更新 App 再试。";
 "backup.error.readFailed" = "无法读取备份文件：%@";
 "backup.error.writeFailed" = "无法写入备份文件：%@";
+
+/* 播放状态与合集排序 */
+"playback.status.notStarted" = "未播放";
+"playback.status.inProgress" = "播放中";
+"playback.status.finished" = "已完成";
+"collection.sort.natural" = "自然顺序";
+"collection.sort.naturalDescending" = "自然倒序";
+"collection.sort.name" = "按名称";
+"collection.sort.importedAt" = "按导入时间";
+"collection.sort.manual" = "手动排序";
+
+/* 原地导入 */
+"error.fingerprint.open" = "无法打开文件：%@";
+"error.fingerprint.read" = "读取文件失败：%@";

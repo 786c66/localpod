@@ -233,6 +233,134 @@ final class LibraryServiceTests: XCTestCase {
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: try env.storage.stagingRootURL().path).count, 0)
     }
 
+    // MARK: - In-place (linked) imports (item 3)
+
+    func testLinkedImportReferencesSourceWithoutCopying() async throws {
+        let env = try makeEnvironment()
+        let source = try TemporaryDirectory()
+        try source.write("Season 1/Episode 1.m4a", bytes: 128)
+        try source.write("Season 1/Episode 2.m4a", bytes: 256)
+
+        let folder = LinkedFolder(
+            bookmarkData: try LinkedFolderStore.makeBookmark(for: source.url),
+            rootName: "Course"
+        )
+        env.context.insert(folder)
+        try env.context.save()
+
+        let result = try await env.importService.importLinkedFolder(
+            rootURL: source.url,
+            source: .files,
+            rootName: "Course",
+            linkedFolderID: folder.id,
+            in: env.context,
+            probe: FakeMediaProbe()
+        )
+
+        XCTAssertEqual(result.report.importedCount, 2)
+        XCTAssertEqual(result.report.copiedBytes, 0)
+        XCTAssertEqual(result.commit.insertedCount, 2)
+
+        let items = try env.context.fetch(FetchDescriptor<MediaItem>())
+        XCTAssertEqual(items.count, 2)
+        for item in items {
+            XCTAssertTrue(item.isLinked)
+            XCTAssertEqual(item.linkedFolderID, folder.id)
+            XCTAssertEqual(item.relativePath, "")
+            XCTAssertTrue(item.fingerprint?.count == 64)
+            let sourceURL = source.url.appendingPathComponent(item.linkedSourceRelativePath)
+            XCTAssertTrue(FileManager.default.fileExists(atPath: sourceURL.path))
+        }
+        // Nothing was copied into the container.
+        let mediaRoot = try env.storage.mediaRootURL()
+        let copied = (try? FileManager.default.contentsOfDirectory(atPath: mediaRoot.path)) ?? []
+        XCTAssertTrue(copied.filter { !$0.hasPrefix(".") }.isEmpty)
+
+        // A rescan of the unchanged folder imports nothing new.
+        let second = try await env.importService.importLinkedFolder(
+            rootURL: source.url,
+            source: .files,
+            rootName: "Course",
+            linkedFolderID: folder.id,
+            in: env.context,
+            probe: FakeMediaProbe()
+        )
+        XCTAssertEqual(second.report.importedCount, 0)
+        XCTAssertEqual(second.report.duplicateCount, 2)
+        XCTAssertEqual(try env.context.fetchCount(FetchDescriptor<MediaItem>()), 2)
+    }
+
+    func testReconcileTracksLinkedSourceDeletionAndRecovery() async throws {
+        let env = try makeEnvironment()
+        let source = try TemporaryDirectory()
+        let fileURL = try source.write("Episode 1.m4a", bytes: 128)
+
+        let folder = LinkedFolder(
+            bookmarkData: try LinkedFolderStore.makeBookmark(for: source.url),
+            rootName: "Course"
+        )
+        env.context.insert(folder)
+        try env.context.save()
+
+        _ = try await env.importService.importLinkedFolder(
+            rootURL: source.url,
+            source: .files,
+            rootName: "Course",
+            linkedFolderID: folder.id,
+            in: env.context,
+            probe: FakeMediaProbe()
+        )
+        let item = try XCTUnwrap(try env.context.fetch(FetchDescriptor<MediaItem>()).first)
+        XCTAssertFalse(item.isMissing)
+
+        try FileManager.default.removeItem(at: fileURL)
+        let missing = try env.library.reconcile(in: env.context)
+        XCTAssertEqual(missing.missingMarked, 1)
+        XCTAssertTrue(item.isMissing)
+        XCTAssertEqual(try env.context.fetchCount(FetchDescriptor<MediaItem>()), 1)
+
+        try source.write("Episode 1.m4a", bytes: 128)
+        let restored = try env.library.reconcile(in: env.context)
+        XCTAssertEqual(restored.restored, 1)
+        XCTAssertFalse(item.isMissing)
+    }
+
+    func testExistingSourceKeysForLinkedFolderIDIgnoresOtherFolders() throws {
+        let env = try makeEnvironment()
+        let firstID = UUID()
+        let secondID = UUID()
+        env.context.insert(MediaItem(
+            title: "A",
+            originalFileName: "Episode 1.m4a",
+            relativePath: "",
+            relativeFolderPath: "Season 1",
+            kind: .audio,
+            fileExtension: "m4a",
+            byteSize: 1,
+            folderName: "Course",
+            isLinked: true,
+            linkedFolderID: firstID
+        ))
+        env.context.insert(MediaItem(
+            title: "B",
+            originalFileName: "Episode 1.m4a",
+            relativePath: "",
+            relativeFolderPath: "Season 1",
+            kind: .audio,
+            fileExtension: "m4a",
+            byteSize: 1,
+            folderName: "Course",
+            isLinked: true,
+            linkedFolderID: secondID
+        ))
+        try env.context.save()
+
+        XCTAssertEqual(
+            try LinkedFolderStore.existingSourceKeys(forLinkedFolderID: firstID, in: env.context),
+            ["Season 1/Episode 1.m4a"]
+        )
+    }
+
     func testCollectionLookupIsCaseAndWhitespaceInsensitive() throws {
         let env = try makeEnvironment()
         let first = try env.library.findOrCreateCollection(named: "  My Course ", in: env.context)

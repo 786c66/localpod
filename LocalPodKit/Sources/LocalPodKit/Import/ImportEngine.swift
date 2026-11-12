@@ -390,6 +390,279 @@ public struct ImportEngine: Sendable {
         )
     }
 
+    /// In-place (linked) folder import. Scans the user's folder, downloads
+    /// iCloud placeholders when needed, fingerprints and probes each file in
+    /// place, and returns `ImportedFile`s that point at the source URL. No
+    /// bytes are written into the container; the caller persists the folder
+    /// bookmark separately.
+    public func importLinkedFolder(
+        rootURL: URL,
+        source: MediaSource,
+        rootName: String,
+        sessionID: UUID = UUID(),
+        linkedFolderID: UUID,
+        artworkRootURL: URL?,
+        existingFingerprints: Set<String> = [],
+        relinkFingerprints: Set<String> = [],
+        options: Options = Options(),
+        probe: any MediaProbing = AVMediaProbe(),
+        cloudDownloader: any CloudDownloading = ICloudDownloader(),
+        progress: @escaping @Sendable (ImportProgress) -> Void = { _ in }
+    ) async throws -> ImportRunResult {
+        let startedAt = Date()
+        progress(ImportProgress(phase: .scanning))
+
+        let scanClock = ContinuousClock()
+        let scanStart = scanClock.now
+        let scan = try scanner.scan(rootURL: rootURL, limits: options.limits)
+        let scanDuration = scanStart.duration(to: scanClock.now)
+
+        let fileManager = FileManager.default
+        if let artworkRootURL {
+            try fileManager.createDirectory(at: artworkRootURL, withIntermediateDirectories: true)
+        }
+
+        var importedFiles: [ImportedFile] = []
+        var duplicateIssues: [ImportIssue] = []
+        var failureIssues: [ImportIssue] = scan.issues.map {
+            ImportIssue(relativePath: $0.relativePath, kind: .scanError, message: $0.message)
+        }
+        let unsupportedIssues = scan.unsupportedFiles.map {
+            ImportIssue(
+                relativePath: $0.relativePath,
+                kind: .unsupported,
+                message: $0.message(locale: options.locale)
+            )
+        }
+        if scan.truncated {
+            failureIssues.append(ImportIssue(
+                relativePath: "",
+                kind: .other,
+                message: LocalPodLocalization.string("error.import.truncated", locale: options.locale)
+            ))
+        }
+
+        let totalCandidates = max(scan.totalCandidates, scan.files.count + scan.unsupportedFiles.count)
+        var completedFiles = scan.unsupportedFiles.count
+        var cancelled = false
+        var seenFingerprints = existingFingerprints
+        let linkClock = ContinuousClock()
+        let linkStart = linkClock.now
+
+        progress(ImportProgress(
+            phase: .linking,
+            totalFiles: totalCandidates,
+            completedFiles: completedFiles,
+            totalBytes: scan.totalBytes,
+            copiedBytes: 0
+        ))
+
+        fileLoop: for file in scan.files {
+            if Task.isCancelled {
+                cancelled = true
+                break
+            }
+
+            if file.cloudState.needsDownload {
+                var attempt = 0
+                let completedSnapshot = completedFiles
+                while true {
+                    do {
+                        try await cloudDownloader.ensureDownloaded(
+                            at: file.url,
+                            progress: { fraction in
+                                progress(Self.makeProgress(
+                                    phase: .downloading,
+                                    totalFiles: totalCandidates,
+                                    completedFiles: completedSnapshot,
+                                    totalBytes: scan.totalBytes,
+                                    copiedBytes: 0,
+                                    currentFileName: file.relativePath,
+                                    currentFileTotalBytes: file.byteSize,
+                                    downloadFraction: fraction
+                                ))
+                            }
+                        )
+                        break
+                    } catch is CancellationError {
+                        cancelled = true
+                        break fileLoop
+                    } catch {
+                        if attempt < options.cloudRetryCount {
+                            attempt += 1
+                            continue
+                        }
+                        failureIssues.append(ImportIssue(
+                            relativePath: file.relativePath,
+                            kind: .cloudDownloadFailed,
+                            message: error.localizedDescription
+                        ))
+                        completedFiles += 1
+                        progress(Self.makeProgress(
+                            phase: .linking,
+                            totalFiles: totalCandidates,
+                            completedFiles: completedFiles,
+                            totalBytes: scan.totalBytes,
+                            copiedBytes: 0
+                        ))
+                        continue fileLoop
+                    }
+                }
+            }
+
+            progress(Self.makeProgress(
+                phase: .linking,
+                totalFiles: totalCandidates,
+                completedFiles: completedFiles,
+                totalBytes: scan.totalBytes,
+                copiedBytes: 0,
+                currentFileName: file.relativePath,
+                currentFileTotalBytes: file.byteSize
+            ))
+
+            let fingerprint: String
+            do {
+                fingerprint = try FileFingerprint.sha256(of: file.url)
+            } catch is CancellationError {
+                cancelled = true
+                break
+            } catch {
+                failureIssues.append(ImportIssue(
+                    relativePath: file.relativePath,
+                    kind: .copyFailed,
+                    message: error.localizedDescription
+                ))
+                completedFiles += 1
+                progress(Self.makeProgress(
+                    phase: .linking,
+                    totalFiles: totalCandidates,
+                    completedFiles: completedFiles,
+                    totalBytes: scan.totalBytes,
+                    copiedBytes: 0
+                ))
+                continue
+            }
+
+            let isRelink = relinkFingerprints.contains(fingerprint)
+            if seenFingerprints.contains(fingerprint), !isRelink {
+                duplicateIssues.append(ImportIssue(
+                    relativePath: file.relativePath,
+                    kind: .duplicate,
+                    message: LocalPodLocalization.format(
+                        "error.import.duplicate",
+                        locale: options.locale,
+                        String(fingerprint.prefix(12))
+                    )
+                ))
+                completedFiles += 1
+                progress(Self.makeProgress(
+                    phase: .linking,
+                    totalFiles: totalCandidates,
+                    completedFiles: completedFiles,
+                    totalBytes: scan.totalBytes,
+                    copiedBytes: 0
+                ))
+                continue
+            }
+            seenFingerprints.insert(fingerprint)
+
+            let probed: ProbedMedia
+            do {
+                probed = try await probe.probe(url: file.url, kindHint: file.kind)
+            } catch is CancellationError {
+                cancelled = true
+                break
+            } catch {
+                failureIssues.append(ImportIssue(
+                    relativePath: file.relativePath,
+                    kind: .probeFailed,
+                    message: error.localizedDescription
+                ))
+                completedFiles += 1
+                progress(Self.makeProgress(
+                    phase: .linking,
+                    totalFiles: totalCandidates,
+                    completedFiles: completedFiles,
+                    totalBytes: scan.totalBytes,
+                    copiedBytes: 0
+                ))
+                continue
+            }
+
+            let itemID = UUID()
+            var artworkKey: String?
+            if options.generateArtwork,
+               let artworkData = probed.artworkJPEGData,
+               let artworkRootURL {
+                let key = "\(itemID.uuidString).jpg"
+                let artworkURL = artworkRootURL.appendingPathComponent(key)
+                if (try? artworkData.write(to: artworkURL, options: .atomic)) != nil {
+                    artworkKey = key
+                }
+            }
+
+            let title = probed.title?.isEmpty == false ? probed.title! : file.displayName
+            let ext = MediaStorage.safeExtension(file.url.pathExtension)
+            importedFiles.append(ImportedFile(
+                id: itemID,
+                sourceURL: file.url,
+                destinationURL: file.url,
+                sourceRelativePath: file.relativePath,
+                relativeFolderPath: file.relativeFolderPath,
+                title: title,
+                originalFileName: file.originalFileName,
+                fileExtension: ext,
+                byteSize: file.byteSize,
+                kind: probed.hasVideoTrack ? .video : .audio,
+                durationSeconds: probed.durationSeconds,
+                fingerprint: fingerprint,
+                artworkKey: artworkKey,
+                isRelink: isRelink,
+                isLinked: true,
+                linkedFolderID: linkedFolderID
+            ))
+            completedFiles += 1
+            progress(Self.makeProgress(
+                phase: .linking,
+                totalFiles: totalCandidates,
+                completedFiles: completedFiles,
+                totalBytes: scan.totalBytes,
+                copiedBytes: 0
+            ))
+        }
+
+        let linkDuration = linkStart.duration(to: linkClock.now)
+        let finishedAt = Date()
+        progress(ImportProgress(
+            phase: cancelled ? .cancelled : .finished,
+            totalFiles: totalCandidates,
+            completedFiles: completedFiles,
+            totalBytes: scan.totalBytes,
+            copiedBytes: 0
+        ))
+
+        return ImportRunResult(
+            sessionID: sessionID,
+            source: source,
+            rootName: rootName,
+            importedFiles: importedFiles,
+            duplicateIssues: duplicateIssues,
+            unsupportedIssues: unsupportedIssues,
+            failureIssues: failureIssues,
+            scanIssues: scan.issues,
+            truncated: scan.truncated,
+            totalCandidates: totalCandidates,
+            supportedFiles: scan.files.count,
+            totalBytes: scan.totalBytes,
+            copiedBytes: 0,
+            scanDuration: scanDuration,
+            copyDuration: linkDuration,
+            cancelled: cancelled,
+            startedAt: startedAt,
+            finishedAt: finishedAt
+        )
+    }
+
     private static func makeProgress(
         phase: ImportPhase,
         totalFiles: Int,

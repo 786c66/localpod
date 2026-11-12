@@ -5,6 +5,7 @@ public enum ImportPhase: String, Sendable {
     case scanning
     case downloading
     case copying
+    case linking
     case probing
     case finished
     case cancelled
@@ -20,6 +21,7 @@ public enum ImportPhase: String, Sendable {
         case .scanning: LocalPodLocalization.string("import.phase.scanning", locale: locale)
         case .downloading: LocalPodLocalization.string("import.phase.downloading", locale: locale)
         case .copying: LocalPodLocalization.string("import.phase.copying", locale: locale)
+        case .linking: LocalPodLocalization.string("import.phase.linking", locale: locale)
         case .probing: LocalPodLocalization.string("import.phase.probing", locale: locale)
         case .finished: LocalPodLocalization.string("import.phase.finished", locale: locale)
         case .cancelled: LocalPodLocalization.string("import.phase.cancelled", locale: locale)
@@ -137,6 +139,10 @@ public struct ImportedFile: Identifiable, Sendable {
     public let fingerprint: String
     public let artworkKey: String?
     public let isRelink: Bool
+    /// True when no copy exists and playback must resolve the bookmark.
+    public let isLinked: Bool
+    /// Folder owning the bookmark for a linked import.
+    public let linkedFolderID: UUID?
 
     public init(
         id: UUID = UUID(),
@@ -152,7 +158,9 @@ public struct ImportedFile: Identifiable, Sendable {
         durationSeconds: Double?,
         fingerprint: String,
         artworkKey: String?,
-        isRelink: Bool = false
+        isRelink: Bool = false,
+        isLinked: Bool = false,
+        linkedFolderID: UUID? = nil
     ) {
         self.id = id
         self.sourceURL = sourceURL
@@ -168,6 +176,8 @@ public struct ImportedFile: Identifiable, Sendable {
         self.fingerprint = fingerprint
         self.artworkKey = artworkKey
         self.isRelink = isRelink
+        self.isLinked = isLinked
+        self.linkedFolderID = linkedFolderID
     }
 
     public var displayName: String {
@@ -237,6 +247,7 @@ public struct ImportRunResult: Sendable {
 
     public var importedCount: Int { importedFiles.filter { !$0.isRelink }.count }
     public var relinkedCount: Int { importedFiles.filter(\.isRelink).count }
+    public var linkedCount: Int { importedFiles.filter(\.isLinked).count }
     public var duplicateCount: Int { duplicateIssues.count }
     public var unsupportedCount: Int { unsupportedIssues.count }
     public var failedCount: Int { failureIssues.count }
