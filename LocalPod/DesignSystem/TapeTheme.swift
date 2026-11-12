@@ -46,7 +46,9 @@ enum TapeTheme {
 
     /// The single primary curve from the design: 260ms spring.
     static let spring = Animation.spring(response: 0.26, dampingFraction: 0.55)
-    static let press = Animation.easeOut(duration: 0.12)
+    /// Button press feedback: a short spring so the shadow-collapse reads as
+    /// elastic rather than linear — part of the tape button language.
+    static let press = Animation.spring(response: 0.22, dampingFraction: 0.6)
     static let pop = Animation.spring(response: 0.34, dampingFraction: 0.5)
 
     // MARK: - Haptics

@@ -450,10 +450,12 @@ struct LibraryView: View {
                         destination = .item(item)
                         showDestination = true
                     } label: {
-                        LibraryItemRow(item: item)
+                        LibraryItemRow(item: item) {
+                            session.play(item: item)
+                        }
                     }
                     .buttonStyle(TapePlainPressStyle())
-                    .accessibilityElement(children: .combine)
+                    .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("libraryItem-\(item.title)")
                     .tapeRowInsets(4)
                     .contextMenu {
@@ -749,6 +751,10 @@ private struct CollectionTile: View {
 
 struct LibraryItemRow: View {
     let item: MediaItem
+    /// When provided, the trailing tape button plays this row directly —
+    /// the owner asked for one-tap playback from list rows without opening
+    /// the detail page. Rows without it stay navigation-only.
+    var onPlay: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: TapeTheme.space3) {
@@ -772,6 +778,23 @@ struct LibraryItemRow: View {
             Text(item.durationText)
                 .font(TapeType.monoMicro)
                 .foregroundStyle(TapeTheme.muted)
+            if let onPlay, !item.isMissing {
+                Button {
+                    onPlay()
+                } label: {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(TapeTheme.ink)
+                        .frame(width: 28, height: 28)
+                        .background(TapeTheme.acid, in: Circle())
+                        .overlay { Circle().strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke) }
+                }
+                .buttonStyle(TapePlainPressStyle())
+                // Own the tap: without a contentShape the 28 pt circle loses
+                // its empty quarters to the surrounding Button, which would
+                // open the detail page instead of playing.
+                .contentShape(Circle())
+            }
         }
         .padding(.horizontal, TapeTheme.space3)
         .padding(.vertical, 9)
@@ -959,10 +982,12 @@ struct LibraryCollectionDetailView: View {
                         itemDetailTarget = item
                         showItemDetail = true
                     } label: {
-                        LibraryItemRow(item: item)
+                        LibraryItemRow(item: item) {
+                            session.play(item: item)
+                        }
                     }
                     .buttonStyle(TapePlainPressStyle())
-                    .accessibilityElement(children: .combine)
+                    .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("collectionItem-\(item.title)")
                     .tapeRowInsets(4)
                 }
@@ -1142,6 +1167,46 @@ struct LibraryItemDetailView: View {
                             TapeSticker(text: "缺失", fill: TapeTheme.coral, angle: 4)
                         }
                     }
+
+                    // Primary actions sit with the hero — the owner moved
+                    // them up from the bottom of the page so playing or
+                    // queueing never needs a scroll. Full-width rows keep the
+                    // 44 pt hit target and the tape button language.
+                    if !item.isMissing {
+                        Button {
+                            play()
+                        } label: {
+                            Label(
+                                item.kind.isVideo ? "播放音频（视频仅音轨）" : "播放音频",
+                                systemImage: "play.fill"
+                            )
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(TapePrimaryButtonStyle())
+                        .accessibilityIdentifier("detailPlayButton")
+
+                        HStack(spacing: TapeTheme.space2) {
+                            Button {
+                                session.playNext(itemID: item.id)
+                                infoMessage = L10n.string("library.queue.nextAdded")
+                            } label: {
+                                Label("播放下一首", systemImage: "text.line.first.and.arrowtriangle.forward")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(TapeSecondaryButtonStyle())
+                            .accessibilityIdentifier("detailPlayNextButton")
+
+                            Button {
+                                session.enqueue(itemID: item.id)
+                                infoMessage = L10n.string("library.queue.enqueued")
+                            } label: {
+                                Label("加入队列", systemImage: "text.append")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(TapeSecondaryButtonStyle())
+                            .accessibilityIdentifier("detailEnqueueButton")
+                        }
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, TapeTheme.space2)
@@ -1260,35 +1325,6 @@ struct LibraryItemDetailView: View {
 
             Section {
                 VStack(spacing: TapeTheme.space2) {
-                    Button {
-                        play()
-                    } label: {
-                        Label(
-                            item.kind.isVideo ? "播放音频（视频仅音轨）" : "播放音频",
-                            systemImage: "play.fill"
-                        )
-                    }
-                    .buttonStyle(TapePrimaryButtonStyle())
-                    .accessibilityIdentifier("detailPlayButton")
-
-                    Button {
-                        session.playNext(itemID: item.id)
-                        infoMessage = L10n.string("library.queue.nextAdded")
-                    } label: {
-                        Label("播放下一首", systemImage: "text.line.first.and.arrowtriangle.forward")
-                    }
-                    .buttonStyle(TapeSecondaryButtonStyle())
-                    .accessibilityIdentifier("detailPlayNextButton")
-
-                    Button {
-                        session.enqueue(itemID: item.id)
-                        infoMessage = L10n.string("library.queue.enqueued")
-                    } label: {
-                        Label("加入队列", systemImage: "text.append")
-                    }
-                    .buttonStyle(TapeSecondaryButtonStyle())
-                    .accessibilityIdentifier("detailEnqueueButton")
-
                     if playlists.isEmpty {
                         Text("还没有播放列表。在资料库右上角进入「播放列表」创建。")
                             .font(TapeType.caption)
