@@ -5,7 +5,10 @@ import LocalPodKit
 @main
 struct LocalPodApp: App {
     @State private var importCoordinator = ImportCoordinator()
-    @State private var session = PlaybackSession()
+    // Built in init, after a --m0-reset-data wipe: AppSettingsStore
+    // snapshots UserDefaults at init, so a store created before the reset
+    // would keep the previous run's speed/library scope for the launch.
+    @State private var session: PlaybackSession
     @State private var intentRouter = AppIntentRouter()
     private let container: ModelContainer
 
@@ -34,6 +37,9 @@ struct LocalPodApp: App {
             AppIntentLaunchRequestStore.save(request)
         }
         #endif
+        // Only now is it safe to read settings: any debug reset above has
+        // already cleared the "localpod.settings." domain.
+        _session = State(initialValue: PlaybackSession())
         do {
             container = try LocalPodStore.makeContainer()
         } catch {

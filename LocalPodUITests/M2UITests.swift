@@ -57,6 +57,41 @@ final class M2UITests: XCTestCase {
         attachScreenshot(app, name: "M2-speed-and-controls")
     }
 
+    /// 改了倍速、杀掉 App 重开又变回 1×. The speed chips now write through
+    /// PlaybackSession into AppSettingsStore, and attach re-applies the saved
+    /// speed, so the second launch must come up at the chosen 2.0×.
+    func testSpeedPersistsAcrossRelaunch() throws {
+        let first = XCUIApplication()
+        first.launchArguments = [
+            "--m0-reset-data",
+            "--m2-auto-play-long-audio",
+            "--m2-no-autoplay"
+        ]
+        first.launchPinned()
+
+        let firstRate = first.descendants(matching: .any)["playbackRateText"]
+        XCTAssertTrue(firstRate.waitForExistence(timeout: 20))
+        waitForLabelContains(firstRate, text: "1.0×", timeout: 5)
+
+        tapSpeedChip("speedOption-2.0", in: first)
+        waitForLabelContains(firstRate, text: "2.0×", timeout: 5)
+        first.terminate()
+
+        let second = XCUIApplication()
+        second.launchArguments = [
+            "--m2-auto-play-long-audio",
+            "--m2-no-autoplay"
+        ]
+        second.launchPinned()
+
+        let secondTitle = second.descendants(matching: .any)["currentPlaybackTitle"]
+        XCTAssertTrue(secondTitle.waitForExistence(timeout: 20))
+        let secondRate = second.descendants(matching: .any)["playbackRateText"]
+        XCTAssertTrue(secondRate.waitForExistence(timeout: 10))
+        waitForLabelContains(secondRate, text: "2.0×", timeout: 5)
+        attachScreenshot(second, name: "M2-speed-restored")
+    }
+
     /// The owner's cold-launch repro: kill the app with a queue persisted,
     /// reopen, switch to the player. A transient category-pin failure used to
     /// be reported one-shot, landing after the restored item loaded, and the

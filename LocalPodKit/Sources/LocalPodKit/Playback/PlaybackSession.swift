@@ -77,6 +77,17 @@ public final class PlaybackSession {
         playback.resumesSavedProgress = settings.resumeEnabled
     }
 
+    /// Changes the playback speed and remembers it. The player's speed chips
+    /// call this instead of `playback.setRate` so the choice is written to
+    /// AppSettingsStore (the same UserDefaults path as every other setting)
+    /// and `attach` re-applies it on the next launch — killing the app used
+    /// to bring the speed back to 1× because only the player knew the value.
+    public func setRate(_ rate: Float) {
+        let clamped = PlaybackPolicy.clampedRate(rate)
+        settings.defaultRate = clamped
+        playback.setRate(clamped)
+    }
+
     // MARK: - Play intents
 
     public func play(item: MediaItem) {

@@ -289,4 +289,48 @@ final class PlaybackSessionTests: XCTestCase {
         }
         XCTAssertEqual(session.queue.currentItemID, idA)
     }
+
+    // MARK: - Speed persistence
+
+    func testSetRatePersistsAsDefaultRateAndRestoresOnAttach() {
+        session.setRate(1.5)
+        XCTAssertEqual(session.playback.playbackRate, 1.5, accuracy: 0.001)
+        XCTAssertEqual(settings.defaultRate, 1.5, accuracy: 0.001)
+
+        // A fresh store over the same defaults sees the persisted speed...
+        let restoredSettings = AppSettingsStore(
+            defaults: defaults,
+            keyPrefix: "localpod.session.test."
+        )
+        XCTAssertEqual(restoredSettings.defaultRate, 1.5, accuracy: 0.001)
+
+        // ...and a new session applies it when it attaches.
+        let restored = PlaybackSession(
+            settings: restoredSettings,
+            sleepTimer: sleepTimer,
+            itemBuilder: { item in
+                PlaybackItem(
+                    title: item.title,
+                    subtitle: "测试",
+                    fileURL: TestFixtures.audioURL,
+                    kind: .audio,
+                    durationHint: 20,
+                    libraryItemID: item.id
+                )
+            }
+        )
+        restored.attach(context: context, progressStore: store)
+        XCTAssertEqual(restored.playback.playbackRate, 1.5, accuracy: 0.001)
+        restored.playback.stop()
+    }
+
+    func testSetRateClampsToSupportedRange() {
+        session.setRate(9)
+        XCTAssertEqual(session.playback.playbackRate, 3.0, accuracy: 0.001)
+        XCTAssertEqual(settings.defaultRate, 3.0, accuracy: 0.001)
+
+        session.setRate(0.1)
+        XCTAssertEqual(session.playback.playbackRate, 0.5, accuracy: 0.001)
+        XCTAssertEqual(settings.defaultRate, 0.5, accuracy: 0.001)
+    }
 }

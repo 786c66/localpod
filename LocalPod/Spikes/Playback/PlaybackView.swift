@@ -460,7 +460,8 @@ struct PlaybackView: View {
     private func speedButton(_ rate: Float) -> some View {
         let isSelected = playback.playbackRate == rate
         return Button {
-            playback.setRate(rate)
+            // Persist through the session so a relaunch starts at this speed.
+            session.setRate(rate)
         } label: {
             Text(PlaybackPolicy.speedLabel(rate))
                 .font(TapeFont.display(13, weight: .semibold, relativeTo: .caption))
