@@ -65,9 +65,6 @@ struct LibraryView: View {
     @Query(sort: \MediaCollection.name)
     private var collections: [MediaCollection]
 
-    @Query(sort: \PlaybackState.lastPlayedAt, order: .reverse)
-    private var progressStates: [PlaybackState]
-
     @Query(sort: \Playlist.sortOrder)
     private var playlists: [Playlist]
 
@@ -142,36 +139,12 @@ struct LibraryView: View {
         libraryItems.reduce(0) { $0 + ($1.durationSeconds ?? 0) }
     }
 
-    private var continueItems: [(item: MediaItem, state: PlaybackState)] {
-        let byID = Dictionary(uniqueKeysWithValues: libraryItems.map { ($0.id, $0) })
-        return progressStates.compactMap { state in
-            guard !state.isFinished,
-                  state.playCount > 0,
-                  !(byID[state.itemID]?.isMissing ?? true),
-                  let item = byID[state.itemID] else {
-                return nil
-            }
-            return (item, state)
-        }
-        .prefix(5)
-        .map { $0 }
-    }
-
     var body: some View {
         NavigationStack {
             List {
                 Section {
                     heroCard
                         .tapeRowInsets(8)
-                }
-
-                if !continueItems.isEmpty {
-                    Section {
-                        continueStrip
-                            .tapeRowInsets(6)
-                    } header: {
-                        libraryHeader("继续播放", kicker: "KEEP LISTENING")
-                    }
                 }
 
                 Section {
@@ -353,82 +326,6 @@ struct LibraryView: View {
             RoundedRectangle(cornerRadius: TapeTheme.radiusThumb)
                 .strokeBorder(TapeTheme.ink.opacity(0.35), lineWidth: 1)
         }
-    }
-
-    // MARK: - Continue listening
-
-    private var continueStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: TapeTheme.space3) {
-                ForEach(continueItems, id: \.item.id) { entry in
-                    ZStack(alignment: .topTrailing) {
-                        Button {
-                            session.play(item: entry.item)
-                        } label: {
-                            ContinueListeningCard(item: entry.item, state: entry.state)
-                        }
-                        .buttonStyle(TapePlainPressStyle())
-                        .accessibilityIdentifier("continueItem-\(entry.item.title)")
-
-                        // Status switch without opening the detail page:
-                        // finish the episode or reset progress. Both mutations
-                        // hit PlaybackState, so the strip updates immediately.
-                        Menu {
-                            Button {
-                                markContinueItemFinished(entry)
-                            } label: {
-                                Label("标记为已完成", systemImage: "checkmark.circle")
-                            }
-                            Button(role: .destructive) {
-                                resetContinueItem(entry)
-                            } label: {
-                                Label("重置播放进度", systemImage: "gobackward")
-                            }
-                        } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(TapeTheme.ink)
-                                .frame(width: 28, height: 28)
-                                .background(TapeTheme.cream, in: Circle())
-                                .overlay {
-                                    Circle().strokeBorder(
-                                        TapeTheme.ink,
-                                        lineWidth: 1
-                                    )
-                                }
-                        }
-                        .padding(6)
-                        .accessibilityIdentifier("continueMenu-\(entry.item.title)")
-                        .accessibilityLabel("切换播放状态")
-                    }
-                }
-            }
-            .padding(.horizontal, TapeTheme.screenPadding)
-            .padding(.vertical, TapeTheme.space1)
-        }
-        .padding(.horizontal, -TapeTheme.screenPadding)
-    }
-
-    private func markContinueItemFinished(
-        _ entry: (item: MediaItem, state: PlaybackState)
-    ) {
-        do {
-            try PlaybackProgressStore(context: modelContext).markFinished(
-                itemID: entry.item.id,
-                duration: entry.item.durationSeconds ?? entry.state.duration
-            )
-        } catch {
-            // The strip is a shortcut, not a critical path; a failed save
-            // leaves the row untouched and the detail page still offers the
-            // same action with an error message.
-        }
-    }
-
-    private func resetContinueItem(
-        _ entry: (item: MediaItem, state: PlaybackState)
-    ) {
-        try? PlaybackProgressStore(context: modelContext)
-            .resetProgress(itemID: entry.item.id)
     }
 
     // MARK: - Scope
@@ -840,60 +737,6 @@ struct LibraryItemRow: View {
         }
         parts.append(ByteCountFormatter.string(fromByteCount: item.byteSize, countStyle: .file))
         return parts.joined(separator: " · ")
-    }
-}
-
-struct ContinueListeningCard: View {
-    let item: MediaItem
-    let state: PlaybackState
-
-    private var progress: Double {
-        guard state.duration > 0 else { return 0 }
-        return min(max(state.position / state.duration, 0), 1)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: TapeTheme.space2) {
-            HStack(spacing: TapeTheme.space2) {
-                MediaArtworkView(item: item, size: 40)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(item.title)
-                        .font(TapeType.headline)
-                        .foregroundStyle(TapeTheme.ink)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("已听 \(Int(state.position)) 秒 / \(item.durationText)")
-                        .font(TapeType.monoMicro)
-                        .foregroundStyle(TapeTheme.faint)
-                        .lineLimit(1)
-                }
-            }
-
-            TapeProgressBar(progress: progress, fill: TapeTheme.acid, height: 8)
-
-            HStack(spacing: 4) {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 10, weight: .bold))
-                Text("继续")
-                    .font(TapeType.sticker)
-            }
-            .foregroundStyle(TapeTheme.ink)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(TapeTheme.acid, in: Capsule())
-            .overlay { Capsule().strokeBorder(TapeTheme.ink, lineWidth: 1) }
-        }
-        .padding(TapeTheme.space3)
-        .frame(width: 250, alignment: .leading)
-        .background {
-            RoundedRectangle(cornerRadius: TapeTheme.radiusCard, style: .continuous)
-                .fill(TapeTheme.card)
-                .shadow(color: TapeTheme.ink, radius: 0, x: 3, y: 3)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: TapeTheme.radiusCard, style: .continuous)
-                .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
-        }
     }
 }
 
@@ -1496,7 +1339,7 @@ struct LibraryItemDetailView: View {
             try PlaybackProgressStore(context: modelContext)
                 .markUnfinished(itemID: item.id)
             refreshPlaybackStatus()
-            infoMessage = "已标记为未完成，会重新出现在「继续播放」。"
+            infoMessage = "已标记为未完成。"
         } catch {
             errorMessage = error.localizedDescription
         }

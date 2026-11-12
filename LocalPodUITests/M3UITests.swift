@@ -494,43 +494,6 @@ final class M3UITests: XCTestCase {
         attachScreenshot(app, name: "M3-sleep-timer-paused")
     }
 
-    func testSleepTimerEndOfEpisodeDoesNotAutoAdvance() throws {
-        let app = makeApp([
-            "--m0-reset-data",
-            "--m3-seed-playable-library",
-            "--m3-seed-queue",
-            "--m3-arm-end-of-episode",
-            "--m3-auto-play-first"
-        ])
-
-        let title = element(app, "currentPlaybackTitle")
-        let playPause = element(app, "playPauseButton")
-        reveal(playPause, in: app)
-        waitForLabel(playPause, equals: "暂停", timeout: 20)
-
-        // Armed before playback via launch argument: opening the menu while
-        // the 20s fixture plays can take long enough for it to end first.
-        let status = element(app, "sleepTimerStatus")
-        XCTAssertTrue(status.waitForExistence(timeout: 10))
-        XCTAssertTrue(
-            status.label.contains("本集结束"),
-            "unexpected status \(status.label)"
-        )
-
-        tapSpeedChip("speedOption-3.0", in: app)
-        waitForLabel(
-            element(app, "playbackRateText"),
-            equals: "3.0×",
-            timeout: 5
-        )
-
-        // The 20s fixture ends: the play button flips back to 播放 and the
-        // title/queue stay on the same episode.
-        waitForLabel(playPause, equals: "播放", timeout: 25)
-        XCTAssertEqual(title.label, "队列测试 A", "end-of-episode must not advance")
-        attachScreenshot(app, name: "M3-sleep-end-of-episode")
-    }
-
     /// The hero play button on the library home is the player state mirror:
     /// it shows 暂停 while the queue is playing, and tapping it pauses; when
     /// nothing plays it resumes the queue's current item. The playback
@@ -580,24 +543,44 @@ final class M3UITests: XCTestCase {
         attachScreenshot(app, name: "M3-hero-button-resumed")
     }
 
-    // MARK: - Continue listening and settings
-
-    func testContinueListeningExcludesFinishedItems() throws {
+    func testSleepTimerEndOfEpisodeDoesNotAutoAdvance() throws {
         let app = makeApp([
             "--m0-reset-data",
-            "--m3-seed-playable-library"
+            "--m3-seed-playable-library",
+            "--m3-seed-queue",
+            "--m3-arm-end-of-episode",
+            "--m3-auto-play-first"
         ])
 
-        tapTab("资料库", in: app)
-        XCTAssertTrue(element(app, "libraryStatsText").waitForExistence(timeout: 20))
-        let inProgress = element(app, "continueItem-队列测试 C")
-        XCTAssertTrue(inProgress.waitForExistence(timeout: 10))
-        XCTAssertFalse(
-            element(app, "continueItem-队列测试 B").exists,
-            "finished item must not appear in continue listening"
+        let title = element(app, "currentPlaybackTitle")
+        let playPause = element(app, "playPauseButton")
+        reveal(playPause, in: app)
+        waitForLabel(playPause, equals: "暂停", timeout: 20)
+
+        // Armed before playback via launch argument: opening the menu while
+        // the 20s fixture plays can take long enough for it to end first.
+        let status = element(app, "sleepTimerStatus")
+        XCTAssertTrue(status.waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            status.label.contains("本集结束"),
+            "unexpected status \(status.label)"
         )
-        attachScreenshot(app, name: "M3-continue-listening")
+
+        tapSpeedChip("speedOption-3.0", in: app)
+        waitForLabel(
+            element(app, "playbackRateText"),
+            equals: "3.0×",
+            timeout: 5
+        )
+
+        // The 20s fixture ends: the play button flips back to 播放 and the
+        // title/queue stay on the same episode.
+        waitForLabel(playPause, equals: "播放", timeout: 25)
+        XCTAssertEqual(title.label, "队列测试 A", "end-of-episode must not advance")
+        attachScreenshot(app, name: "M3-sleep-end-of-episode")
     }
+
+    // MARK: - Settings
 
     func testSettingsPersistAcrossRestart() throws {
         let app = makeApp([
