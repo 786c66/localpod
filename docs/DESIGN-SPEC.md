@@ -135,7 +135,7 @@ iOS 字号映射（设计稿 280pt 宽 → iPhone 393pt，按 1.4× 放大后再
 
 ### 6.5 Tab Bar
 - 自定义，奶油底，顶部 1.5 墨黑描边，高度 56 + 安全区。
-- 5 项：资料库 / 导入 / 播放 / 收件箱 / 诊断；SF Symbol 22pt。
+- 2 项：资料库 / 播放；SF Symbol 22pt。导入、收件箱、诊断不放根 Tab，作为设置 sheet 的子页。
 - 激活项：图标置于 32×32 酸柠圆内（1.5 描边 + 2px 阴影），标签 `tab` 字重 SemiBold；未激活 `muted`。
 - 按下 scale 0.92；切换弹簧。保留按钮文本（UI 测试按标签点击）。
 
@@ -191,18 +191,20 @@ iOS 字号映射（设计稿 280pt 宽 → iPhone 393pt，按 1.4× 放大后再
 - 空状态：Tape 空状态（贴纸 + 去资料库）。
 
 ### 7.3 导入（Import）
-- hero 酸柠：「把声音装进盒子」+ 贴纸；导入方式为 2 列卡片（演示文件夹 / 验收文件夹 / 示例内容）。
+- hero 酸柠：「把声音装进盒子」+ 贴纸；文件夹选择走系统 picker，**原地读取**（security-scoped bookmark），不复制媒体。
 - 进度：粗进度条（6.7）+ mono 百分比 + 当前文件；取消按钮 destructive。
 - 报告：白卡 + mono 数字三列（导入/重复/失败/不支持）；保留 `import*` identifier。
-- 最近导入：卡行。
+- 最近导入：卡行。示例内容/演示文件夹不再出现在此页，只在设置 → 诊断中手动生成。
 
 ### 7.4 收件箱（Inbox）
+- 设置 sheet 的子页（推入），顶部 `safeAreaInset` 固定「完成」胶囊。
 - hero（紫贴纸）/空状态贴纸；分类计数用 mono 大数字卡；稳定性提示用酸柠卡；保留 `inbox*` identifier。
 
 ### 7.5 设置（Settings）
 - 每个逻辑分组一张白卡（Section → 卡），组头用 `TapeSectionHeader` 风格。
 - 开关用 6.9；数值用 mono；危险操作（删除示例、恢复）用 coral 按钮。
 - 备份/导出/恢复、通知、签名提醒、导入历史、链接文件夹、Wi-Fi 上传入口全部保留原结构与 identifier。
+- 「导入与文件夹」「收件箱」「诊断」作为设置子页推入；子页同样使用固定「完成」胶囊。
 
 ### 7.6 引导（Onboarding）
 - 全屏奶油 + 大贴纸 + 磁带插画；`displayXL` 标题；三条功能点用 chips；主按钮「开始使用」、次按钮「去导入」、跳过。
@@ -210,6 +212,7 @@ iOS 字号映射（设计稿 280pt 宽 → iPhone 393pt，按 1.4× 放大后再
 
 ### 7.7 诊断（Diagnostics）
 - 签名信息用「磁带标签」卡：mono 值、酸柠/珊瑚状态贴纸；维护/计数卡；保留 `maintenanceDetailText` 等 identifier。
+- 「测试与示例内容」卡：示例条目生成/删除、演示/验收文件夹导入只在这里；有导入时状态卡置顶。
 
 ### 7.8 回收站 / 播放列表 / 智能播放列表 / Wi-Fi / 基准
 - 统一卡行 + hero + 空状态；保留全部 identifier 与文案。
@@ -233,6 +236,6 @@ iOS 字号映射（设计稿 280pt 宽 → iPhone 393pt，按 1.4× 放大后再
 
 ## 9. 交付与验收
 
-- 所有屏幕的模拟器 UI 测试（53 个）与 LocalPodKit（245 个）必须全绿。
+- 所有屏幕的模拟器 UI 测试（53 个）与 LocalPodKit（270 个）必须全绿。
 - 截图对比存 `docs/screenshots/redesign/`，并在 `docs/REDESIGN-REPORT.md` 列出逐屏 before/after 与刻意取舍。
 - 人眼验收清单见 `docs/REDESIGN-REPORT.md` 的「Owner 验收清单」。
