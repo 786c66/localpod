@@ -82,4 +82,28 @@ final class AppSettingsStoreTests: XCTestCase {
         let restored = AppSettingsStore(defaults: defaults, keyPrefix: prefix)
         XCTAssertEqual(restored.defaultRate, 1.0, accuracy: 0.001)
     }
+
+    func testLibraryScopeDefaultsPersistsAndRejectsUnknownValues() {
+        let store = AppSettingsStore(defaults: defaults, keyPrefix: prefix)
+        XCTAssertEqual(store.libraryScope, .items)
+
+        store.libraryScope = .collections
+        let restored = AppSettingsStore(defaults: defaults, keyPrefix: prefix)
+        XCTAssertEqual(restored.libraryScope, .collections)
+
+        // Garbage never traps the library in an unknown pane.
+        defaults.set("weekly", forKey: prefix + AppSettingsStore.keyLibraryScope)
+        let invalid = AppSettingsStore(defaults: defaults, keyPrefix: prefix)
+        XCTAssertEqual(invalid.libraryScope, .items)
+    }
+
+    func testResetRestoresItemsScope() {
+        let store = AppSettingsStore(defaults: defaults, keyPrefix: prefix)
+        store.libraryScope = .collections
+        store.reset()
+
+        XCTAssertEqual(store.libraryScope, .items)
+        let restored = AppSettingsStore(defaults: defaults, keyPrefix: prefix)
+        XCTAssertEqual(restored.libraryScope, .items)
+    }
 }

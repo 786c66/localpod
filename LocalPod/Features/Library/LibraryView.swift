@@ -21,6 +21,19 @@ struct LibraryView: View {
             case .collections: L10n.string("library.scope.collections")
             }
         }
+
+        /// Stable token persisted in AppSettingsStore.libraryScope. The
+        /// rawValue is a display string and must not be stored.
+        var storedValue: LibraryScopeToken {
+            switch self {
+            case .items: .items
+            case .collections: .collections
+            }
+        }
+
+        init(storedValue: LibraryScopeToken) {
+            self = storedValue == .collections ? .collections : .items
+        }
     }
 
     private enum ItemFilter: String, CaseIterable, Identifiable {
@@ -71,7 +84,12 @@ struct LibraryView: View {
     @Query(sort: \TrashItem.deletedAt, order: .reverse)
     private var trashItems: [TrashItem]
 
-    @State private var scope: Scope = .items
+    /// Persisted through the settings store so the pane chosen before a
+    /// relaunch opens again (owner: selecting 合集 always came back to 条目).
+    private var scope: Scope {
+        get { Scope(storedValue: session.settings.libraryScope) }
+        nonmutating set { session.settings.libraryScope = newValue.storedValue }
+    }
     @State private var filter: ItemFilter = .all
     @State private var sort: ItemSort = .recent
     @State private var searchText = ""

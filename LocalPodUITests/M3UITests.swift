@@ -622,4 +622,35 @@ final class M3UITests: XCTestCase {
         waitForSelected(relaunched.buttons["不自动"], timeout: 10)
         attachScreenshot(relaunched, name: "M3-settings-after-restart")
     }
+
+    /// 选了合集，重开 App 又回到条目视图. The scope chips now persist through
+    /// AppSettingsStore, so a relaunch must land on the collections pane with
+    /// the chip selected and the collections content rendered.
+    func testLibraryScopeSelectionPersistsAcrossRelaunch() throws {
+        let app = makeApp(["--m0-reset-data", "--m3-seed-playable-library"])
+
+        let itemsChip = element(app, "libraryScope-条目")
+        let collectionsChip = element(app, "libraryScope-合集")
+        XCTAssertTrue(collectionsChip.waitForExistence(timeout: 20))
+        XCTAssertTrue(itemsChip.isSelected, "fresh data must open the items pane")
+
+        collectionsChip.tap()
+        waitForSelected(collectionsChip, timeout: 5)
+        XCTAssertTrue(
+            element(app, "collectionEmptyState").waitForExistence(timeout: 5),
+            "tapping 合集 should show the collections pane"
+        )
+        app.terminate()
+
+        let relaunched = makeApp(["--m3-seed-playable-library"])
+        let restoredChip = element(relaunched, "libraryScope-合集")
+        XCTAssertTrue(restoredChip.waitForExistence(timeout: 20))
+        waitForSelected(restoredChip, timeout: 5)
+        XCTAssertTrue(
+            element(relaunched, "collectionEmptyState")
+                .waitForExistence(timeout: 5),
+            "relaunch should restore the collections pane"
+        )
+        attachScreenshot(relaunched, name: "M3-library-scope-restored")
+    }
 }

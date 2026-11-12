@@ -1,5 +1,13 @@
 import Foundation
 
+/// Stable tokens for `AppSettingsStore.libraryScope`. The library view shows
+/// localized labels; only these tokens are persisted. Top-level and
+/// non-isolated so views and tests can map them without hopping actors.
+public enum LibraryScopeToken: String, Sendable, CaseIterable {
+    case items
+    case collections
+}
+
 /// UserDefaults-backed playback settings. Every setter writes immediately, so
 /// settings survive termination without a separate save action.
 @MainActor
@@ -15,6 +23,7 @@ public final class AppSettingsStore {
     public static let keyAutoPlayNext = "autoPlayNext"
     public static let keySigningReminderEnabled = "signingReminderEnabled"
     public static let keyImportNotificationsEnabled = "importNotificationsEnabled"
+    public static let keyLibraryScope = "libraryScope"
 
     public var defaultRate: Float {
         didSet { defaults.set(Double(defaultRate), forKey: key(Self.keyDefaultRate)) }
@@ -56,6 +65,14 @@ public final class AppSettingsStore {
             )
         }
     }
+    /// Which library home pane was last shown. Persisted here so the choice
+    /// survives relaunches and is cleared with the rest of the settings by a
+    /// `--m0-reset-data` UI-test run.
+    public var libraryScope: LibraryScopeToken {
+        didSet {
+            defaults.set(libraryScope.rawValue, forKey: key(Self.keyLibraryScope))
+        }
+    }
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let prefix: String
@@ -83,6 +100,7 @@ public final class AppSettingsStore {
         let storedImportNotifications = defaults.object(
             forKey: keyPrefix + Self.keyImportNotificationsEnabled
         ) as? Bool ?? false
+        let storedLibraryScope = defaults.string(forKey: keyPrefix + Self.keyLibraryScope)
 
         defaultRate = PlaybackPolicy.clampedRate(Float(storedRate))
         skipForwardSeconds = Self.validSkip(storedForward)
@@ -91,6 +109,8 @@ public final class AppSettingsStore {
         autoPlayNext = storedAutoNext
         signingReminderEnabled = storedSigningReminder
         importNotificationsEnabled = storedImportNotifications
+        libraryScope = storedLibraryScope.flatMap(LibraryScopeToken.init(rawValue:))
+            ?? .items
     }
 
     public func reset() {
@@ -101,7 +121,8 @@ public final class AppSettingsStore {
             Self.keyResumeEnabled,
             Self.keyAutoPlayNext,
             Self.keySigningReminderEnabled,
-            Self.keyImportNotificationsEnabled
+            Self.keyImportNotificationsEnabled,
+            Self.keyLibraryScope
         ] {
             defaults.removeObject(forKey: prefix + key)
         }
@@ -112,6 +133,7 @@ public final class AppSettingsStore {
         autoPlayNext = true
         signingReminderEnabled = true
         importNotificationsEnabled = false
+        libraryScope = .items
     }
 
     public static func clearStoredValues(
