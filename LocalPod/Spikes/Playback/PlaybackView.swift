@@ -22,7 +22,11 @@ struct PlaybackView: View {
 
     @State private var showSettings = false
     @State private var scrubPosition: Double?
-    @State private var isQueueExpanded = false
+    @State private var showQueueSheet = false
+    /// True between the Slider's editing began/ended callbacks. While set,
+    /// the frozen position below keeps the thumb's follow source stable.
+    @State private var isScrubbing = false
+    @State private var frozenScrubTime: Double?
 
     var body: some View {
         NavigationStack {
@@ -35,32 +39,19 @@ struct PlaybackView: View {
                 // label already carries the title and subtitle.
                 Section {
                     playerCard
-                        .tapeRowInsets(8)
+                        .tapeRowInsets(10)
                 }
 
                 Section {
                     queueExpandButton
-                        .tapeRowInsets(6)
-                }
-
-                if isQueueExpanded {
-                    queueSection
+                        .tapeRowInsets(8)
                 }
             }
             .listStyle(.plain)
             .tapeScreen()
             .navigationTitle(L10n.string("tab.playback"))
             .tapeNavigationChrome()
-            .overlay(alignment: .topTrailing) {
-                playbackPhaseSticker
-            }
             .toolbar {
-                ToolbarItemGroup(placement: .topBarLeading) {
-                    if isQueueExpanded, !session.queue.isEmpty {
-                        EditButton()
-                            .font(TapeType.bodySmall)
-                    }
-                }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     // Sleep timer is a utility, not a transport control: keep
                     // it in the bar so arming it never pushes the transport
@@ -77,36 +68,20 @@ struct PlaybackView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView()
             }
-        }
-    }
-
-    // MARK: - Phase sticker
-
-    /// Always-on status sticker. It floats above the list instead of living in
-    /// the navigation bar: the bar drops out of the accessibility tree once
-    /// the list is scrolled, and the status must stay queryable while the
-    /// queue is on screen. The sticker is decorative for touch purposes so it
-    /// never blocks the rows underneath.
-    private var playbackPhaseSticker: some View {
-        Text(playback.statusText)
-            .font(TapeType.monoMicro)
-            .foregroundStyle(TapeTheme.ink)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            // The hard offset shadow must sit on the capsule, not on the
-            // composed Text. A shadow on the text redraws every glyph 2 pt
-            // down-right: at this size the "播放中" strokes read as a ghost
-            // double image (the regression the owner reported).
-            .background {
-                Capsule()
-                    .fill(TapeTheme.acid)
-                    .shadow(color: TapeTheme.ink, radius: 0, x: 2, y: 2)
+            // The queue is an Apple Music-style bottom panel instead of an
+            // inline list section: it slides over the current tape and
+            // dismisses with a downward drag.
+            .sheet(isPresented: $showQueueSheet) {
+                QueuePanelView(
+                    playback: playback,
+                    itemByID: itemByID,
+                    onGoToLibrary: onGoToLibrary
+                )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(TapeTheme.cream)
             }
-            .overlay { Capsule().strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke) }
-            .padding(.top, 56)
-            .padding(.trailing, 14)
-            .allowsHitTesting(false)
-            .accessibilityIdentifier("playbackPhaseText")
+        }
     }
 
     // MARK: - Section chrome
@@ -124,7 +99,10 @@ struct PlaybackView: View {
     @ViewBuilder
     private var playerCard: some View {
         if let item = playback.currentItem {
-            VStack(spacing: TapeTheme.space3) {
+            // The cassette needs room to breathe above the info/controls:
+            // wider gaps between the tape, the queue badge and the control
+            // card than the default 12 pt card rhythm.
+            VStack(spacing: TapeTheme.space5) {
                 TapeTapeCover(
                     title: item.title,
                     subtitle: item.subtitle,
@@ -133,7 +111,7 @@ struct PlaybackView: View {
                     artworkURL: item.artworkURL,
                     width: dynamicTypeSize.isAccessibilitySize ? 190 : 236
                 )
-                .padding(.top, 2)
+                .padding(.top, TapeTheme.space2)
                 // The tape itself is the title now. Expose it as one element
                 // so UI tests (and VoiceOver) still get the track name.
                 .accessibilityElement(children: .ignore)
@@ -157,7 +135,7 @@ struct PlaybackView: View {
 
                 chapterSection
             }
-            .padding(.vertical, TapeTheme.space2)
+            .padding(.vertical, TapeTheme.space3)
         } else {
             TapeDashedCard {
                 VStack(spacing: TapeTheme.space3) {
@@ -233,11 +211,14 @@ struct PlaybackView: View {
             VStack(spacing: TapeTheme.space2) {
                 progressScrubber
 
+                // The preview time follows the thumb while scrubbing and the
+                // real clock otherwise; the frozen sample keeps the labels
+                // from ticking under the finger mid-drag.
                 HStack {
-                    Text(formatTime(scrubPosition ?? playback.currentTime))
+                    Text(formatTime(visiblePosition))
                         .accessibilityIdentifier("currentTimeText")
                     Spacer()
-                    Text("-" + formatTime(max(0, playback.duration - (scrubPosition ?? playback.currentTime))))
+                    Text("-" + formatTime(max(0, playback.duration - visiblePosition)))
                         .accessibilityIdentifier("remainingTimeText")
                 }
                 .font(TapeType.monoTime)
@@ -271,9 +252,20 @@ struct PlaybackView: View {
         .tapeCardSurface()
     }
 
+    /// Position the visible thumb follows: the drag value while scrubbing,
+    /// the real playback clock otherwise. While the user holds the thumb we
+    /// read `frozenScrubTime` (captured at drag start) instead of the live
+    /// `currentTime`; without that, every 0.5 s tick would yank the value
+    /// Binding back to the player clock mid-drag, fighting the finger and
+    /// ending the Slider's editing session early.
+    private var visiblePosition: Double {
+        if let scrubPosition { return scrubPosition }
+        if isScrubbing, let frozenScrubTime { return frozenScrubTime }
+        return playback.currentTime
+    }
+
     private var progressFraction: Double {
-        let duration = max(playback.duration, 1)
-        return (scrubPosition ?? playback.currentTime) / duration
+        visiblePosition / max(playback.duration, 1)
     }
 
     /// Visible progress bar with a drag thumb. Touch handling belongs to a
@@ -281,8 +273,9 @@ struct PlaybackView: View {
     /// arbitration the app used before the redesign. A bare DragGesture here
     /// claims every swipe that starts on the bar, including vertical ones, so
     /// the List could not scroll past the transport card (regression: the
-    /// P2 chapter test could never reach the chapter section). The visible
-    /// thumb still follows `scrubPosition` while the native slider drags.
+    /// P2 chapter test could never reach the chapter section).
+    ///
+    /// One seek lands on release; the drag itself never seeks.
     private var progressScrubber: some View {
         GeometryReader { geometry in
             let width = max(geometry.size.width, 1)
@@ -311,11 +304,7 @@ struct PlaybackView: View {
                 Slider(
                     value: Binding(
                         get: {
-                            let duration = max(playback.duration, 1)
-                            return min(
-                                max((scrubPosition ?? playback.currentTime) / duration, 0),
-                                1
-                            )
+                            min(max(visiblePosition / max(playback.duration, 1), 0), 1)
                         },
                         set: { newValue in
                             guard playback.duration > 0 else { return }
@@ -324,11 +313,17 @@ struct PlaybackView: View {
                     ),
                     in: 0...1
                 ) { editing in
-                    guard !editing else { return }
-                    if let target = scrubPosition {
-                        playback.seek(to: target)
+                    if editing {
+                        isScrubbing = true
+                        frozenScrubTime = playback.currentTime
+                    } else {
+                        isScrubbing = false
+                        if let target = scrubPosition {
+                            playback.seek(to: target)
+                        }
+                        scrubPosition = nil
+                        frozenScrubTime = nil
                     }
-                    scrubPosition = nil
                 }
                 .tint(TapeTheme.ink)
                 .opacity(0.02)
@@ -336,7 +331,7 @@ struct PlaybackView: View {
                 .accessibilityIdentifier("playbackSlider")
                 .accessibilityLabel("播放进度")
                 .accessibilityValue(
-                    "\(formatTime(scrubPosition ?? playback.currentTime))，共 \(formatTime(max(playback.duration, 0)))"
+                    "\(formatTime(visiblePosition))，共 \(formatTime(max(playback.duration, 0)))"
                 )
                 .accessibilityHint("左右滑动调整播放位置")
             }
@@ -344,7 +339,6 @@ struct PlaybackView: View {
         }
         .frame(height: 44)
     }
-
     @ViewBuilder
     private var transportControls: some View {
         if dynamicTypeSize.isAccessibilitySize {
@@ -630,24 +624,17 @@ struct PlaybackView: View {
 
     // MARK: - Queue
 
-    /// The queue is collapsed by default: the playback screen is about the
-    /// current tape, not the whole shelf. Expanding reveals the real queue
-    /// (reorder/delete still live there).
+    /// Opens the queue as a bottom panel. The label stays "展开当前队列" —
+    /// the button is an entry point now, not a toggle.
     private var queueExpandButton: some View {
         Button {
-            withAnimation(TapeTheme.spring) {
-                isQueueExpanded.toggle()
-            }
+            showQueueSheet = true
         } label: {
             HStack(spacing: TapeTheme.space3) {
                 Image(systemName: "list.bullet")
                     .font(.system(size: 15, weight: .bold))
-                Text(
-                    isQueueExpanded
-                        ? L10n.string("playback.queue.collapse")
-                        : L10n.string("playback.queue.expand")
-                )
-                .font(TapeType.headline)
+                Text(L10n.string("playback.queue.expand"))
+                    .font(TapeType.headline)
                 Spacer(minLength: TapeTheme.space2)
                 Text("\(session.queue.count)")
                     .font(TapeType.monoMeta)
@@ -658,7 +645,7 @@ struct PlaybackView: View {
                     .overlay {
                         Capsule().strokeBorder(TapeTheme.ink, lineWidth: 1)
                     }
-                Image(systemName: isQueueExpanded ? "chevron.up" : "chevron.down")
+                Image(systemName: "chevron.up")
                     .font(.system(size: 12, weight: .bold))
             }
             .foregroundStyle(TapeTheme.ink)
@@ -678,59 +665,110 @@ struct PlaybackView: View {
         }
         .buttonStyle(TapePlainPressStyle())
         .accessibilityIdentifier("queueExpandButton")
-        .accessibilityLabel(
-            isQueueExpanded
-                ? L10n.string("playback.queue.collapse")
-                : L10n.string("playback.queue.expand")
-        )
+        .accessibilityLabel(L10n.string("playback.queue.expand"))
         .accessibilityValue("\(session.queue.count)")
     }
 
-    private var queueSection: some View {
-        Section {
-            if session.queue.isEmpty {
-                TapeDashedCard {
-                    VStack(spacing: TapeTheme.space3) {
-                        Text("队列为空。使用「播放下一首」或「加入队列」添加条目。")
-                            .font(TapeType.body)
-                            .foregroundStyle(TapeTheme.muted)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Button("去资料库") {
-                            onGoToLibrary()
+    private func formatTime(_ seconds: Double) -> String {
+        guard seconds.isFinite, seconds >= 0 else { return "0:00" }
+        let total = Int(seconds.rounded())
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let secs = total % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, secs)
+        }
+        return String(format: "%d:%02d", minutes, secs)
+    }
+}
+
+/// Apple Music-style queue panel: slides up from the bottom over the player,
+/// dismisses with a downward drag. Carries the full queue surface — reorder,
+/// delete, shuffle, repeat, clear — that used to live inline on the playback
+/// screen. All accessibility identifiers are unchanged so the UI suites keep
+/// their hooks; rows live in a List so lazy reveal keeps working.
+private struct QueuePanelView: View {
+    @Environment(PlaybackSession.self) private var session
+    @Environment(\.dismiss) private var dismiss
+    let playback: PlaybackController
+    let itemByID: [UUID: MediaItem]
+    let onGoToLibrary: () -> Void
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    if session.queue.isEmpty {
+                        TapeDashedCard {
+                            VStack(spacing: TapeTheme.space3) {
+                                Text("队列为空。使用「播放下一首」或「加入队列」添加条目。")
+                                    .font(TapeType.body)
+                                    .foregroundStyle(TapeTheme.muted)
+                                    .multilineTextAlignment(.center)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Button("去资料库") {
+                                    onGoToLibrary()
+                                }
+                                .buttonStyle(TapeSecondaryButtonStyle())
+                                .accessibilityIdentifier("queueEmptyLibraryButton")
+                                .accessibilityHint("切换到资料库标签")
+                            }
+                            .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(TapeSecondaryButtonStyle())
-                        .accessibilityIdentifier("queueEmptyLibraryButton")
-                        .accessibilityHint("切换到资料库标签")
+                        .tapeRowInsets(6)
+                    } else {
+                        ForEach(Array(session.queue.entries.enumerated()), id: \.element.id) { index, entry in
+                            let item = itemByID[entry.itemID]
+                            Button {
+                                session.playQueueItem(itemID: entry.itemID)
+                            } label: {
+                                queueRow(index: index, entry: entry, item: item)
+                            }
+                            .buttonStyle(TapePlainPressStyle())
+                            .tapeRowInsets(4)
+                            .accessibilityIdentifier("queueRow-\(item?.title ?? entry.itemID.uuidString)")
+                        }
+                        .onMove { source, destination in
+                            session.moveQueue(fromOffsets: source, toOffset: destination)
+                        }
+                        .onDelete { offsets in
+                            for index in offsets.sorted(by: >) {
+                                guard session.queue.entries.indices.contains(index) else { continue }
+                                let entry = session.queue.entries[index]
+                                session.removeQueueEntry(entryID: entry.id)
+                            }
+                        }
                     }
-                    .frame(maxWidth: .infinity)
-                }
-                .tapeRowInsets(6)
-            } else {
-                ForEach(Array(session.queue.entries.enumerated()), id: \.element.id) { index, entry in
-                    let item = itemByID[entry.itemID]
-                    Button {
-                        session.playQueueItem(itemID: entry.itemID)
-                    } label: {
-                        queueRow(index: index, entry: entry, item: item)
-                    }
-                    .buttonStyle(TapePlainPressStyle())
-                    .tapeRowInsets(4)
-                    .accessibilityIdentifier("queueRow-\(item?.title ?? entry.itemID.uuidString)")
-                }
-                .onMove { source, destination in
-                    session.moveQueue(fromOffsets: source, toOffset: destination)
-                }
-                .onDelete { offsets in
-                    for index in offsets.sorted(by: >) {
-                        guard session.queue.entries.indices.contains(index) else { continue }
-                        let entry = session.queue.entries[index]
-                        session.removeQueueEntry(entryID: entry.id)
-                    }
+                } header: {
+                    queueHeader
                 }
             }
-        } header: {
-            queueHeader
+            .listStyle(.plain)
+            .tapeScreen()
+            .navigationTitle(L10n.string("playback.queue.expand"))
+            .navigationBarTitleDisplayMode(.inline)
+            .tapeNavigationChrome()
+            // Edit mode must be driven from inside the sheet's own
+            // NavigationStack: an EditButton in the parent screen cannot
+            // reach the panel's List. 完成 gives swipe-fatigued and
+            // VoiceOver users an explicit way out next to the drag gesture.
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if !session.queue.isEmpty {
+                        EditButton()
+                            .font(TapeType.bodySmall)
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") {
+                        dismiss()
+                    }
+                    .font(TapeType.bodySmall)
+                    .accessibilityIdentifier("queuePanelCloseButton")
+                }
+            }
         }
     }
 
@@ -825,6 +863,10 @@ struct PlaybackView: View {
             .font(TapeType.title3)
             .foregroundStyle(TapeTheme.ink)
             .fixedSize(horizontal: false, vertical: true)
+            // Distinct from the player-card badge's `queueCountText`: while
+            // the sheet is up both exist, and two elements sharing one
+            // identifier make queries ambiguous.
+            .accessibilityIdentifier("queuePanelCountText")
     }
 
     private var queueActions: some View {
@@ -892,18 +934,6 @@ struct PlaybackView: View {
             .accessibilityLabel("清空队列")
             .accessibilityHint("移除队列中的所有条目")
         }
-    }
-
-    private func formatTime(_ seconds: Double) -> String {
-        guard seconds.isFinite, seconds >= 0 else { return "0:00" }
-        let total = Int(seconds.rounded())
-        let hours = total / 3600
-        let minutes = (total % 3600) / 60
-        let secs = total % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
-        }
-        return String(format: "%d:%02d", minutes, secs)
     }
 }
 
