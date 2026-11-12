@@ -93,13 +93,13 @@
 		06AE680CAD12BBEC847065DD /* M0UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M0UITests.swift; sourceTree = "<group>"; };
 		0AA4E8032B31DEDD294407CE /* TapeAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapeAppearance.swift; sourceTree = "<group>"; };
 		16D8620F52E719C3DB33D0E3 /* IBMPlexMono-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "IBMPlexMono-Regular.ttf"; sourceTree = "<group>"; };
-		19C524B3929013C9696F34FB /* demo-chaptered-audio.m4a */ = {isa = PBXFileReference; path = "demo-chaptered-audio.m4a"; sourceTree = "<group>"; };
+		19C524B3929013C9696F34FB /* demo-chaptered-audio.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; path = "demo-chaptered-audio.m4a"; sourceTree = "<group>"; };
 		1A3A96B170F8A9D6E44BC5C4 /* TapeTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapeTheme.swift; sourceTree = "<group>"; };
 		1E9F0BC6809D1861746C7FAB /* M5DeliveryUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M5DeliveryUITests.swift; sourceTree = "<group>"; };
 		1EC85DB0C315007B5918E0AF /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		222D3B52B8184050320B4910 /* M4DebugSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M4DebugSupport.swift; sourceTree = "<group>"; };
 		2310D31581FEB3DC9E6D0B97 /* BenchmarkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchmarkView.swift; sourceTree = "<group>"; };
-		23346E600CEA4A18BA25978B /* demo-audio.m4a */ = {isa = PBXFileReference; path = "demo-audio.m4a"; sourceTree = "<group>"; };
+		23346E600CEA4A18BA25978B /* demo-audio.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; path = "demo-audio.m4a"; sourceTree = "<group>"; };
 		256667447715C45715C9759F /* SmartPlaylistViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPlaylistViews.swift; sourceTree = "<group>"; };
 		288C6C0A3C582E2573E75507 /* P2ChapterUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P2ChapterUITests.swift; sourceTree = "<group>"; };
 		2BE5FFCCF1BFDDC0A7C14512 /* M5UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M5UITests.swift; sourceTree = "<group>"; };
@@ -123,7 +123,7 @@
 		6F0B5601C6D7E308BAB7DA11 /* TapeComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapeComponents.swift; sourceTree = "<group>"; };
 		745396A62F58C07F25DC60EA /* LocalPodAppIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalPodAppIntents.swift; sourceTree = "<group>"; };
 		7F5C3D3C3F0BC31F44519C95 /* SpaceGrotesk-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceGrotesk-Bold.ttf"; sourceTree = "<group>"; };
-		802390B4491E30D754B0FB2A /* demo-long-audio.m4a */ = {isa = PBXFileReference; path = "demo-long-audio.m4a"; sourceTree = "<group>"; };
+		802390B4491E30D754B0FB2A /* demo-long-audio.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; path = "demo-long-audio.m4a"; sourceTree = "<group>"; };
 		82757C742777D6B85C64F8F4 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		8A56F4FDF7EA19CDA9FB2C07 /* M5SigningUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M5SigningUITests.swift; sourceTree = "<group>"; };
 		8B6F713FE4FAE5DE8CFAEC5A /* P2DebugSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P2DebugSeed.swift; sourceTree = "<group>"; };
@@ -131,7 +131,7 @@
 		95698A3967BC57A71A9B89AB /* ImportNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportNotifier.swift; sourceTree = "<group>"; };
 		978D426BBAE705D2442C2EB7 /* P1SmartPlaylistUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = P1SmartPlaylistUITests.swift; sourceTree = "<group>"; };
 		A0528E3BA0C08A8F079E0F46 /* SigningReminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningReminder.swift; sourceTree = "<group>"; };
-		A76F3D1F54687DC6C9E03182 /* LocalPodKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = LocalPodKit; path = LocalPodKit; sourceTree = SOURCE_ROOT; };
+		A76F3D1F54687DC6C9E03182 /* LocalPodKit */ = {isa = PBXFileReference; lastKnownFileType = folder; path = LocalPodKit; sourceTree = SOURCE_ROOT; };
 		AB082AAFCA17FAF2392BEF17 /* InboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxView.swift; sourceTree = "<group>"; };
 		ACB848B84419379A3691DB8D /* ImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportView.swift; sourceTree = "<group>"; };
 		B0F7BF1A32BFD81852377C2A /* M5PerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M5PerformanceTests.swift; sourceTree = "<group>"; };
@@ -147,7 +147,7 @@
 		DB42381B83497C220C5B45CB /* M4UITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M4UITests.swift; sourceTree = "<group>"; };
 		DC4E61AF6AD15CB716921049 /* SampleContent */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SampleContent; path = LocalPod/Resources/SampleContent; sourceTree = SOURCE_ROOT; };
 		DFD2D2A1E3D000812950E085 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
-		E02DE9E7DBFAAA5822D68D7F /* LocalPod.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LocalPod.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E02DE9E7DBFAAA5822D68D7F /* LocalPod.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LocalPod.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2C0FF2DD1CF8BA191DE2461 /* SigningInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningInfo.swift; sourceTree = "<group>"; };
 		E4A6899C9A5DD691F709CDD7 /* IBMPlexMono-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "IBMPlexMono-Medium.ttf"; sourceTree = "<group>"; };
 		EDAA8D958A329AB95BD164AC /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
@@ -461,7 +461,6 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					14115E87E575B5F61532EB3B = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 					2E029540841090CA2D6019E6 = {
@@ -684,7 +683,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = X98LF7D967;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = LocalPod/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -748,7 +747,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = X98LF7D967;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = LocalPod/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
