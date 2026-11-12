@@ -194,7 +194,25 @@ struct LibraryView: View {
                     EmptyView()
                 }
             }
-            .searchable(text: $searchText, prompt: "搜索标题或文件夹")
+            // The owner's repro: flipping between tabs made the library's
+            // search field jump. The old `.searchable` field is hosted by the
+            // system search bar, which on iOS 26+ docks at the bottom against
+            // the hidden system tab bar and the custom TapeTabBar sibling and
+            // re-docks on every tab switch. A custom field pinned in a top
+            // safe-area inset sits outside the scroll view entirely, so its
+            // frame cannot depend on tab or scroll state.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                searchField
+                    .padding(.horizontal, TapeTheme.screenPadding)
+                    .padding(.top, TapeTheme.space2)
+                    .padding(.bottom, TapeTheme.space1)
+                    .frame(maxWidth: .infinity)
+                    // The inset overlays the scroll view, so rows would
+                    // otherwise bleed through around the field's card. A
+                    // cream band (same color as the nav bar above) occludes
+                    // the scrolling content behind the pinned anchor.
+                    .background(TapeTheme.cream)
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -343,6 +361,49 @@ struct LibraryView: View {
         .overlay {
             RoundedRectangle(cornerRadius: TapeTheme.radiusThumb)
                 .strokeBorder(TapeTheme.ink.opacity(0.35), lineWidth: 1)
+        }
+    }
+
+    // MARK: - Search
+
+    /// App-owned search anchor: same card language as the list rows, always
+    /// between the nav bar and the scroll viewport, never re-docked.
+    private var searchField: some View {
+        HStack(spacing: TapeTheme.space2) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(TapeTheme.faint)
+            TextField("搜索标题或文件夹", text: $searchText)
+                .font(TapeType.body)
+                .foregroundStyle(TapeTheme.ink)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                // The identifier sits on the TextField itself so tests read
+                // its value (the typed text) directly.
+                .accessibilityIdentifier("librarySearchField")
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(TapeTheme.faint)
+                }
+                .buttonStyle(TapePlainPressStyle())
+                .accessibilityIdentifier("librarySearchClearButton")
+                .accessibilityLabel("清除搜索")
+            }
+        }
+        .padding(.horizontal, TapeTheme.space3)
+        .padding(.vertical, 9)
+        .background {
+            RoundedRectangle(cornerRadius: TapeTheme.radiusThumb, style: .continuous)
+                .fill(TapeTheme.card)
+                .shadow(color: TapeTheme.ink, radius: 0, x: 2, y: 2)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: TapeTheme.radiusThumb, style: .continuous)
+                .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
         }
     }
 
