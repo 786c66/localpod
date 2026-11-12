@@ -39,15 +39,6 @@
 "queue.repeat.all" = "Repeat All";
 "queue.repeat.one" = "Repeat One";
 
-"playback.phase.idle" = "Not Playing";
-"playback.phase.preparing" = "Loading";
-"playback.phase.ready" = "Ready";
-"playback.phase.playing" = "Playing";
-"playback.phase.paused" = "Paused";
-"playback.phase.buffering" = "Buffering";
-"playback.phase.interrupted" = "Interrupted";
-"playback.phase.ended" = "Playback Ended";
-"playback.phase.failed" = "Playback Failed";
 
 "sleep.mode.off" = "Off";
 "sleep.mode.minutes" = "%lld min";

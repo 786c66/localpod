@@ -38,15 +38,6 @@
 "queue.repeat.all" = "列表循环";
 "queue.repeat.one" = "单曲循环";
 
-"playback.phase.idle" = "未播放";
-"playback.phase.preparing" = "加载中";
-"playback.phase.ready" = "就绪";
-"playback.phase.playing" = "播放中";
-"playback.phase.paused" = "已暂停";
-"playback.phase.buffering" = "缓冲中";
-"playback.phase.interrupted" = "已打断";
-"playback.phase.ended" = "播放结束";
-"playback.phase.failed" = "播放失败";
 
 "sleep.mode.off" = "关闭";
 "sleep.mode.minutes" = "%lld 分钟";

@@ -16,24 +16,6 @@ public enum PlaybackPhase: String, Sendable, Equatable {
     case interrupted
     case ended
     case failed
-
-    public var statusText: String {
-        statusText(locale: nil)
-    }
-
-    public func statusText(locale: Locale?) -> String {
-        switch self {
-        case .idle: LocalPodLocalization.string("playback.phase.idle", locale: locale)
-        case .preparing: LocalPodLocalization.string("playback.phase.preparing", locale: locale)
-        case .ready: LocalPodLocalization.string("playback.phase.ready", locale: locale)
-        case .playing: LocalPodLocalization.string("playback.phase.playing", locale: locale)
-        case .paused: LocalPodLocalization.string("playback.phase.paused", locale: locale)
-        case .buffering: LocalPodLocalization.string("playback.phase.buffering", locale: locale)
-        case .interrupted: LocalPodLocalization.string("playback.phase.interrupted", locale: locale)
-        case .ended: LocalPodLocalization.string("playback.phase.ended", locale: locale)
-        case .failed: LocalPodLocalization.string("playback.phase.failed", locale: locale)
-        }
-    }
 }
 
 /// Single AVPlayer for audio-only playback. Video files are played for their
@@ -90,10 +72,6 @@ public final class PlaybackController {
         phase == .playing || phase == .buffering
     }
 
-    public var statusText: String {
-        phase.statusText
-    }
-
     public init() {
         player.actionAtItemEnd = .pause
         player.automaticallyWaitsToMinimizeStalling = true
@@ -101,6 +79,10 @@ public final class PlaybackController {
         addTimeControlObserver()
         configureRemoteCommands()
         registerAudioSessionObservers()
+        // Pin the playback category once at startup. Activation itself is
+        // AVPlayer's job; only the category needs to be in place before the
+        // first item starts (and again after a media-services reset).
+        activateAudioSession()
     }
 
     /// Called by the app once SwiftData is ready. Playback works without a
@@ -157,7 +139,6 @@ public final class PlaybackController {
         }
         if phase == .preparing {
             pendingAutoplay = true
-            activateAudioSession()
             return
         }
 
@@ -167,7 +148,6 @@ public final class PlaybackController {
             didRecordPlayStart = false
         }
 
-        activateAudioSession()
         recordPlayStartIfNeeded(item: item)
         playIntent = true
         player.play()
@@ -614,19 +594,32 @@ public final class PlaybackController {
     }
 
     #if os(iOS)
+    /// The category must be pinned once (and re-checked after media-service
+    /// resets) so background playback and the lock screen work. Activation
+    /// itself is left to AVPlayer: calling setActive(true) here raced the
+    /// player's own implicit activation, could fail with a core-audio error
+    /// while audio still played fine, and that failure surfaced as a
+    /// frightening "音频会话激活失败" banner during perfectly normal playback.
     private func activateAudioSession() {
         Task.detached(priority: .userInitiated) { [weak self] in
-            do {
-                let session = AVAudioSession.sharedInstance()
-                try session.setCategory(.playback, mode: .spokenAudio, options: [.allowAirPlay])
-                try session.setActive(true)
-            } catch {
-                let message = LocalPodLocalization.format(
-                    "playback.error.audioSession",
-                    error.localizedDescription
-                )
-                await MainActor.run { [weak self] in
-                    self?.errorMessage = message
+            let session = AVAudioSession.sharedInstance()
+            if session.category != .playback {
+                do {
+                    try session.setCategory(
+                        .playback,
+                        mode: .spokenAudio,
+                        options: [.allowAirPlay]
+                    )
+                } catch {
+                    // Without the playback category background audio cannot
+                    // work, so this failure is real and worth reporting.
+                    let message = LocalPodLocalization.format(
+                        "playback.error.audioSession",
+                        error.localizedDescription
+                    )
+                    await MainActor.run { [weak self] in
+                        self?.errorMessage = message
+                    }
                 }
             }
         }
@@ -681,6 +674,9 @@ public final class PlaybackController {
         persistProgress(force: true)
         didRecordPlayStart = true // do not count a second play
         playIntent = wasPlaying
+        // A media-services reset tears down the audio session; re-pin the
+        // category before the replacement player item starts.
+        activateAudioSession()
         installPlayerItem(for: item, seek: position, autoplay: wasPlaying)
     }
     #else

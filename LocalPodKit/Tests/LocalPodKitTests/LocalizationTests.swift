@@ -41,13 +41,10 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(ImportIssueKind.other.displayName(locale: en), "Other")
     }
 
-    func testRepeatModeAndPlaybackPhaseDisplayNames() {
+    func testRepeatModeDisplayNames() {
         XCTAssertEqual(QueueRepeatMode.off.displayName(locale: zh), "不循环")
         XCTAssertEqual(QueueRepeatMode.off.displayName(locale: en), "Repeat Off")
         XCTAssertEqual(QueueRepeatMode.one.displayName(locale: en), "Repeat One")
-        XCTAssertEqual(PlaybackPhase.playing.statusText(locale: zh), "播放中")
-        XCTAssertEqual(PlaybackPhase.playing.statusText(locale: en), "Playing")
-        XCTAssertEqual(PlaybackPhase.ended.statusText(locale: en), "Playback Ended")
     }
 
     func testSleepTimerModeDisplayNames() {
