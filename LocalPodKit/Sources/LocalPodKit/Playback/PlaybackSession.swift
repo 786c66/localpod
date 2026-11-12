@@ -17,6 +17,10 @@ public final class PlaybackSession {
 
     @ObservationIgnored private var context: ModelContext?
     @ObservationIgnored private let itemBuilder: @MainActor (MediaItem) -> PlaybackItem?
+    /// Security scope for the currently loaded in-place item. Held for as
+    /// long as that item is loaded (including background audio) and released
+    /// when another item loads or playback stops.
+    @ObservationIgnored private var activeLinkedAccess: LinkedFolderStore.ResolvedAccess?
 
     public init(
         playback: PlaybackController = PlaybackController(),
@@ -136,10 +140,9 @@ public final class PlaybackSession {
     @discardableResult
     public func resumeForShortcut() -> Bool {
         if let currentItemID = queue.currentItemID,
-           let item = mediaItem(for: currentItemID),
-           itemBuilder(item) != nil {
-            playQueueItem(itemID: currentItemID)
-            return true
+           mediaItem(for: currentItemID) != nil {
+            queue.setCurrent(currentItemID)
+            return loadItem(id: currentItemID, autoplay: true)
         }
 
         guard let context else { return false }
@@ -185,6 +188,7 @@ public final class PlaybackSession {
     public func clearQueue() {
         queue.clear()
         playback.stop()
+        releaseLinkedAccess()
     }
 
     public func moveQueue(fromOffsets source: IndexSet, toOffset destination: Int) {
@@ -208,6 +212,7 @@ public final class PlaybackSession {
                 _ = loadItem(id: replacement, autoplay: autoplay)
             } else {
                 playback.stop()
+                releaseLinkedAccess()
             }
         } else {
             queue.remove(itemID: itemID)
@@ -269,12 +274,81 @@ public final class PlaybackSession {
     @discardableResult
     private func loadItem(id: UUID, autoplay: Bool) -> Bool {
         guard let mediaItem = mediaItem(for: id),
-              let playbackItem = itemBuilder(mediaItem) else {
+              let playbackItem = playbackItem(for: mediaItem) else {
             return false
         }
         lastError = nil
         playback.load(playbackItem, autoplay: autoplay)
         return true
+    }
+
+    /// Builds a playable item, resolving the security scope for in-place
+    /// imports. The scope stays active until the next load or stop.
+    private func playbackItem(for mediaItem: MediaItem) -> PlaybackItem? {
+        guard mediaItem.isLinked else {
+            return itemBuilder(mediaItem)
+        }
+        releaseLinkedAccess()
+
+        if let folderID = mediaItem.linkedFolderID, let context {
+            var descriptor = FetchDescriptor<LinkedFolder>(
+                predicate: #Predicate { $0.id == folderID }
+            )
+            descriptor.fetchLimit = 1
+            guard let folder = try? context.fetch(descriptor).first else { return nil }
+            switch LinkedFolderStore.resolve(folder.bookmarkData) {
+            case .failure:
+                return nil
+            case .success(let access):
+                if let refreshed = access.refreshedBookmark {
+                    folder.bookmarkData = refreshed
+                    folder.isStale = false
+                    try? context.save()
+                }
+                let url = access.url.appendingPathComponent(
+                    mediaItem.linkedSourceRelativePath
+                )
+                guard FileManager.default.fileExists(atPath: url.path) else {
+                    access.stop()
+                    return nil
+                }
+                activeLinkedAccess = access
+                return makePlaybackItem(mediaItem, url: url)
+            }
+        }
+
+        if let bookmark = mediaItem.linkedBookmarkData {
+            switch LinkedFolderStore.resolve(bookmark) {
+            case .failure:
+                return nil
+            case .success(let access):
+                guard FileManager.default.fileExists(atPath: access.url.path) else {
+                    access.stop()
+                    return nil
+                }
+                activeLinkedAccess = access
+                return makePlaybackItem(mediaItem, url: access.url)
+            }
+        }
+        return nil
+    }
+
+    private func makePlaybackItem(_ item: MediaItem, url: URL) -> PlaybackItem {
+        PlaybackItem(
+            title: item.title,
+            subtitle: item.folderName
+                ?? LocalPodLocalization.string("playback.librarySubtitle"),
+            fileURL: url,
+            kind: item.kind,
+            durationHint: item.durationSeconds,
+            libraryItemID: item.id,
+            artworkURL: item.artworkURL
+        )
+    }
+
+    private func releaseLinkedAccess() {
+        activeLinkedAccess?.stop()
+        activeLinkedAccess = nil
     }
 
     /// Internal for tests; wired to the controller's end-of-item callback.
