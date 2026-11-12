@@ -169,7 +169,8 @@ final class M5UITests: XCTestCase {
             "unexpected speed chip label \(speed.label)"
         )
 
-        // Queue is collapsed by default; open it to reach its actions.
+        // The queue is a bottom panel now: the expand button opens a sheet
+        // whose header carries shuffle / repeat / clear.
         let expand = element(app, "queueExpandButton")
         reveal(expand, in: app)
         expand.tap()
@@ -286,18 +287,31 @@ final class M5UITests: XCTestCase {
         button.tap()
     }
 
-    /// The speed row scrolls horizontally once all nine presets are shown.
+    /// The speed row scrolls horizontally once all nine presets are shown,
+    /// and it can also sit below the fold; scroll up when no chip is on
+    /// screen, then swipe on a visible chip.
     private func revealSpeedChip(_ identifier: String, in app: XCUIApplication) {
         let chip = element(app, identifier)
         let rates = ["0.5", "0.8", "1.0", "1.2", "1.5", "1.8", "2.0", "2.5", "3.0"]
-        var attempts = 0
-        while !chip.isHittable, attempts < 8 {
-            let anchor = rates
+
+        func hittableAnchor() -> XCUIElement? {
+            rates
                 .map { element(app, "speedOption-\($0)") }
                 .first { $0.exists && $0.isHittable }
-            guard let anchor else { break }
-            anchor.swipeLeft()
-            attempts += 1
+        }
+
+        var vertical = 0
+        var horizontal = 0
+        while !chip.isHittable, vertical + horizontal < 12 {
+            if let anchor = hittableAnchor() {
+                anchor.swipeLeft()
+                horizontal += 1
+            } else if vertical < 6 {
+                swipeListUp(in: app)
+                vertical += 1
+            } else {
+                break
+            }
         }
     }
 

@@ -19,15 +19,14 @@ final class M2UITests: XCTestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 20))
         XCTAssertEqual(title.label, "长音频测试")
 
-        let phase = app.descendants(matching: .any)["playbackPhaseText"]
-        XCTAssertTrue(phase.waitForExistence(timeout: 20))
-        waitForLabel(phase, equals: "就绪", timeout: 20)
-
         let playPause = app.descendants(matching: .any)["playPauseButton"]
+        XCTAssertTrue(playPause.waitForExistence(timeout: 20))
+        waitForLabel(playPause, equals: "播放", timeout: 20)
+
         XCTAssertTrue(playPause.waitForExistence(timeout: 10))
         reveal(playPause, in: app)
         playPause.tap()
-        waitForLabel(phase, equals: "播放中", timeout: 10)
+        waitForLabel(playPause, equals: "暂停", timeout: 10)
 
         let rateText = app.descendants(matching: .any)["playbackRateText"]
         XCTAssertTrue(rateText.waitForExistence(timeout: 10))
@@ -54,7 +53,7 @@ final class M2UITests: XCTestCase {
         )
 
         playPause.tap()
-        waitForLabel(phase, equals: "已暂停", timeout: 10)
+        waitForLabel(playPause, equals: "播放", timeout: 10)
         attachScreenshot(app, name: "M2-speed-and-controls")
     }
 
@@ -70,8 +69,9 @@ final class M2UITests: XCTestCase {
 
         let firstTitle = first.descendants(matching: .any)["currentPlaybackTitle"]
         XCTAssertTrue(firstTitle.waitForExistence(timeout: 20))
-        let firstPhase = first.descendants(matching: .any)["playbackPhaseText"]
-        waitForLabel(firstPhase, equals: "就绪", timeout: 20)
+        let firstPlayPause = first.descendants(matching: .any)["playPauseButton"]
+        // Loaded paused: the button offers 播放.
+        waitForLabel(firstPlayPause, equals: "播放", timeout: 20)
         let firstTime = first.descendants(matching: .any)["currentTimeText"]
         XCTAssertTrue(firstTime.waitForExistence(timeout: 10))
         XCTAssertEqual(Double(seconds(from: firstTime.label)), 120, accuracy: 2)
@@ -86,8 +86,8 @@ final class M2UITests: XCTestCase {
 
         let secondTitle = second.descendants(matching: .any)["currentPlaybackTitle"]
         XCTAssertTrue(secondTitle.waitForExistence(timeout: 20))
-        let secondPhase = second.descendants(matching: .any)["playbackPhaseText"]
-        waitForLabel(secondPhase, equals: "就绪", timeout: 20)
+        let secondPlayPause = second.descendants(matching: .any)["playPauseButton"]
+        waitForLabel(secondPlayPause, equals: "播放", timeout: 20)
         let secondTime = second.descendants(matching: .any)["currentTimeText"]
         XCTAssertTrue(secondTime.waitForExistence(timeout: 10))
         XCTAssertEqual(
@@ -110,8 +110,11 @@ final class M2UITests: XCTestCase {
 
         let title = first.descendants(matching: .any)["currentPlaybackTitle"]
         XCTAssertTrue(title.waitForExistence(timeout: 20))
-        let phase = first.descendants(matching: .any)["playbackPhaseText"]
-        waitForLabel(phase, equals: "播放结束", timeout: 30)
+        // The fixture is 298 s and the seek is 297.5 s: playback runs to the
+        // end within seconds, which shows up as the play button flipping to
+        // 播放 after starting as 暂停.
+        let firstPlayPause = first.descendants(matching: .any)["playPauseButton"]
+        waitForLabel(firstPlayPause, equals: "播放", timeout: 30)
         first.terminate()
 
         let second = XCUIApplication()
@@ -123,8 +126,8 @@ final class M2UITests: XCTestCase {
 
         let secondTitle = second.descendants(matching: .any)["currentPlaybackTitle"]
         XCTAssertTrue(secondTitle.waitForExistence(timeout: 20))
-        let secondPhase = second.descendants(matching: .any)["playbackPhaseText"]
-        waitForLabel(secondPhase, equals: "就绪", timeout: 20)
+        let secondPlayPause = second.descendants(matching: .any)["playPauseButton"]
+        waitForLabel(secondPlayPause, equals: "播放", timeout: 20)
         let secondTime = second.descendants(matching: .any)["currentTimeText"]
         XCTAssertTrue(secondTime.waitForExistence(timeout: 10))
         XCTAssertEqual(
@@ -146,8 +149,9 @@ final class M2UITests: XCTestCase {
 
         let title = first.descendants(matching: .any)["currentPlaybackTitle"]
         XCTAssertTrue(title.waitForExistence(timeout: 20))
-        let phase = first.descendants(matching: .any)["playbackPhaseText"]
-        waitForAnyLabel(phase, labels: ["播放中", "缓冲中"], timeout: 20)
+        // Auto-play from launch: the button offers 暂停 while playing.
+        let firstPlayPause = first.descendants(matching: .any)["playPauseButton"]
+        waitForLabel(firstPlayPause, equals: "暂停", timeout: 20)
         let time = first.descendants(matching: .any)["currentTimeText"]
         XCTAssertTrue(time.waitForExistence(timeout: 10))
         sleep(3)
@@ -164,8 +168,8 @@ final class M2UITests: XCTestCase {
 
         let secondTitle = second.descendants(matching: .any)["currentPlaybackTitle"]
         XCTAssertTrue(secondTitle.waitForExistence(timeout: 20))
-        let secondPhase = second.descendants(matching: .any)["playbackPhaseText"]
-        waitForLabel(secondPhase, equals: "就绪", timeout: 20)
+        let secondPlayPause = second.descendants(matching: .any)["playPauseButton"]
+        waitForLabel(secondPlayPause, equals: "播放", timeout: 20)
         let secondTime = second.descendants(matching: .any)["currentTimeText"]
         XCTAssertTrue(secondTime.waitForExistence(timeout: 10))
         let resumed = seconds(from: secondTime.label)
@@ -187,8 +191,8 @@ final class M2UITests: XCTestCase {
 
         let title = app.descendants(matching: .any)["currentPlaybackTitle"]
         XCTAssertTrue(title.waitForExistence(timeout: 20))
-        let phase = app.descendants(matching: .any)["playbackPhaseText"]
-        waitForAnyLabel(phase, labels: ["播放中", "缓冲中"], timeout: 20)
+        let playPause = app.descendants(matching: .any)["playPauseButton"]
+        waitForLabel(playPause, equals: "暂停", timeout: 20)
         let time = app.descendants(matching: .any)["currentTimeText"]
         XCTAssertTrue(time.waitForExistence(timeout: 10))
         let before = seconds(from: time.label)
@@ -197,7 +201,7 @@ final class M2UITests: XCTestCase {
         sleep(3)
         app.activate()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 10))
-        waitForAnyLabel(phase, labels: ["播放中", "缓冲中"], timeout: 10)
+        waitForLabel(playPause, equals: "暂停", timeout: 10)
 
         let after = seconds(from: time.label)
         XCTAssertGreaterThanOrEqual(
@@ -220,21 +224,42 @@ final class M2UITests: XCTestCase {
 
     /// Nine presets no longer fit on a phone: the chip row scrolls
     /// horizontally, so swipe on a visible chip until the target is hittable.
+    /// The row can also sit below the fold (the player card grew wider
+    /// spacing), so scroll the List up first when no chip is on screen.
     private func tapSpeedChip(_ identifier: String, in app: XCUIApplication) {
         let chip = app.descendants(matching: .any)[identifier]
         XCTAssertTrue(chip.waitForExistence(timeout: 10), "Missing \(identifier)")
         let rates = ["0.5", "0.8", "1.0", "1.2", "1.5", "1.8", "2.0", "2.5", "3.0"]
-        var attempts = 0
-        while !chip.isHittable, attempts < 8 {
-            let anchor = rates
+
+        func hittableAnchor() -> XCUIElement? {
+            rates
                 .map { app.descendants(matching: .any)["speedOption-\($0)"] }
                 .first { $0.exists && $0.isHittable }
-            guard let anchor else { break }
-            anchor.swipeLeft()
-            attempts += 1
+        }
+
+        var vertical = 0
+        var horizontal = 0
+        while !chip.isHittable, vertical + horizontal < 12 {
+            if let anchor = hittableAnchor() {
+                anchor.swipeLeft()
+                horizontal += 1
+            } else if vertical < 6 {
+                swipeListUp(in: app)
+                vertical += 1
+            } else {
+                break
+            }
         }
         XCTAssertTrue(chip.isHittable, "\(identifier) did not become reachable")
         chip.tap()
+    }
+
+    /// The scrubber owns the window center; start list swipes low so the
+    /// List scrolls instead of the scrubber eating the gesture.
+    private func swipeListUp(in app: XCUIApplication) {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.8))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.3))
+        start.press(forDuration: 0.05, thenDragTo: end)
     }
 
     private func waitForLabel(
@@ -266,22 +291,6 @@ final class M2UITests: XCTestCase {
             XCTWaiter.wait(for: [expectation], timeout: timeout),
             .completed,
             "expected label containing \(text), got \(element.label)"
-        )
-    }
-
-    private func waitForAnyLabel(
-        _ element: XCUIElement,
-        labels: [String],
-        timeout: TimeInterval
-    ) {
-        let expectation = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "label IN %@", labels),
-            object: element
-        )
-        XCTAssertEqual(
-            XCTWaiter.wait(for: [expectation], timeout: timeout),
-            .completed,
-            "expected one of \(labels), got \(element.label)"
         )
     }
 

@@ -146,23 +146,9 @@ final class M5LocalizationUITests: XCTestCase {
         reveal(clear, in: app)
         XCTAssertEqual(clear.label, "Clear Queue")
 
-        let phase = element(app, "playbackPhaseText")
-        let englishPhases = [
-            "Not Playing", "Loading", "Ready", "Playing",
-            "Paused", "Buffering", "Interrupted", "Playback Ended", "Playback Failed"
-        ]
-        let phaseExpectation = XCTNSPredicateExpectation(
-            predicate: NSPredicate(
-                format: "exists == true AND label IN %@",
-                englishPhases
-            ),
-            object: phase
-        )
-        XCTAssertEqual(
-            XCTWaiter.wait(for: [phaseExpectation], timeout: 15),
-            .completed,
-            "Playback phase must use a LocalPodKit English display name; got \(phase.label)"
-        )
+        // The playback screen no longer renders a phase sticker; assert the
+        // remaining English surface instead. The pause label comes from the
+        // app target, the repeat value from LocalPodKit's display name.
         attach(app, name: "M5-localization-english-playback")
     }
 

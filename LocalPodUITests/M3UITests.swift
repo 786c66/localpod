@@ -77,20 +77,14 @@ final class M3UITests: XCTestCase {
         )
     }
 
-    private func waitForAnyLabel(
-        _ element: XCUIElement,
-        labels: [String],
-        timeout: TimeInterval
-    ) {
-        let expectation = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "label IN %@", labels),
-            object: element
-        )
-        XCTAssertEqual(
-            XCTWaiter.wait(for: [expectation], timeout: timeout),
-            .completed,
-            "expected one of \(labels), got \(element.label)"
-        )
+    /// Parses "m:ss" (and "h:mm:ss") labels into seconds.
+    private func seconds(from label: String) -> Int {
+        let parts = label.split(separator: ":").compactMap { Int($0) }
+        guard parts.count == 2 || parts.count == 3 else { return 0 }
+        if parts.count == 3 {
+            return parts[0] * 3600 + parts[1] * 60 + parts[2]
+        }
+        return parts[0] * 60 + parts[1]
     }
 
     private func reveal(
@@ -154,19 +148,31 @@ final class M3UITests: XCTestCase {
 
     /// Nine speed presets do not fit on a phone: the row scrolls
     /// horizontally, so presets after 1.0 need a left swipe before they can
-    /// be tapped. Swiping on a visible chip drives the surrounding scroll view.
+    /// be tapped. Swiping on a visible chip drives the surrounding scroll
+    /// view. When the row itself is below the fold, scroll the List up first.
     private func tapSpeedChip(_ identifier: String, in app: XCUIApplication) {
         let chip = element(app, identifier)
         XCTAssertTrue(chip.waitForExistence(timeout: 10), "Missing \(identifier)")
         let rates = ["0.5", "0.8", "1.0", "1.2", "1.5", "1.8", "2.0", "2.5", "3.0"]
-        var attempts = 0
-        while !chip.isHittable, attempts < 8 {
-            let anchor = rates
+
+        func hittableAnchor() -> XCUIElement? {
+            rates
                 .map { element(app, "speedOption-\($0)") }
                 .first { $0.exists && $0.isHittable }
-            guard let anchor else { break }
-            anchor.swipeLeft()
-            attempts += 1
+        }
+
+        var vertical = 0
+        var horizontal = 0
+        while !chip.isHittable, vertical + horizontal < 12 {
+            if let anchor = hittableAnchor() {
+                anchor.swipeLeft()
+                horizontal += 1
+            } else if vertical < 6 {
+                swipeListUp(in: app)
+                vertical += 1
+            } else {
+                break
+            }
         }
         XCTAssertTrue(chip.isHittable, "\(identifier) did not become reachable")
         chip.tap()
@@ -242,9 +248,12 @@ final class M3UITests: XCTestCase {
 
         let title = element(app, "currentPlaybackTitle")
         XCTAssertTrue(title.waitForExistence(timeout: 20))
-        let phase = element(app, "playbackPhaseText")
-        waitForAnyLabel(phase, labels: ["播放中", "缓冲中"], timeout: 20)
         XCTAssertEqual(title.label, "队列测试 A")
+        // The phase sticker was removed; the play/pause label is the
+        // observable "playing" signal.
+        let playPause = element(app, "playPauseButton")
+        reveal(playPause, in: app)
+        waitForLabel(playPause, equals: "暂停", timeout: 20)
 
         openLibraryItem("队列测试 B", in: app)
         let playNext = element(app, "detailPlayNextButton")
@@ -265,10 +274,14 @@ final class M3UITests: XCTestCase {
         reveal(queueCount, in: app)
         waitForLabel(queueCount, equals: "队列 · 3", timeout: 10)
 
-        // The queue is collapsed by default now; reveal it before reading rows.
+        // The queue is a bottom sheet now; open it before reading rows.
         let expand = element(app, "queueExpandButton")
         reveal(expand, in: app)
         expand.tap()
+        // The sheet header carries its own count identifier (the player-card
+        // badge with `queueCountText` stays behind the sheet, so reusing that
+        // identifier here would make queries ambiguous).
+        waitForLabel(element(app, "queuePanelCountText"), equals: "队列 · 3", timeout: 10)
 
         let rowA = element(app, "queueRow-队列测试 A")
         let rowB = element(app, "queueRow-队列测试 B")
@@ -279,6 +292,9 @@ final class M3UITests: XCTestCase {
         XCTAssertLessThan(rowA.frame.minY, rowB.frame.minY, "play-next must follow the current item")
         XCTAssertLessThan(rowB.frame.minY, rowC.frame.minY, "enqueue must append at the tail")
         attachScreenshot(app, name: "M3-queue-play-next-enqueue")
+
+        // Leave the panel before navigating: the sheet covers the tab bar.
+        element(app, "queuePanelCloseButton").tap()
 
         // Deleting the current library item must advance to the next queue item.
         openLibraryItem("队列测试 A", in: app)
@@ -308,14 +324,21 @@ final class M3UITests: XCTestCase {
         let restoredTitle = element(relaunched, "currentPlaybackTitle")
         XCTAssertTrue(restoredTitle.waitForExistence(timeout: 20))
         XCTAssertEqual(restoredTitle.label, "队列测试 B")
-        let restoredPhase = element(relaunched, "playbackPhaseText")
-        waitForAnyLabel(restoredPhase, labels: ["就绪", "已暂停"], timeout: 20)
+        // No phase sticker: "restored paused" means the play button offers
+        // 播放 (not 暂停) and the clock does not advance.
+        let restoredPlayPause = element(relaunched, "playPauseButton")
+        reveal(restoredPlayPause, in: relaunched)
+        waitForLabel(restoredPlayPause, equals: "播放", timeout: 20)
         let restoredCount = element(relaunched, "queueCountText")
         reveal(restoredCount, in: relaunched)
         waitForLabel(restoredCount, equals: "队列 · 2", timeout: 10)
-        sleep(2)
-        XCTAssertFalse(
-            ["播放中", "缓冲中"].contains(restoredPhase.label),
+        let restoredTime = element(relaunched, "currentTimeText")
+        XCTAssertTrue(restoredTime.waitForExistence(timeout: 10))
+        let pausedClock = seconds(from: restoredTime.label)
+        sleep(3)
+        XCTAssertEqual(
+            seconds(from: restoredTime.label),
+            pausedClock,
             "restored queue must not auto-play"
         )
         attachScreenshot(relaunched, name: "M3-queue-restored-paused")
@@ -435,9 +458,11 @@ final class M3UITests: XCTestCase {
             "--m3-auto-play-first"
         ])
 
-        let phase = element(app, "playbackPhaseText")
-        XCTAssertTrue(phase.waitForExistence(timeout: 20))
-        waitForAnyLabel(phase, labels: ["播放中", "缓冲中"], timeout: 20)
+        // The phase sticker was removed; the play/pause label is the
+        // observable "playing" signal.
+        let playPause = element(app, "playPauseButton")
+        reveal(playPause, in: app)
+        waitForLabel(playPause, equals: "暂停", timeout: 20)
 
         let menu = element(app, "sleepTimerMenu")
         XCTAssertTrue(menu.waitForExistence(timeout: 10))
@@ -445,9 +470,19 @@ final class M3UITests: XCTestCase {
         menu.tap()
         let oneMinute = app.buttons["1 分钟"]
         XCTAssertTrue(oneMinute.waitForExistence(timeout: 5))
-        oneMinute.tap()
 
         let status = element(app, "sleepTimerStatus")
+        var attempts = 0
+        oneMinute.tap()
+        // A tap inside the menu popover can be swallowed while the menu is
+        // still settling; the popover then stays open and nothing is armed.
+        // Retry the item while it is still on screen.
+        while !status.waitForExistence(timeout: 3), attempts < 2 {
+            if oneMinute.exists {
+                oneMinute.tap()
+            }
+            attempts += 1
+        }
         XCTAssertTrue(status.waitForExistence(timeout: 10))
         XCTAssertTrue(status.label.contains("1 分钟"), "unexpected status \(status.label)")
         attachScreenshot(app, name: "M3-sleep-timer-armed")
@@ -455,7 +490,7 @@ final class M3UITests: XCTestCase {
         // Real one-minute acceptance wait against the 298s fixture. Fade runs
         // in the last 10 seconds and is asserted in SleepTimerTests; menu
         // quiescence can add ~15s before the timer is actually armed.
-        waitForLabel(phase, equals: "已暂停", timeout: 100)
+        waitForLabel(playPause, equals: "播放", timeout: 100)
         attachScreenshot(app, name: "M3-sleep-timer-paused")
     }
 
@@ -468,10 +503,10 @@ final class M3UITests: XCTestCase {
             "--m3-auto-play-first"
         ])
 
-        let phase = element(app, "playbackPhaseText")
         let title = element(app, "currentPlaybackTitle")
-        XCTAssertTrue(phase.waitForExistence(timeout: 20))
-        waitForAnyLabel(phase, labels: ["播放中", "缓冲中"], timeout: 20)
+        let playPause = element(app, "playPauseButton")
+        reveal(playPause, in: app)
+        waitForLabel(playPause, equals: "暂停", timeout: 20)
 
         // Armed before playback via launch argument: opening the menu while
         // the 20s fixture plays can take long enough for it to end first.
@@ -489,7 +524,9 @@ final class M3UITests: XCTestCase {
             timeout: 5
         )
 
-        waitForLabel(phase, equals: "播放结束", timeout: 25)
+        // The 20s fixture ends: the play button flips back to 播放 and the
+        // title/queue stay on the same episode.
+        waitForLabel(playPause, equals: "播放", timeout: 25)
         XCTAssertEqual(title.label, "队列测试 A", "end-of-episode must not advance")
         attachScreenshot(app, name: "M3-sleep-end-of-episode")
     }

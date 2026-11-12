@@ -54,22 +54,6 @@ final class P2ShortcutUITests: XCTestCase {
         )
     }
 
-    private func waitForAnyLabel(
-        _ element: XCUIElement,
-        labels: [String],
-        timeout: TimeInterval
-    ) {
-        let expectation = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "label IN %@", labels),
-            object: element
-        )
-        XCTAssertEqual(
-            XCTWaiter.wait(for: [expectation], timeout: timeout),
-            .completed,
-            "expected one of \(labels), got \(element.label)"
-        )
-    }
-
     private func seconds(from label: String) -> Int {
         let parts = label.split(separator: ":").compactMap { Int($0) }
         guard !parts.isEmpty else { return 0 }
@@ -106,15 +90,12 @@ final class P2ShortcutUITests: XCTestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 20))
         XCTAssertEqual(title.label, "队列测试 A")
 
-        let phase = element(app, "playbackPhaseText")
-        XCTAssertTrue(phase.waitForExistence(timeout: 20))
-        waitForAnyLabel(phase, labels: ["播放中", "缓冲中"], timeout: 20)
-        waitForLabel(phase, equals: "播放中", timeout: 10)
-
         let playPause = element(app, "playPauseButton")
         XCTAssertTrue(playPause.waitForExistence(timeout: 10))
         reveal(playPause, in: app)
 
+        // The phase sticker is gone from the playback screen; advancing time
+        // is the observable proof that the intent actually started playback.
         let time = element(app, "currentTimeText")
         XCTAssertTrue(time.waitForExistence(timeout: 10))
         let before = seconds(from: time.label)
