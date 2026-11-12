@@ -5,6 +5,9 @@ import UniformTypeIdentifiers
 import LocalPodKit
 
 struct ImportView: View {
+    /// Pushed inside Settings (its NavigationStack) instead of owning one.
+    var embedded = false
+
     private enum ActiveSheet: String, Identifiable {
         case folder
         case report
@@ -24,8 +27,19 @@ struct ImportView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
+        Group {
+            if embedded {
+                content
+            } else {
+                NavigationStack {
+                    content
+                }
+            }
+        }
+    }
+
+    private var content: some View {
+        List {
                 Section {
                     TapeCard {
                         VStack(alignment: .leading, spacing: TapeTheme.space3) {
@@ -59,77 +73,22 @@ struct ImportView: View {
                     .tapeRowInsets(6)
                 }
 
-                Section {
-                    TapeCard {
-                        VStack(spacing: 0) {
-                            if hasImportStatus {
-                                importStatusBlock
-                                TapeHairline()
-                                    .padding(.vertical, 2)
-                            }
-
-                            if showsRecentEmptyHint {
-                                recentEmptyHint
-                                TapeHairline()
-                                    .padding(.vertical, 2)
-                            }
-
-                            importActionRow(
-                                title: L10n.string("import.sample.title"),
-                                subtitle: L10n.string("import.sample.subtitle"),
-                                icon: "sparkles",
-                                fill: TapeTheme.coral,
-                                trailingIcon: "plus",
-                                identifier: "sampleAddButton",
-                                disabled: coordinator.isRunning
-                                    || !coordinator.isSampleImportAvailable
-                            ) {
-                                coordinator.importSampleContent(modelContext: modelContext)
-                            }
-
-                            TapeHairline()
-                                .padding(.vertical, 2)
-
-                            importActionRow(
-                                title: L10n.string("import.demo.title"),
-                                subtitle: L10n.string("import.demo.subtitle"),
-                                icon: "testtube.2",
-                                fill: TapeTheme.violetSoft,
-                                trailingIcon: "arrow.down",
-                                identifier: "importDemoFolderButton",
-                                disabled: coordinator.isRunning
-                            ) {
-                                coordinator.importDemoFolder(modelContext: modelContext)
-                            }
-
-                            #if DEBUG
-                            TapeHairline()
-                                .padding(.vertical, 2)
-
-                            importActionRow(
-                                title: L10n.string("import.acceptance.title"),
-                                subtitle: L10n.string("import.acceptance.subtitle"),
-                                icon: "checklist",
-                                fill: TapeTheme.acid,
-                                trailingIcon: "arrow.down",
-                                identifier: "importAcceptanceFolderButton",
-                                disabled: coordinator.isRunning
-                            ) {
-                                coordinator.importAcceptanceFolder(modelContext: modelContext)
-                            }
-                            #endif
+                if hasImportStatus {
+                    Section {
+                        TapeCard {
+                            ImportStatusView()
                         }
+                        .tapeRowInsets(6)
+                    } header: {
+                        sectionHeader(title: L10n.string("导入状态"), kicker: "STATUS")
+                    } footer: {
+                        Text("文件夹以原地读取方式播放，不会复制文件。导入期间请保持 App 在前台。")
+                            .font(TapeType.captionSmall)
+                            .foregroundStyle(TapeTheme.muted)
+                            .padding(.horizontal, TapeTheme.space4)
+                            .padding(.top, TapeTheme.space1)
+                            .listRowBackground(Color.clear)
                     }
-                    .tapeRowInsets(6)
-                } header: {
-                    sectionHeader(title: L10n.string("快速导入"), kicker: "QUICK ADD")
-                } footer: {
-                    Text("重复内容会跳过；导入期间请保持 App 在前台。")
-                        .font(TapeType.captionSmall)
-                        .foregroundStyle(TapeTheme.muted)
-                        .padding(.horizontal, TapeTheme.space4)
-                        .padding(.top, TapeTheme.space1)
-                        .listRowBackground(Color.clear)
                 }
 
                 if let summary = coordinator.summary {
@@ -161,7 +120,23 @@ struct ImportView: View {
                 }
 
                 Section {
-                    if !importedItems.isEmpty {
+                    if importedItems.isEmpty {
+                        TapeDashedCard {
+                            VStack(spacing: TapeTheme.space2) {
+                                Text("还没有导入内容")
+                                    .font(TapeType.body)
+                                    .foregroundStyle(TapeTheme.ink)
+                                    .accessibilityIdentifier("importRecentEmptyState")
+                                Text("点上方「选择文件夹」开始；子文件夹会被递归扫描，文件保留在原位置。")
+                                    .font(TapeType.captionSmall)
+                                    .foregroundStyle(TapeTheme.muted)
+                                    .multilineTextAlignment(.center)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .tapeRowInsets(6)
+                    } else {
                         TapeCard {
                             VStack(spacing: TapeTheme.space1) {
                                 ForEach(Array(importedItems.prefix(5))) { item in
@@ -200,7 +175,7 @@ struct ImportView: View {
             }
             .listStyle(.plain)
             .tapeScreen()
-            .navigationTitle("LocalPod")
+            .navigationTitle("导入与文件夹")
             .tapeNavigationChrome()
             .accessibilityIdentifier("importScreen")
             .navigationDestination(isPresented: $showWiFiUpload) {
@@ -222,7 +197,6 @@ struct ImportView: View {
                     ImportReportView(result: coordinator.lastResult)
                 }
             }
-        }
     }
 
     private func sectionHeader(title: String, kicker: String) -> some View {
@@ -233,75 +207,7 @@ struct ImportView: View {
             .padding(.bottom, TapeTheme.space1)
     }
 
-    private func importActionRow(
-        title: String,
-        subtitle: String,
-        icon: String,
-        fill: Color,
-        trailingIcon: String,
-        identifier: String,
-        disabled: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            TapeRow(
-                thumbText: ">",
-                thumbFill: fill,
-                icon: icon,
-                title: title,
-                subtitle: subtitle,
-                trailingIcon: trailingIcon
-            )
-        }
-        .buttonStyle(TapePlainPressStyle())
-        .disabled(disabled)
-        .opacity(disabled ? 0.5 : 1)
-        .accessibilityLabel(title)
-        .accessibilityIdentifier(identifier)
-    }
-
-    /// With an empty library the "recent" empty state is surfaced inside the
-    /// quick-add card, where it is actually on screen. The full recent list
-    /// only exists once there is something to list.
-    private var showsRecentEmptyHint: Bool {
-        importedItems.isEmpty && coordinator.summary == nil && !coordinator.isRunning
-    }
-
-    private var recentEmptyHint: some View {
-        HStack(spacing: TapeTheme.space2) {
-            TapeSticker(
-                text: "NO TAPES",
-                fill: TapeTheme.peach,
-                foreground: TapeTheme.stickerInk,
-                angle: -3
-            )
-            VStack(alignment: .leading, spacing: 2) {
-                Text("还没有导入内容")
-                    .font(TapeType.body)
-                    .foregroundStyle(TapeTheme.ink)
-                    .accessibilityIdentifier("importRecentEmptyState")
-                Button {
-                    activeSheet = .folder
-                } label: {
-                    Text("点上方「选择文件夹」开始；子文件夹会被递归扫描。")
-                        .font(TapeType.captionSmall)
-                        .foregroundStyle(TapeTheme.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
-                .disabled(coordinator.isRunning)
-                .accessibilityIdentifier("importEmptyChooseFolderButton")
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// Last run summary and live progress live at the top of the quick-add
-    /// card. Keeping them in the same card as the action rows means the
-    /// sample button never gets pushed below the fold after an import — the
-    /// re-add flow stays a single tap without any scrolling.
+    /// Last run summary and live progress live at the top of the import page.
     private var hasImportStatus: Bool {
         coordinator.summary != nil
             || coordinator.phase != .idle
@@ -309,8 +215,81 @@ struct ImportView: View {
             || coordinator.lastErrorMessage != nil
     }
 
-    @ViewBuilder
-    private var importStatusBlock: some View {
+    private func resultSection(_ summary: ImportCoordinator.RunSummary) -> some View {
+        Section {
+            TapeCard {
+                VStack(alignment: .leading, spacing: TapeTheme.space2) {
+                    resultLine("来源", summary.kind.displayName)
+                    resultLine("扫描", "\(summary.totalCandidates) 个文件")
+                    resultLine("支持格式", "\(summary.supportedFiles) 个")
+                    resultLine("导入", "\(summary.importedCount) 个")
+                    if summary.relinkedCount > 0 {
+                        resultLine("重链", "\(summary.relinkedCount) 个")
+                    }
+                    if summary.duplicateCount > 0 {
+                        resultLine("重复跳过", "\(summary.duplicateCount) 个")
+                    }
+                    if summary.unsupportedCount > 0 {
+                        resultLine("不支持的格式", "\(summary.unsupportedCount) 个")
+                    }
+                    if summary.failedCount > 0 {
+                        resultLine("失败", "\(summary.failedCount) 个")
+                    }
+                    resultLine("复制", formatBytes(summary.copiedBytes))
+                    resultLine("耗时", L10n.format("import.durationSeconds", summary.duration))
+                    if let reportPath = summary.reportPath {
+                        Text("报告：\(reportPath)")
+                            .font(TapeType.monoMicro)
+                            .foregroundStyle(TapeTheme.faint)
+                            .lineLimit(1)
+                    }
+                    if coordinator.lastResult != nil {
+                        Button {
+                            activeSheet = .report
+                        } label: {
+                            Label("查看完整报告", systemImage: "doc.text.magnifyingglass")
+                        }
+                        .buttonStyle(TapeSecondaryButtonStyle())
+                        .accessibilityIdentifier("viewImportReportButton")
+                    }
+                    Button("清除结果") {
+                        coordinator.clearResult()
+                    }
+                    .buttonStyle(TapePlainPressStyle())
+                    .font(TapeType.monoMeta)
+                    .foregroundStyle(TapeTheme.muted)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .tapeRowInsets(6)
+        } header: {
+            sectionHeader(title: L10n.string("详细结果"), kicker: "DETAILS")
+        }
+    }
+
+    private func resultLine(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+                .font(TapeType.caption)
+                .foregroundStyle(TapeTheme.muted)
+            Spacer(minLength: 8)
+            Text(value)
+                .font(TapeType.monoMeta)
+                .foregroundStyle(TapeTheme.ink)
+        }
+    }
+
+    private func formatBytes(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+}
+
+/// Shared import progress/summary card. Shown on the Import page and on the
+/// Diagnostics page so a manual run can be triggered and watched from Settings.
+struct ImportStatusView: View {
+    @Environment(ImportCoordinator.self) private var coordinator
+
+    var body: some View {
         VStack(alignment: .leading, spacing: TapeTheme.space2) {
             if let summary = coordinator.summary {
                 VStack(alignment: .leading, spacing: 2) {
@@ -409,69 +388,6 @@ struct ImportView: View {
         .padding(.vertical, 4)
     }
 
-    private func resultSection(_ summary: ImportCoordinator.RunSummary) -> some View {
-        Section {
-            TapeCard {
-                VStack(alignment: .leading, spacing: TapeTheme.space2) {
-                    resultLine("来源", summary.kind.displayName)
-                    resultLine("扫描", "\(summary.totalCandidates) 个文件")
-                    resultLine("支持格式", "\(summary.supportedFiles) 个")
-                    resultLine("导入", "\(summary.importedCount) 个")
-                    if summary.relinkedCount > 0 {
-                        resultLine("重链", "\(summary.relinkedCount) 个")
-                    }
-                    if summary.duplicateCount > 0 {
-                        resultLine("重复跳过", "\(summary.duplicateCount) 个")
-                    }
-                    if summary.unsupportedCount > 0 {
-                        resultLine("不支持的格式", "\(summary.unsupportedCount) 个")
-                    }
-                    if summary.failedCount > 0 {
-                        resultLine("失败", "\(summary.failedCount) 个")
-                    }
-                    resultLine("复制", formatBytes(summary.copiedBytes))
-                    resultLine("耗时", L10n.format("import.durationSeconds", summary.duration))
-                    if let reportPath = summary.reportPath {
-                        Text("报告：\(reportPath)")
-                            .font(TapeType.monoMicro)
-                            .foregroundStyle(TapeTheme.faint)
-                            .lineLimit(1)
-                    }
-                    if coordinator.lastResult != nil {
-                        Button {
-                            activeSheet = .report
-                        } label: {
-                            Label("查看完整报告", systemImage: "doc.text.magnifyingglass")
-                        }
-                        .buttonStyle(TapeSecondaryButtonStyle())
-                        .accessibilityIdentifier("viewImportReportButton")
-                    }
-                    Button("清除结果") {
-                        coordinator.clearResult()
-                    }
-                    .buttonStyle(TapePlainPressStyle())
-                    .font(TapeType.monoMeta)
-                    .foregroundStyle(TapeTheme.muted)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .tapeRowInsets(6)
-        } header: {
-            sectionHeader(title: L10n.string("详细结果"), kicker: "DETAILS")
-        }
-    }
-
-    private func resultLine(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(label)
-                .font(TapeType.caption)
-                .foregroundStyle(TapeTheme.muted)
-            Spacer(minLength: 8)
-            Text(value)
-                .font(TapeType.monoMeta)
-                .foregroundStyle(TapeTheme.ink)
-        }
-    }
 
     private func formatBytes(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)

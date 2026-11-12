@@ -206,15 +206,13 @@ final class ImportCoordinator {
         scanInboxNow(modelContext: modelContext)
     }
 
+    /// Folder imports are in-place links: the picker URL is bookmarked and the
+    /// files stay where they are. Nothing is copied into the sandbox, so the
+    /// folder also appears under Settings → linked folders and can be rescanned
+    /// later.
     func startFolderImport(_ url: URL, modelContext: ModelContext) {
         guard !isRunning else { return }
-        startPreparedFolderImport(
-            url,
-            kind: .folder,
-            source: .files,
-            collectionName: url.lastPathComponent,
-            modelContext: modelContext
-        )
+        linkFolder(url, modelContext: modelContext)
     }
 
     // MARK: - Linked folders (链接文件夹 + 增量重扫)
@@ -248,6 +246,31 @@ final class ImportCoordinator {
             if didStart { url.stopAccessingSecurityScopedResource() }
         }
         do {
+            // Re-picking an already linked folder resyncs that row instead of
+            // creating a second bookmark for the same source.
+            let existing = (try? modelContext.fetch(FetchDescriptor<LinkedFolder>())) ?? []
+            for folder in existing {
+                guard case .success(let access) = LinkedFolderStore.resolve(folder.bookmarkData) else {
+                    continue
+                }
+                let matches = access.url.standardizedFileURL == url.standardizedFileURL
+                if matches {
+                    if let refreshed = access.refreshedBookmark {
+                        folder.bookmarkData = refreshed
+                    }
+                    folder.isStale = false
+                    try? modelContext.save()
+                    access.stop()
+                    beginLinkedFolderSync(
+                        folder,
+                        resolvedURL: url,
+                        modelContext: modelContext
+                    )
+                    return
+                }
+                access.stop()
+            }
+
             let bookmark = try LinkedFolderStore.makeBookmark(for: url)
             let folder = LinkedFolder(
                 bookmarkData: bookmark,
@@ -283,6 +306,13 @@ final class ImportCoordinator {
             lastErrorMessage = error.localizedDescription
         case .success(let access):
             access.withAccess { resolvedURL in
+                // A stale bookmark that still resolved was re-created while
+                // the scope was live; persist it so the next launch is clean.
+                if let refreshed = access.refreshedBookmark {
+                    folder.bookmarkData = refreshed
+                    folder.isStale = false
+                    try? modelContext.save()
+                }
                 beginLinkedFolderSync(folder, resolvedURL: resolvedURL, modelContext: modelContext)
             }
         }
@@ -299,6 +329,9 @@ final class ImportCoordinator {
             let bookmark = try LinkedFolderStore.makeBookmark(for: newURL)
             LinkedFolderStore.relink(folder, bookmarkData: bookmark)
             try modelContext.save()
+            // Re-authorizing is also the moment to pick up anything that
+            // changed while the link was broken.
+            beginLinkedFolderSync(folder, resolvedURL: newURL, modelContext: modelContext)
         } catch {
             phase = .failed
             lastErrorMessage = L10n.format(
@@ -353,17 +386,33 @@ final class ImportCoordinator {
 
         // Snapshot the pre-sync state before the import mutates the library.
         let folderID = pendingLinkedFolderSync?.folderID
-        let existingKeys = (try? LinkedFolderStore.existingSourceKeys(
-            forLinkedFolderNamed: rootName,
-            in: modelContext
-        )) ?? []
+        let existingKeys: Set<String>
+        if let folderID {
+            existingKeys = (try? LinkedFolderStore.existingSourceKeys(
+                forLinkedFolderID: folderID,
+                in: modelContext
+            )) ?? []
+        } else {
+            existingKeys = (try? LinkedFolderStore.existingSourceKeys(
+                forLinkedFolderNamed: rootName,
+                in: modelContext
+            )) ?? []
+        }
+        guard let folderID else {
+            finishWithError(
+                LinkedFolderError.staleBookmark,
+                modelContext: modelContext
+            )
+            return
+        }
 
         do {
             let startedAt = Date()
-            let result = try await importService.importFolder(
+            let result = try await importService.importLinkedFolder(
                 rootURL: resolvedURL,
                 source: .files,
                 rootName: rootName,
+                linkedFolderID: folderID,
                 collectionName: rootName,
                 in: modelContext,
                 options: importOptions(),
