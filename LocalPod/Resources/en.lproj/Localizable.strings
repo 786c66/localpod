@@ -433,6 +433,8 @@
 "playback.demo.launchArgumentSubtitle" = "Launch Argument";
 "playback.demo.longAudioTitle" = "Long Audio Test";
 "playback.libraryFallback" = "Library";
+"playback.queue.collapse" = "Hide Queue";
+"playback.queue.expand" = "Show Current Queue";
 "playlist.createTitle" = "New Playlist";
 "playlist.renameTitle" = "Rename Playlist";
 "settings.audioOnly" = "Audio Only";

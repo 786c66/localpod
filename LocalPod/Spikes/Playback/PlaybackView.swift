@@ -16,17 +16,13 @@ struct PlaybackView: View {
     /// Set by RootView so the empty state can switch tabs.
     var onGoToLibrary: () -> Void = {}
 
-    private var items: [MediaItem] {
-        allItems.filter { $0.source != .benchmark && !$0.isMissing }
-    }
-
     private var itemByID: [UUID: MediaItem] {
         Dictionary(uniqueKeysWithValues: allItems.map { ($0.id, $0) })
     }
 
     @State private var showSettings = false
-    @State private var localError: String?
     @State private var scrubPosition: Double?
+    @State private var isQueueExpanded = false
 
     var body: some View {
         NavigationStack {
@@ -42,62 +38,13 @@ struct PlaybackView: View {
                         .tapeRowInsets(8)
                 }
 
-                queueSection
-
                 Section {
-                    demoAudioRow
-                    demoLongAudioRow
-                } header: {
-                    sectionHeader(title: "内置测试媒体", kicker: "TEST SIGNAL")
-                } footer: {
-                    Text("LocalPod 只播放音频。视频文件可导入并读取其音轨，但不显示画面、不做旋转/PiP。")
-                        .font(TapeType.caption)
-                        .foregroundStyle(TapeTheme.muted)
-                        .padding(.horizontal, TapeTheme.space4)
-                        .padding(.top, TapeTheme.space1)
-                        .listRowBackground(Color.clear)
+                    queueExpandButton
+                        .tapeRowInsets(6)
                 }
 
-                Section {
-                    if items.isEmpty {
-                        TapeDashedCard {
-                            Text("还没有可播放的条目。先在「导入」页导入演示文件夹。")
-                                .font(TapeType.body)
-                                .foregroundStyle(TapeTheme.muted)
-                                .multilineTextAlignment(.center)
-                        }
-                        .tapeRowInsets(6)
-                    } else {
-                        ForEach(items) { item in
-                            Button {
-                                playLibraryItem(item)
-                            } label: {
-                                libraryRow(item)
-                            }
-                            .buttonStyle(TapePlainPressStyle())
-                            .tapeRowInsets(4)
-                        }
-                    }
-                } header: {
-                    sectionHeader(title: "资料库 · \(items.count)", kicker: "ON THE SHELF")
-                }
-
-                if let localError {
-                    Section {
-                        TapeCard(fill: TapeTheme.peach) {
-                            HStack(alignment: .top, spacing: TapeTheme.space2) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(TapeTheme.ink)
-                                Text(localError)
-                                    .font(TapeType.body)
-                                    .foregroundStyle(TapeTheme.ink)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                        .tapeRowInsets(6)
-                    } header: {
-                        sectionHeader(title: "错误", kicker: "TROUBLE")
-                    }
+                if isQueueExpanded {
+                    queueSection
                 }
             }
             .listStyle(.plain)
@@ -109,7 +56,7 @@ struct PlaybackView: View {
             }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarLeading) {
-                    if !session.queue.isEmpty {
+                    if isQueueExpanded, !session.queue.isEmpty {
                         EditButton()
                             .font(TapeType.bodySmall)
                     }
@@ -146,9 +93,16 @@ struct PlaybackView: View {
             .foregroundStyle(TapeTheme.ink)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(TapeTheme.acid, in: Capsule())
+            // The hard offset shadow must sit on the capsule, not on the
+            // composed Text. A shadow on the text redraws every glyph 2 pt
+            // down-right: at this size the "播放中" strokes read as a ghost
+            // double image (the regression the owner reported).
+            .background {
+                Capsule()
+                    .fill(TapeTheme.acid)
+                    .shadow(color: TapeTheme.ink, radius: 0, x: 2, y: 2)
+            }
             .overlay { Capsule().strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke) }
-            .shadow(color: TapeTheme.ink, radius: 0, x: 2, y: 2)
             .padding(.top, 56)
             .padding(.trailing, 14)
             .allowsHitTesting(false)
@@ -163,52 +117,6 @@ struct PlaybackView: View {
             .padding(.horizontal, TapeTheme.screenPadding)
             .padding(.top, TapeTheme.space3)
             .padding(.bottom, TapeTheme.space1)
-    }
-
-    // MARK: - Built-in media
-
-    private var demoAudioRow: some View {
-        Button {
-            playDemo(
-                name: "demo-audio",
-                fileExtension: "m4a",
-                title: L10n.string("playback.demo.audioTitle"),
-                kind: .audio
-            )
-        } label: {
-            TapeRow(
-                thumbText: "A",
-                thumbFill: TapeTheme.coral,
-                icon: "waveform",
-                title: "播放内置音频",
-                subtitle: "DEMO · SHORT CLIP"
-            )
-        }
-        .buttonStyle(TapePlainPressStyle())
-        .accessibilityIdentifier("playDemoAudioButton")
-        .tapeRowInsets(4)
-    }
-
-    private var demoLongAudioRow: some View {
-        Button {
-            playDemo(
-                name: "demo-long-audio",
-                fileExtension: "m4a",
-                title: L10n.string("playback.demo.longAudioTitle"),
-                kind: .audio
-            )
-        } label: {
-            TapeRow(
-                thumbText: "B",
-                thumbFill: TapeTheme.violet,
-                icon: "clock",
-                title: "播放 5 分钟测试音频",
-                subtitle: "DEMO · LONG CLIP"
-            )
-        }
-        .buttonStyle(TapePlainPressStyle())
-        .accessibilityIdentifier("playLongAudioButton")
-        .tapeRowInsets(4)
     }
 
     // MARK: - Player
@@ -262,7 +170,7 @@ struct PlaybackView: View {
                         .font(TapeType.title2)
                         .foregroundStyle(TapeTheme.ink)
                         .accessibilityIdentifier("playbackEmptyState")
-                    Text("从资料库选择条目，或播放上方的内置测试媒体。")
+                    Text("从资料库选择条目开始播放。")
                         .font(TapeType.body)
                         .foregroundStyle(TapeTheme.muted)
                         .multilineTextAlignment(.center)
@@ -323,36 +231,7 @@ struct PlaybackView: View {
             transportControls
 
             VStack(spacing: TapeTheme.space2) {
-                ZStack {
-                    TapeProgressBar(
-                        progress: progressFraction,
-                        fill: TapeTheme.acid,
-                        height: 10
-                    )
-                    .padding(.horizontal, 2)
-
-                    Slider(
-                        value: Binding(
-                            get: { scrubPosition ?? playback.currentTime },
-                            set: { scrubPosition = $0 }
-                        ),
-                        in: 0...max(playback.duration, 1)
-                    ) { editing in
-                        if !editing, let target = scrubPosition {
-                            playback.seek(to: target)
-                            scrubPosition = nil
-                        }
-                    }
-                    .tint(TapeTheme.ink)
-                    .opacity(0.02)
-                    .frame(height: 44)
-                    .accessibilityIdentifier("playbackSlider")
-                    .accessibilityLabel("播放进度")
-                    .accessibilityValue(
-                        "\(formatTime(scrubPosition ?? playback.currentTime))，共 \(formatTime(max(playback.duration, 0)))"
-                    )
-                    .accessibilityHint("左右滑动调整播放位置")
-                }
+                progressScrubber
 
                 HStack {
                     Text(formatTime(scrubPosition ?? playback.currentTime))
@@ -395,6 +274,75 @@ struct PlaybackView: View {
     private var progressFraction: Double {
         let duration = max(playback.duration, 1)
         return (scrubPosition ?? playback.currentTime) / duration
+    }
+
+    /// Visible progress bar with a drag thumb. Touch handling belongs to a
+    /// native Slider laid over the bar (2% opacity, 44 pt tall) — the same
+    /// arbitration the app used before the redesign. A bare DragGesture here
+    /// claims every swipe that starts on the bar, including vertical ones, so
+    /// the List could not scroll past the transport card (regression: the
+    /// P2 chapter test could never reach the chapter section). The visible
+    /// thumb still follows `scrubPosition` while the native slider drags.
+    private var progressScrubber: some View {
+        GeometryReader { geometry in
+            let width = max(geometry.size.width, 1)
+            let thumbSize: CGFloat = 22
+            let fraction = min(max(progressFraction, 0), 1)
+            ZStack(alignment: .leading) {
+                TapeProgressBar(
+                    progress: fraction,
+                    fill: TapeTheme.acid,
+                    height: 12
+                )
+                .frame(width: width, height: 12)
+
+                Circle()
+                    .fill(TapeTheme.acid)
+                    .overlay {
+                        Circle().strokeBorder(
+                            TapeTheme.ink,
+                            lineWidth: TapeTheme.stroke
+                        )
+                    }
+                    .frame(width: thumbSize, height: thumbSize)
+                    .shadow(color: TapeTheme.ink, radius: 0, x: 1.5, y: 1.5)
+                    .offset(x: (width - thumbSize) * fraction)
+
+                Slider(
+                    value: Binding(
+                        get: {
+                            let duration = max(playback.duration, 1)
+                            return min(
+                                max((scrubPosition ?? playback.currentTime) / duration, 0),
+                                1
+                            )
+                        },
+                        set: { newValue in
+                            guard playback.duration > 0 else { return }
+                            scrubPosition = newValue * playback.duration
+                        }
+                    ),
+                    in: 0...1
+                ) { editing in
+                    guard !editing else { return }
+                    if let target = scrubPosition {
+                        playback.seek(to: target)
+                    }
+                    scrubPosition = nil
+                }
+                .tint(TapeTheme.ink)
+                .opacity(0.02)
+                .frame(height: 44)
+                .accessibilityIdentifier("playbackSlider")
+                .accessibilityLabel("播放进度")
+                .accessibilityValue(
+                    "\(formatTime(scrubPosition ?? playback.currentTime))，共 \(formatTime(max(playback.duration, 0)))"
+                )
+                .accessibilityHint("左右滑动调整播放位置")
+            }
+            .frame(width: width, height: 44)
+        }
+        .frame(height: 44)
     }
 
     @ViewBuilder
@@ -682,6 +630,62 @@ struct PlaybackView: View {
 
     // MARK: - Queue
 
+    /// The queue is collapsed by default: the playback screen is about the
+    /// current tape, not the whole shelf. Expanding reveals the real queue
+    /// (reorder/delete still live there).
+    private var queueExpandButton: some View {
+        Button {
+            withAnimation(TapeTheme.spring) {
+                isQueueExpanded.toggle()
+            }
+        } label: {
+            HStack(spacing: TapeTheme.space3) {
+                Image(systemName: "list.bullet")
+                    .font(.system(size: 15, weight: .bold))
+                Text(
+                    isQueueExpanded
+                        ? L10n.string("playback.queue.collapse")
+                        : L10n.string("playback.queue.expand")
+                )
+                .font(TapeType.headline)
+                Spacer(minLength: TapeTheme.space2)
+                Text("\(session.queue.count)")
+                    .font(TapeType.monoMeta)
+                    .foregroundStyle(TapeTheme.ink)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(TapeTheme.acid, in: Capsule())
+                    .overlay {
+                        Capsule().strokeBorder(TapeTheme.ink, lineWidth: 1)
+                    }
+                Image(systemName: isQueueExpanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 12, weight: .bold))
+            }
+            .foregroundStyle(TapeTheme.ink)
+            .padding(.horizontal, TapeTheme.space3)
+            .frame(minHeight: 48)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(TapeTheme.card)
+                    .shadow(color: TapeTheme.ink, radius: 0, x: 2, y: 2)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(TapePlainPressStyle())
+        .accessibilityIdentifier("queueExpandButton")
+        .accessibilityLabel(
+            isQueueExpanded
+                ? L10n.string("playback.queue.collapse")
+                : L10n.string("playback.queue.expand")
+        )
+        .accessibilityValue("\(session.queue.count)")
+    }
+
     private var queueSection: some View {
         Section {
             if session.queue.isEmpty {
@@ -887,51 +891,6 @@ struct PlaybackView: View {
             .accessibilityIdentifier("queueClearButton")
             .accessibilityLabel("清空队列")
             .accessibilityHint("移除队列中的所有条目")
-        }
-    }
-
-    // MARK: - Library
-
-    private func libraryRow(_ item: MediaItem) -> some View {
-        TapeRow(
-            thumbText: String(item.title.prefix(1)),
-            thumbFill: item.kind.isVideo ? TapeTheme.violetSoft : TapeTheme.peach,
-            icon: item.kind.isVideo ? "film" : "waveform",
-            title: item.title,
-            subtitle: "\(item.kind.displayName) · \(item.folderName ?? L10n.string("playback.libraryFallback"))"
-        )
-    }
-
-    // MARK: - Actions
-
-    private func playDemo(name: String, fileExtension ext: String, title: String, kind: MediaKind) {
-        localError = nil
-        guard let url = Bundle.main.url(forResource: name, withExtension: ext) else {
-            localError = L10n.format("error.playback.missingDemo", "\(name).\(ext)")
-            return
-        }
-        session.queue.clear()
-        let item = PlaybackItem(
-            title: title,
-            subtitle: L10n.string("playback.builtInSubtitle"),
-            fileURL: url,
-            kind: kind
-        )
-        playback.load(item, autoplay: true)
-    }
-
-    private func playLibraryItem(_ item: MediaItem) {
-        localError = nil
-        guard item.fileURL != nil, !item.isMissing else {
-            localError = L10n.format(
-                "error.playback.resolveFile",
-                item.relativePath
-            )
-            return
-        }
-        session.play(item: item)
-        if let error = session.lastError {
-            localError = error
         }
     }
 

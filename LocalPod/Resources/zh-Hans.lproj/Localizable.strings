@@ -433,6 +433,8 @@
 "playback.demo.launchArgumentSubtitle" = "启动参数";
 "playback.demo.longAudioTitle" = "长音频测试";
 "playback.libraryFallback" = "资料库";
+"playback.queue.collapse" = "收起当前队列";
+"playback.queue.expand" = "展开当前队列";
 "playlist.createTitle" = "新建播放列表";
 "playlist.renameTitle" = "重命名播放列表";
 "settings.audioOnly" = "仅音频";
