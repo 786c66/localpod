@@ -57,6 +57,7 @@ struct LibraryView: View {
 
     @Environment(PlaybackSession.self) private var session
     @Environment(AppIntentRouter.self) private var intentRouter
+    @Environment(\.modelContext) private var modelContext
 
     @Query(sort: \MediaItem.addedAt, order: .reverse)
     private var allItems: [MediaItem]
@@ -267,7 +268,7 @@ struct LibraryView: View {
                     }
                 }
                 Spacer(minLength: TapeTheme.space2)
-                if let recent = libraryItems.first(where: { $0.fileURL != nil && !$0.isMissing }) {
+                if let recent = libraryItems.first(where: { !$0.isMissing }) {
                     Button {
                         session.play(item: recent)
                     } label: {
@@ -339,19 +340,74 @@ struct LibraryView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: TapeTheme.space3) {
                 ForEach(continueItems, id: \.item.id) { entry in
-                    Button {
-                        session.play(item: entry.item)
-                    } label: {
-                        ContinueListeningCard(item: entry.item, state: entry.state)
+                    ZStack(alignment: .topTrailing) {
+                        Button {
+                            session.play(item: entry.item)
+                        } label: {
+                            ContinueListeningCard(item: entry.item, state: entry.state)
+                        }
+                        .buttonStyle(TapePlainPressStyle())
+                        .accessibilityIdentifier("continueItem-\(entry.item.title)")
+
+                        // Status switch without opening the detail page:
+                        // finish the episode or reset progress. Both mutations
+                        // hit PlaybackState, so the strip updates immediately.
+                        Menu {
+                            Button {
+                                markContinueItemFinished(entry)
+                            } label: {
+                                Label("标记为已完成", systemImage: "checkmark.circle")
+                            }
+                            Button(role: .destructive) {
+                                resetContinueItem(entry)
+                            } label: {
+                                Label("重置播放进度", systemImage: "gobackward")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(TapeTheme.ink)
+                                .frame(width: 28, height: 28)
+                                .background(TapeTheme.cream, in: Circle())
+                                .overlay {
+                                    Circle().strokeBorder(
+                                        TapeTheme.ink,
+                                        lineWidth: 1
+                                    )
+                                }
+                        }
+                        .padding(6)
+                        .accessibilityIdentifier("continueMenu-\(entry.item.title)")
+                        .accessibilityLabel("切换播放状态")
                     }
-                    .buttonStyle(TapePlainPressStyle())
-                    .accessibilityIdentifier("continueItem-\(entry.item.title)")
                 }
             }
             .padding(.horizontal, TapeTheme.screenPadding)
             .padding(.vertical, TapeTheme.space1)
         }
         .padding(.horizontal, -TapeTheme.screenPadding)
+    }
+
+    private func markContinueItemFinished(
+        _ entry: (item: MediaItem, state: PlaybackState)
+    ) {
+        do {
+            try PlaybackProgressStore(context: modelContext).markFinished(
+                itemID: entry.item.id,
+                duration: entry.item.durationSeconds ?? entry.state.duration
+            )
+        } catch {
+            // The strip is a shortcut, not a critical path; a failed save
+            // leaves the row untouched and the detail page still offers the
+            // same action with an error message.
+        }
+    }
+
+    private func resetContinueItem(
+        _ entry: (item: MediaItem, state: PlaybackState)
+    ) {
+        try? PlaybackProgressStore(context: modelContext)
+            .resetProgress(itemID: entry.item.id)
     }
 
     // MARK: - Scope
@@ -803,15 +859,24 @@ struct LibraryCollectionDetailView: View {
     let collection: MediaCollection
 
     @Environment(PlaybackSession.self) private var session
+    @Environment(\.modelContext) private var modelContext
 
     @Query(sort: \MediaItem.relativeFolderPath)
     private var allItems: [MediaItem]
 
     @State private var itemDetailTarget: MediaItem?
     @State private var showItemDetail = false
+    @State private var editMode: EditMode = .inactive
 
     private var items: [MediaItem] {
         allItems.filter { $0.collectionID == collection.id }
+    }
+
+    /// Items in the collection's persisted order. Manual mode follows the
+    /// per-item `collectionPosition`; the other modes are pure functions of
+    /// the source path/title/date, so they never rewrite stored rows.
+    private var sortedItems: [MediaItem] {
+        CollectionOrdering.sorted(items, by: collection.sortMode)
     }
 
     private var totalBytes: Int64 {
@@ -889,7 +954,7 @@ struct LibraryCollectionDetailView: View {
             }
 
             Section {
-                ForEach(items) { item in
+                ForEach(sortedItems) { item in
                     Button {
                         itemDetailTarget = item
                         showItemDetail = true
@@ -898,7 +963,11 @@ struct LibraryCollectionDetailView: View {
                     }
                     .buttonStyle(TapePlainPressStyle())
                     .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("collectionItem-\(item.title)")
                     .tapeRowInsets(4)
+                }
+                .onMove { source, destination in
+                    moveItems(fromOffsets: source, toOffset: destination)
                 }
             } header: {
                 TapeSectionHeader(
@@ -912,8 +981,23 @@ struct LibraryCollectionDetailView: View {
         }
         .listStyle(.plain)
         .tapeScreen()
+        .environment(\.editMode, $editMode)
         .navigationTitle(collection.name)
         .tapeNavigationChrome()
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                sortMenu
+                if collection.sortMode == .manual {
+                    Button(editMode == .active ? "完成排序" : "拖动排序") {
+                        withAnimation {
+                            editMode = editMode == .active ? .inactive : .active
+                        }
+                    }
+                    .font(TapeType.bodySmall)
+                    .accessibilityIdentifier("collectionReorderButton")
+                }
+            }
+        }
         .navigationDestination(isPresented: $showItemDetail) {
             if let itemDetailTarget {
                 LibraryItemDetailView(item: itemDetailTarget)
@@ -921,9 +1005,53 @@ struct LibraryCollectionDetailView: View {
         }
     }
 
+    private var sortMenu: some View {
+        Menu {
+            Picker("排序方式", selection: sortModeBinding) {
+                ForEach(CollectionSortMode.allCases, id: \.self) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+        } label: {
+            Label("排序", systemImage: "arrow.up.arrow.down")
+        }
+        .accessibilityIdentifier("collectionSortMenu")
+    }
+
+    private var sortModeBinding: Binding<CollectionSortMode> {
+        Binding(
+            get: { collection.sortMode },
+            set: { newMode in
+                // Entering manual mode freezes the order the user is looking
+                // at, so the first drag starts from the visible sequence.
+                if newMode == .manual {
+                    let current = CollectionOrdering.sorted(
+                        items,
+                        by: collection.sortMode
+                    )
+                    CollectionOrdering.assignManualPositions(current)
+                }
+                collection.sortMode = newMode
+                editMode = .inactive
+                try? modelContext.save()
+            }
+        )
+    }
+
+    private func moveItems(fromOffsets source: IndexSet, toOffset destination: Int) {
+        guard collection.sortMode == .manual else { return }
+        let reordered = CollectionOrdering.moving(
+            sortedItems,
+            fromOffsets: source,
+            toOffset: destination
+        )
+        CollectionOrdering.assignManualPositions(reordered)
+        try? modelContext.save()
+    }
+
     private var playAllButton: some View {
         Button {
-            session.play(items: items)
+            session.play(items: sortedItems)
         } label: {
             Label("播放全部（\(items.count)）", systemImage: "play.fill")
         }
@@ -933,7 +1061,7 @@ struct LibraryCollectionDetailView: View {
 
     private var shuffleButton: some View {
         Button {
-            session.play(items: items, shuffle: true)
+            session.play(items: sortedItems, shuffle: true)
         } label: {
             Label("随机播放", systemImage: "shuffle")
         }
@@ -970,6 +1098,7 @@ struct LibraryItemDetailView: View {
     @State private var showPlaylistPicker = false
     @State private var errorMessage: String?
     @State private var infoMessage: String?
+    @State private var playbackStatus: PlaybackStatus = .notStarted
 
     private var infoRows: [(String, String)] {
         var rows: [(String, String)] = [
@@ -985,6 +1114,10 @@ struct LibraryItemDetailView: View {
         if !item.relativeFolderPath.isEmpty {
             rows.append(("文件夹内路径", item.relativeFolderPath))
         }
+        rows.append((
+            "存储方式",
+            item.isLinked ? "原地读取（不复制）" : "已复制到 App"
+        ))
         rows.append(("来源", item.source.displayName))
         rows.append(("添加时间", item.addedAt.formatted(date: .abbreviated, time: .shortened)))
         if let fingerprint = item.fingerprint {
@@ -1050,15 +1183,79 @@ struct LibraryItemDetailView: View {
 
             Section {
                 TapeCard {
-                    Text(item.relativePath)
-                        .font(.system(size: 12, weight: .regular, design: .monospaced))
-                        .textSelection(.enabled)
-                        .foregroundStyle(TapeTheme.muted)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(
+                        item.isLinked
+                            ? item.linkedSourceRelativePath
+                            : item.relativePath
+                    )
+                    .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    .textSelection(.enabled)
+                    .foregroundStyle(TapeTheme.muted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if item.isLinked {
+                        Text("文件保留在原文件夹中，App 只读取，不复制。")
+                            .font(TapeType.captionSmall)
+                            .foregroundStyle(TapeTheme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 .tapeRowInsets(6)
             } header: {
                 detailHeader("存储路径", kicker: "ON DISK")
+            }
+
+            Section {
+                TapeCard {
+                    VStack(alignment: .leading, spacing: TapeTheme.space3) {
+                        HStack(alignment: .firstTextBaseline, spacing: TapeTheme.space2) {
+                            Text("当前状态")
+                                .font(TapeType.body)
+                                .foregroundStyle(TapeTheme.ink)
+                            Spacer(minLength: TapeTheme.space2)
+                            TapeSticker(
+                                text: playbackStatus.displayName,
+                                fill: playbackStatus == .finished
+                                    ? TapeTheme.acid
+                                    : TapeTheme.cream,
+                                angle: -2
+                            )
+                            .accessibilityIdentifier("detailPlaybackStatusText")
+                        }
+
+                        if playbackStatus == .finished {
+                            Button {
+                                markUnfinished()
+                            } label: {
+                                Label("标记为未完成", systemImage: "arrow.uturn.backward")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(TapeSecondaryButtonStyle())
+                            .accessibilityIdentifier("detailMarkUnfinishedButton")
+                        } else {
+                            Button {
+                                markFinished()
+                            } label: {
+                                Label("标记为已完成", systemImage: "checkmark.circle")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(TapeSecondaryButtonStyle())
+                            .accessibilityIdentifier("detailMarkFinishedButton")
+                        }
+
+                        Button(role: .destructive) {
+                            resetProgress()
+                        } label: {
+                            Label("重置播放进度", systemImage: "gobackward")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(TapeSecondaryButtonStyle())
+                        .accessibilityIdentifier("detailResetProgressButton")
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .tapeRowInsets(6)
+            } header: {
+                detailHeader("播放状态", kicker: "STATUS")
             }
 
             Section {
@@ -1181,6 +1378,7 @@ struct LibraryItemDetailView: View {
             }
             .presentationDetents([.medium, .large])
         }
+        .onAppear { refreshPlaybackStatus() }
         .alert("删除这个条目？", isPresented: $showDeleteConfirmation) {
             Button("移到回收站", role: .destructive) {
                 deleteItem()
@@ -1201,20 +1399,61 @@ struct LibraryItemDetailView: View {
 
     @discardableResult
     private func play() -> Bool {
-        guard let url = item.fileURL,
-              FileManager.default.fileExists(atPath: url.path) else {
+        guard !item.isMissing else {
             errorMessage = L10n.format(
                 "error.library.fileMissing",
-                item.relativePath
+                item.isLinked ? item.linkedSourceRelativePath : item.relativePath
             )
             return false
         }
+        // Linked items have no sandbox URL; PlaybackSession resolves their
+        // security scope and reports a missing source through lastError.
         session.play(item: item)
         if let sessionError = session.lastError {
             errorMessage = sessionError
             return false
         }
         return true
+    }
+
+    private func refreshPlaybackStatus() {
+        playbackStatus = (try? PlaybackProgressStore(context: modelContext)
+            .status(for: item.id)) ?? .notStarted
+    }
+
+    private func markFinished() {
+        do {
+            try PlaybackProgressStore(context: modelContext).markFinished(
+                itemID: item.id,
+                duration: item.durationSeconds ?? 0
+            )
+            refreshPlaybackStatus()
+            infoMessage = "已标记为已完成。"
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func markUnfinished() {
+        do {
+            try PlaybackProgressStore(context: modelContext)
+                .markUnfinished(itemID: item.id)
+            refreshPlaybackStatus()
+            infoMessage = "已标记为未完成，会重新出现在「继续播放」。"
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func resetProgress() {
+        do {
+            try PlaybackProgressStore(context: modelContext)
+                .resetProgress(itemID: item.id)
+            refreshPlaybackStatus()
+            infoMessage = "播放进度已重置。"
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func deleteItem() {
