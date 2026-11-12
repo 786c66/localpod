@@ -6,6 +6,25 @@ import Observation
 @preconcurrency import UIKit
 #endif
 
+#if os(iOS)
+/// Tuning for pinning the playback audio-session category, plus the UI-test
+/// seam for the cold-launch retry path. File scope and non-isolated so the
+/// detached pin task can read the constants without hopping to the main actor.
+private enum AudioSessionPin {
+    static let attempts = 3
+    static let retryDelayNanoseconds: UInt64 = 200_000_000
+
+    #if DEBUG
+    /// `--m2-simulate-audio-session-failure` fails the first pin attempt so
+    /// the retry path runs on a simulator, where the real audio server never
+    /// fails transiently. Guards the owner's first-launch "音频会话激活失败"
+    /// banner regression.
+    static let simulateTransientFailure = ProcessInfo.processInfo.arguments
+        .contains("--m2-simulate-audio-session-failure")
+    #endif
+}
+#endif
+
 public enum PlaybackPhase: String, Sendable, Equatable {
     case idle
     case preparing
@@ -150,6 +169,10 @@ public final class PlaybackController {
 
         recordPlayStartIfNeeded(item: item)
         playIntent = true
+        // Re-attempt the category pin in case the cold-launch attempt failed
+        // before the audio server was ready; this returns immediately once the
+        // playback category is in place.
+        activateAudioSession()
         player.play()
         player.rate = playbackRate
         phase = .playing
@@ -600,25 +623,46 @@ public final class PlaybackController {
     /// player's own implicit activation, could fail with a core-audio error
     /// while audio still played fine, and that failure surfaced as a
     /// frightening "音频会话激活失败" banner during perfectly normal playback.
+    ///
+    /// A cold launch can run this before the audio server is ready, so the
+    /// very first setCategory may fail transiently and succeed moments later.
+    /// Retry a few times instead of believing the first failure; a pin that
+    /// still fails is deliberately silent — foreground playback works without
+    /// it (AVPlayer implicitly activates the session when it starts), and
+    /// play() re-attempts the pin before the item starts. Only a real playback
+    /// failure is worth a user-facing error; the old one-shot attempt is what
+    /// put a scary banner on the player page right after a first launch.
     private func activateAudioSession() {
-        Task.detached(priority: .userInitiated) { [weak self] in
+        Task.detached(priority: .userInitiated) {
             let session = AVAudioSession.sharedInstance()
-            if session.category != .playback {
+            for attempt in 0..<AudioSessionPin.attempts {
+                if session.category == .playback { return }
                 do {
+                    #if DEBUG
+                    if attempt == 0, AudioSessionPin.simulateTransientFailure {
+                        throw NSError(
+                            domain: "LocalPod.UITest.AudioSession",
+                            code: 1,
+                            userInfo: [
+                                NSLocalizedDescriptionKey: "simulated transient failure"
+                            ]
+                        )
+                    }
+                    #endif
                     try session.setCategory(
                         .playback,
                         mode: .spokenAudio,
                         options: [.allowAirPlay]
                     )
+                    return
                 } catch {
-                    // Without the playback category background audio cannot
-                    // work, so this failure is real and worth reporting.
-                    let message = LocalPodLocalization.format(
-                        "playback.error.audioSession",
-                        error.localizedDescription
-                    )
-                    await MainActor.run { [weak self] in
-                        self?.errorMessage = message
+                    // Back off briefly; the audio server is usually ready by
+                    // the next attempt.
+                    if attempt < AudioSessionPin.attempts - 1 {
+                        try? await Task.sleep(
+                            nanoseconds: AudioSessionPin.retryDelayNanoseconds
+                                * UInt64(attempt + 1)
+                        )
                     }
                 }
             }

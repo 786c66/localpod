@@ -57,6 +57,63 @@ final class M2UITests: XCTestCase {
         attachScreenshot(app, name: "M2-speed-and-controls")
     }
 
+    /// The owner's cold-launch repro: kill the app with a queue persisted,
+    /// reopen, switch to the player. A transient category-pin failure used to
+    /// be reported one-shot, landing after the restored item loaded, and the
+    /// player page showed the "音频会话激活失败" banner even though audio
+    /// then played fine. The seam fails the first pin attempt; the retry must
+    /// absorb it silently and playback must still start.
+    func testColdLaunchTransientAudioSessionFailureShowsNoBanner() throws {
+        let first = XCUIApplication()
+        first.launchArguments = [
+            "--m0-reset-data",
+            "--m3-seed-playable-library",
+            "--m3-seed-queue",
+            "--m3-auto-play-first"
+        ]
+        first.launchPinned()
+        let seededTitle = first.descendants(matching: .any)["currentPlaybackTitle"]
+        XCTAssertTrue(seededTitle.waitForExistence(timeout: 20))
+        first.terminate()
+
+        let second = XCUIApplication()
+        second.launchArguments = ["--m2-simulate-audio-session-failure"]
+        second.launchPinned()
+
+        // Land on the player page the way a user does — via the tab bar.
+        let playTab = second.buttons["播放"].firstMatch
+        XCTAssertTrue(playTab.waitForExistence(timeout: 20))
+        playTab.tap()
+
+        let restoredTitle = second.descendants(matching: .any)["currentPlaybackTitle"]
+        XCTAssertTrue(restoredTitle.waitForExistence(timeout: 20))
+        XCTAssertEqual(restoredTitle.label, "队列测试 A")
+
+        // Give a late one-shot failure (the old behavior) time to land before
+        // asserting it never became a banner.
+        sleep(2)
+        let banner = second.staticTexts
+            .matching(NSPredicate(format: "label CONTAINS %@", "音频会话激活失败"))
+            .firstMatch
+        XCTAssertFalse(
+            banner.exists,
+            "transient audio-session pin failures must not surface as a banner"
+        )
+        XCTAssertFalse(
+            second.descendants(matching: .any)["playbackRetryButton"].exists,
+            "no retry row should appear for a transient audio-session failure"
+        )
+
+        // The retry must not hurt real playback: the restored item still plays.
+        let playPause = second.descendants(matching: .any)["playPauseButton"]
+        XCTAssertTrue(playPause.waitForExistence(timeout: 10))
+        waitForLabel(playPause, equals: "播放", timeout: 10)
+        reveal(playPause, in: second)
+        playPause.tap()
+        waitForLabel(playPause, equals: "暂停", timeout: 10)
+        attachScreenshot(second, name: "M2-no-audio-session-banner")
+    }
+
     /// The regression the owner hit on device: dragging the progress bar did
     /// nothing. The scrubber is one real Slider; this test drives it the way
     /// a finger does — press on the bar, drag to another fraction, release —
