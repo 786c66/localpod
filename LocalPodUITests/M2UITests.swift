@@ -57,6 +57,74 @@ final class M2UITests: XCTestCase {
         attachScreenshot(app, name: "M2-speed-and-controls")
     }
 
+    /// The regression the owner hit on device: dragging the progress bar did
+    /// nothing. The scrubber is one real Slider; this test drives it the way
+    /// a finger does — press on the bar, drag to another fraction, release —
+    /// and requires the position to move to (and stay at) the dragged spot.
+    /// Paused first so the assertion compares against a still clock.
+    func testScrubberDragChangesPosition() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "--m0-reset-data",
+            "--m2-auto-play-long-audio",
+            "--m2-no-autoplay",
+            "--m2-seek-to", "30"
+        ]
+        app.launchPinned()
+
+        let playPause = app.descendants(matching: .any)["playPauseButton"]
+        XCTAssertTrue(playPause.waitForExistence(timeout: 20))
+        waitForLabel(playPause, equals: "播放", timeout: 20)
+
+        let slider = app.descendants(matching: .any)["playbackSlider"]
+        XCTAssertTrue(slider.waitForExistence(timeout: 10))
+        reveal(slider, in: app)
+        let sliderFrame = slider.frame
+        // The Slider is hittable and owns its 44 pt band; assert the touch
+        // really lands on it before dragging.
+        XCTAssertTrue(slider.isHittable, "playback slider must be hittable")
+
+        let time = app.descendants(matching: .any)["currentTimeText"]
+        XCTAssertTrue(time.waitForExistence(timeout: 10))
+        let before = seconds(from: time.label)
+        XCTAssertEqual(before, 30, accuracy: 3)
+
+        // Drag from ~15% to ~85% of the bar, then give the seek a moment.
+        let startX = sliderFrame.minX + sliderFrame.width * 0.15
+        let endX = sliderFrame.minX + sliderFrame.width * 0.85
+        let startY = sliderFrame.midY
+        let start = app.coordinate(
+            withNormalizedOffset: CGVector(dx: 0, dy: 0)
+        ).withOffset(CGVector(dx: startX, dy: startY))
+        let end = app.coordinate(
+            withNormalizedOffset: CGVector(dx: 0, dy: 0)
+        ).withOffset(CGVector(dx: endX, dy: startY))
+        start.press(forDuration: 0.1, thenDragTo: end)
+
+        // The position must land near the dragged fraction (85% of 298s ≈
+        // 253s) — this is the proof the drag actually worked.
+        let dragged = NSPredicate(
+            format: "label IN %@", ["4:07", "4:08", "4:09", "4:10", "4:11", "4:12", "4:13"]
+        )
+        let draggedExpectation = XCTNSPredicateExpectation(
+            predicate: dragged,
+            object: time
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [draggedExpectation], timeout: 10),
+            .completed,
+            "dragging the scrubber must move playback to ~4:09, got \(time.label)"
+        )
+        // The position must stay: one seek on release, not a spring-back.
+        sleep(2)
+        XCTAssertGreaterThanOrEqual(
+            seconds(from: time.label),
+            245,
+            "position sprang back after the drag: \(time.label)"
+        )
+        attachScreenshot(app, name: "M2-scrubber-dragged")
+    }
+
     func testResumeAfterRelaunchWithinTwoSeconds() throws {
         let first = XCUIApplication()
         first.launchArguments = [

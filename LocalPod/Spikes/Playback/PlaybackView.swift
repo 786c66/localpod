@@ -268,12 +268,18 @@ struct PlaybackView: View {
         visiblePosition / max(playback.duration, 1)
     }
 
-    /// Visible progress bar with a drag thumb. Touch handling belongs to a
-    /// native Slider laid over the bar (2% opacity, 44 pt tall) — the same
-    /// arbitration the app used before the redesign. A bare DragGesture here
-    /// claims every swipe that starts on the bar, including vertical ones, so
-    /// the List could not scroll past the transport card (regression: the
-    /// P2 chapter test could never reach the chapter section).
+    /// Visible progress bar with a drag thumb, driven by one real Slider.
+    ///
+    /// The previous build layered an invisible Slider (`opacity(0.02)`) over
+    /// a drawn bar. That sits right at UIKit's hit-testing alpha floor
+    /// (~0.01): on the simulator the layer still received touches, but on
+    /// device the translucent layer was skipped and drags did nothing. The
+    /// fix is one actual Slider — visible track cleared with `.tint(.clear)`
+    /// so only our drawn bar and thumb show, while the control itself stays
+    /// fully opaque to hit-testing (alpha 1). UIKit hit-testing order: the
+    /// Slider is the topmost view in this ZStack, so a touch on the bar area
+    /// goes to the Slider; touches that start outside the 44 pt band belong
+    /// to the List, which still scrolls.
     ///
     /// One seek lands on release; the drag itself never seeks.
     private var progressScrubber: some View {
@@ -288,6 +294,8 @@ struct PlaybackView: View {
                     height: 12
                 )
                 .frame(width: width, height: 12)
+                .frame(maxHeight: .infinity)
+                .accessibilityHidden(true)
 
                 Circle()
                     .fill(TapeTheme.acid)
@@ -300,6 +308,7 @@ struct PlaybackView: View {
                     .frame(width: thumbSize, height: thumbSize)
                     .shadow(color: TapeTheme.ink, radius: 0, x: 1.5, y: 1.5)
                     .offset(x: (width - thumbSize) * fraction)
+                    .allowsHitTesting(false)
 
                 Slider(
                     value: Binding(
@@ -325,9 +334,11 @@ struct PlaybackView: View {
                         frozenScrubTime = nil
                     }
                 }
-                .tint(TapeTheme.ink)
-                .opacity(0.02)
+                // The drawn bar and thumb above are decorative; this Slider is
+                // the interactive surface and must be a fully opaque control.
+                .tint(.clear)
                 .frame(height: 44)
+                .contentShape(Rectangle())
                 .accessibilityIdentifier("playbackSlider")
                 .accessibilityLabel("播放进度")
                 .accessibilityValue(
