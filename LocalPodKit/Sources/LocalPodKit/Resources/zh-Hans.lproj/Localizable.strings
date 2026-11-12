@@ -81,7 +81,6 @@
 
 "playback.error.interrupted" = "播放中断";
 "playback.error.failed" = "播放失败";
-"playback.error.audioSession" = "音频会话激活失败：%@";
 "playback.error.missingFileNamed" = "媒体文件不存在：%@";
 "playback.error.missingFile" = "媒体文件不存在或已删除。";
 
