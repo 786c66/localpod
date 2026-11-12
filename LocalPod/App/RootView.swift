@@ -14,6 +14,7 @@ struct RootView: View {
 
     @State private var selectedTab = 0
     @State private var showSettings = false
+    @State private var settingsDestination: SettingsDestination?
     @State private var showOnboarding = false
     @State private var didResolveOnboarding = false
     @State private var didRunLaunchAutomation = false
@@ -34,41 +35,35 @@ struct RootView: View {
                     .tabItem { Label("资料库", systemImage: "books.vertical") }
                     .tag(0)
 
-                ImportView()
-                    .tint(TapeTheme.ink)
-                    .toolbar(.hidden, for: .tabBar)
-                    .tabItem { Label("导入", systemImage: "tray.and.arrow.down") }
-                    .tag(1)
-
                 PlaybackView(onGoToLibrary: { selectedTab = 0 })
                     .tint(TapeTheme.ink)
                     .toolbar(.hidden, for: .tabBar)
                     .tabItem { Label(L10n.string("tab.playback"), systemImage: "play.circle") }
-                    .tag(2)
-
-                InboxView()
-                    .tint(TapeTheme.ink)
-                    .toolbar(.hidden, for: .tabBar)
-                    .tabItem { Label("收件箱", systemImage: "envelope") }
-                    .tag(3)
-
-                DiagnosticsView()
-                    .tint(TapeTheme.ink)
-                    .toolbar(.hidden, for: .tabBar)
-                    .tabItem { Label("诊断", systemImage: "stethoscope") }
-                    .tag(4)
+                    .tag(1)
             }
             .tint(Color.accentColor)
 
             TapeTabBar(selection: $selectedTab)
         }
         .sheet(isPresented: $showSettings) {
-            SettingsView()
+            // SwiftUI may build a sheet's content before it is presented and
+            // keep that instance for later presentations. Without an identity
+            // tie to the requested destination, a launch-argument deep link
+            // (--m0-auto-benchmark / --m0-auto-inbox / --m1-auto-acceptance-
+            // import / --m4-auto-open-in) would open Settings at its root:
+            // the view was first created with a nil destination and its
+            // NavigationPath state never picks the later value up.
+            SettingsView(initialDestination: settingsDestination)
+                .id(settingsDestination)
+                .onDisappear { settingsDestination = nil }
         }
         .sheet(isPresented: $showOnboarding) {
             OnboardingView(
                 onContinue: { finishOnboarding() },
-                onGoToImport: { finishOnboarding(selectingTab: 1) },
+                onGoToImport: {
+                    finishOnboarding()
+                    openSettings(.importCenter)
+                },
                 onSkip: { finishOnboarding() }
             )
             // A swipe-down dismissal is still a completed first run; do not
@@ -169,7 +164,7 @@ struct RootView: View {
         guard let request = AppIntentLaunchRequestStore.consume() else { return }
         switch request {
         case .continuePlayback:
-            selectedTab = 2
+            selectedTab = 1
             _ = session.resumeForShortcut()
         case .openCollection(let name):
             selectedTab = 0
@@ -203,6 +198,11 @@ struct RootView: View {
         }
     }
 
+    private func openSettings(_ destination: SettingsDestination? = nil) {
+        settingsDestination = destination
+        showSettings = true
+    }
+
     /// Debug-only launch switches used by UI tests and manual simulator
     /// validation. They have no effect in Release builds.
     private func runLaunchAutomationIfNeeded() {
@@ -212,19 +212,21 @@ struct RootView: View {
         let arguments = ProcessInfo.processInfo.arguments
 
         if arguments.contains("--m1-auto-acceptance-import") {
-            selectedTab = 1
+            openSettings(.diagnostics)
             importCoordinator.importAcceptanceFolder(modelContext: modelContext)
         } else if arguments.contains("--m0-auto-demo-import") {
-            selectedTab = 1
+            openSettings(.diagnostics)
             importCoordinator.importDemoFolder(modelContext: modelContext)
         }
 
         if arguments.contains("--m0-auto-benchmark") {
-            selectedTab = 4
+            openSettings(.diagnostics)
         }
 
-        if arguments.contains("--m0-auto-inbox") || arguments.contains("--m1-auto-maintenance") {
-            selectedTab = arguments.contains("--m0-auto-inbox") ? 3 : 4
+        if arguments.contains("--m0-auto-inbox") {
+            openSettings(.inbox)
+        } else if arguments.contains("--m1-auto-maintenance") {
+            openSettings(.diagnostics)
         }
 
         if arguments.contains("--m1-seed-library-5000") {
@@ -232,7 +234,7 @@ struct RootView: View {
         }
 
         if arguments.contains("--m0-auto-play-audio") {
-            selectedTab = 2
+            selectedTab = 1
             if let url = Bundle.main.url(forResource: "demo-audio", withExtension: "m4a") {
                 playback.load(
                     PlaybackItem(
@@ -247,7 +249,7 @@ struct RootView: View {
         }
 
         if arguments.contains("--p2-chapter-playback") {
-            selectedTab = 2
+            selectedTab = 1
             if let url = Bundle.main.url(
                 forResource: "demo-chaptered-audio",
                 withExtension: "m4a"
@@ -265,7 +267,7 @@ struct RootView: View {
         }
 
         if arguments.contains("--m3-open-settings") {
-            showSettings = true
+            openSettings()
         }
 
         if arguments.contains("--m3-arm-end-of-episode") {
@@ -282,14 +284,14 @@ struct RootView: View {
         }
 
         if arguments.contains("--m3-auto-play-first") {
-            selectedTab = 2
+            selectedTab = 1
             session.playQueueItem(
                 itemID: session.queue.currentItemID ?? M3DebugSeed.itemA
             )
         }
 
         if arguments.contains("--m2-auto-play-long-audio") {
-            selectedTab = 2
+            selectedTab = 1
             if let url = Bundle.main.url(
                 forResource: "demo-long-audio",
                 withExtension: "m4a"
@@ -311,7 +313,7 @@ struct RootView: View {
         }
 
         if arguments.contains("--m4-auto-open-in") {
-            selectedTab = 3
+            openSettings(.inbox)
             // Exercise the real open-in path with an external (non-inbox) copy.
             if let sourceURL = M4DebugSupport.makeOpenInSourceURL() {
                 importCoordinator.handleOpenURL(sourceURL, modelContext: modelContext)
@@ -320,14 +322,14 @@ struct RootView: View {
         }
 
         if arguments.contains("--m4-foreground-write-inbox") {
-            selectedTab = 3
+            openSettings(.inbox)
             // Simulates a Finder copy that finishes after launch. The inbox
             // watcher must keep it pending until its size is stable.
             M4DebugSupport.startSlowInboxWriter()
         }
 
         if arguments.contains("--m4-seed-unsupported-inbox") {
-            selectedTab = 3
+            openSettings(.inbox)
         }
         #endif
     }

@@ -5,6 +5,9 @@ import UniformTypeIdentifiers
 import LocalPodKit
 
 struct InboxView: View {
+    /// Pushed inside Settings (its NavigationStack) instead of owning one.
+    var embedded = false
+
     @Environment(\.modelContext) private var modelContext
     @Environment(ImportCoordinator.self) private var coordinator
     @State private var showFilePicker = false
@@ -29,8 +32,19 @@ struct InboxView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
+        Group {
+            if embedded {
+                content
+            } else {
+                NavigationStack {
+                    content
+                }
+            }
+        }
+    }
+
+    private var content: some View {
+        List {
                 // The queue card, the last result and errors sit above the
                 // explanatory hero: this screen is where an import finishes,
                 // and a List only realises rows inside the viewport. The
@@ -164,7 +178,6 @@ struct InboxView: View {
                     onCancel: { showFilePicker = false }
                 )
             }
-        }
     }
 
     // MARK: - Header cards

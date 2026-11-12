@@ -14,11 +14,21 @@ struct BenchmarkView: View {
     @State private var status = L10n.string("benchmark.status.idle")
     @State private var isWorking = false
     @State private var errorMessage: String?
-    @State private var showBenchmarkList = false
+
+    var embedded = false
 
     var body: some View {
-        NavigationStack {
-            List {
+        Group {
+            if embedded {
+                content
+            } else {
+                NavigationStack { content }
+            }
+        }
+    }
+
+    private var content: some View {
+        List {
                 Section {
                     TapeCard {
                         VStack(alignment: .leading, spacing: TapeTheme.space3) {
@@ -146,18 +156,14 @@ struct BenchmarkView: View {
             .tapeScreen()
             .navigationTitle("SwiftData 基准")
             .tapeNavigationChrome()
-            .navigationDestination(isPresented: $showBenchmarkList) {
-                BenchmarkListView()
-            }
             .task {
                 refreshCount()
             }
-        }
     }
 
     private var benchmarkListLink: some View {
-        Button {
-            showBenchmarkList = true
+        NavigationLink {
+            BenchmarkListView()
         } label: {
             HStack(spacing: TapeTheme.space3) {
                 Image(systemName: "list.number")

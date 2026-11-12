@@ -50,6 +50,14 @@ private struct ShareLinkSheet: View {
     }
 }
 
+/// Destinations Settings owns now that Import, Inbox and Diagnostics are no
+/// longer tabs. Launch automation can deep-link straight to one of them.
+enum SettingsDestination: Hashable {
+    case importCenter
+    case inbox
+    case diagnostics
+}
+
 struct SettingsView: View {
     @Environment(PlaybackSession.self) private var session
     @Environment(\.modelContext) private var modelContext
@@ -65,8 +73,7 @@ struct SettingsView: View {
     @Query private var allItems: [MediaItem]
 
     @State private var maintenanceSummary: String?
-    @State private var showDeleteSamplesConfirmation = false
-    @State private var sampleDeleteSummary: String?
+    @State private var path = NavigationPath()
     @State private var showLinkedFolderPicker = false
     @State private var pendingRelinkFolder: LinkedFolder?
     @State private var folderPendingDelete: LinkedFolder?
@@ -88,12 +95,16 @@ struct SettingsView: View {
     /// check so the badge is visible without tapping anything first.
     @State private var didResolveStalenessOnAppear = false
 
-    private var libraryItems: [MediaItem] {
-        allItems.filter { $0.source != .benchmark }
+    init(initialDestination: SettingsDestination? = nil) {
+        var initialPath = NavigationPath()
+        if let initialDestination {
+            initialPath.append(initialDestination)
+        }
+        _path = State(initialValue: initialPath)
     }
 
-    private var sampleItems: [MediaItem] {
-        allItems.filter { $0.source == .sample }
+    private var libraryItems: [MediaItem] {
+        allItems.filter { $0.source != .benchmark }
     }
 
     private var totalBytes: Int64 {
@@ -112,7 +123,7 @@ struct SettingsView: View {
 
     var body: some View {
         @Bindable var settings = session.settings
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
                 playbackSection(settings)
 
@@ -148,7 +159,7 @@ struct SettingsView: View {
 
                 storageSection
 
-                sampleSection
+                importToolsSection
 
                 wifiSection
 
@@ -160,12 +171,60 @@ struct SettingsView: View {
 
                 importHistorySection
 
+                diagnosticsSection
+
                 aboutSection
             }
             .listStyle(.plain)
             .tapeScreen()
             .navigationTitle("设置")
             .tapeNavigationChrome()
+            .navigationDestination(for: SettingsDestination.self) { destination in
+                Group {
+                    switch destination {
+                    case .importCenter:
+                        ImportView(embedded: true)
+                    case .inbox:
+                        InboxView(embedded: true)
+                    case .diagnostics:
+                        DiagnosticsView(embedded: true)
+                    }
+                }
+                // On this runtime a pushed destination's own `.toolbar` item
+                // is dropped from the accessibility tree (the floating nav
+                // bar only exposes the title), leaving the sheet with no
+                // accessible close action. Pin a real Done button below the
+                // bar instead; it stays reachable at any scroll offset.
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    HStack {
+                        Spacer(minLength: 0)
+                        Button {
+                            dismiss()
+                        } label: {
+                            Text("完成")
+                                .font(TapeType.monoMeta)
+                                .foregroundStyle(TapeTheme.ink)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 5)
+                                .background {
+                                    Capsule().fill(TapeTheme.cream)
+                                }
+                                .overlay {
+                                    Capsule().strokeBorder(
+                                        TapeTheme.ink,
+                                        lineWidth: TapeTheme.stroke
+                                    )
+                                }
+                        }
+                        .buttonStyle(TapePlainPressStyle())
+                        .accessibilityIdentifier("settingsCloseButton")
+                    }
+                    .padding(.horizontal, TapeTheme.screenPadding)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity)
+                    .background(TapeTheme.cream)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }
@@ -181,15 +240,6 @@ struct SettingsView: View {
             }
             .onChange(of: settings.importNotificationsEnabled) { _, enabled in
                 updateImportNotifications(enabled: enabled)
-            }
-            .alert("删除示例内容？", isPresented: $showDeleteSamplesConfirmation) {
-                Button("删除", role: .destructive) {
-                    deleteSamples()
-                }
-                .accessibilityIdentifier("sampleDeleteConfirmButton")
-                Button("取消", role: .cancel) {}
-            } message: {
-                Text("将删除 \(sampleItems.count) 条示例及其进度、队列和播放列表引用。你导入的内容不会受影响。")
             }
             .sheet(isPresented: $showLinkedFolderPicker) {
                 DocumentPicker(
@@ -1066,49 +1116,111 @@ struct SettingsView: View {
         )
     }
 
+    /// Import and Inbox are no longer root tabs. They live here as ordinary
+    /// navigation destinations; the Wi-Fi server keeps its own existing row.
+    /// Each link gets its own card/List row: two NavigationLinks inside one
+    /// card made SwiftUI report the whole card as each link's accessibility
+    /// frame, so a tap aimed at the import row landed on the inbox row.
     @ViewBuilder
-    private var sampleSection: some View {
+    private var importToolsSection: some View {
         Section {
-            TapeCard {
-                VStack(alignment: .leading, spacing: TapeTheme.space3) {
-                    HStack(alignment: .firstTextBaseline, spacing: TapeTheme.space2) {
-                        Text("示例条目")
-                            .font(TapeType.body)
-                            .foregroundStyle(TapeTheme.ink)
-                        Spacer(minLength: TapeTheme.space2)
-                        Text("\(sampleItems.count) 条")
-                            .font(TapeType.monoMeta)
-                            .foregroundStyle(TapeTheme.faint)
-                            .accessibilityIdentifier("sampleCountText")
-                    }
+            TapeCard(padding: TapeTheme.space3) {
+                VStack(alignment: .leading, spacing: TapeTheme.space2) {
+                    Text("FILES · FOLDERS")
+                        .font(TapeType.monoMicro)
+                        .foregroundStyle(TapeTheme.faint)
 
-                    Button(role: .destructive) {
-                        showDeleteSamplesConfirmation = true
-                    } label: {
-                        Label("删除示例内容", systemImage: "trash")
-                            .frame(maxWidth: .infinity)
+                    NavigationLink(value: SettingsDestination.importCenter) {
+                        settingsLinkRow(
+                            icon: "tray.and.arrow.down",
+                            fill: TapeTheme.acid,
+                            title: "导入文件与文件夹",
+                            subtitle: "原地读取，不复制文件"
+                        )
                     }
-                    .buttonStyle(TapeDestructiveButtonStyle())
-                    .disabled(sampleItems.isEmpty)
-                    .opacity(sampleItems.isEmpty ? 0.5 : 1)
-                    .accessibilityIdentifier("sampleDeleteButton")
+                    .buttonStyle(TapePlainPressStyle())
+                    .accessibilityIdentifier("settingsImportLink")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .tapeRowInsets(6)
 
-                    if let sampleDeleteSummary {
-                        Text(sampleDeleteSummary)
-                            .font(TapeType.monoMicro)
-                            .foregroundStyle(TapeTheme.muted)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityIdentifier("sampleDeleteSummary")
+            TapeCard(padding: TapeTheme.space3) {
+                VStack(alignment: .leading, spacing: TapeTheme.space2) {
+                    Text("INBOX")
+                        .font(TapeType.monoMicro)
+                        .foregroundStyle(TapeTheme.faint)
+
+                    NavigationLink(value: SettingsDestination.inbox) {
+                        settingsLinkRow(
+                            icon: "envelope",
+                            fill: TapeTheme.violetSoft,
+                            title: "收件箱",
+                            subtitle: "Finder 文件共享与外部打开"
+                        )
                     }
+                    .buttonStyle(TapePlainPressStyle())
+                    .accessibilityIdentifier("settingsInboxLink")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .tapeRowInsets(6)
         } header: {
-            settingsHeader(L10n.string("示例内容"), kicker: "SAMPLES")
-        } footer: {
-            settingsFooter(L10n.string("内置示例均为自生成的系统语音，不包含第三方内容。删除会同时移除示例的进度、队列与播放列表引用；之后可以重新添加。"))
+            settingsHeader("导入与收件箱", kicker: "IMPORT")
         }
+    }
+
+    @ViewBuilder
+    private var diagnosticsSection: some View {
+        Section {
+            TapeCard(padding: TapeTheme.space3) {
+                NavigationLink(value: SettingsDestination.diagnostics) {
+                    settingsLinkRow(
+                        icon: "stethoscope",
+                        fill: TapeTheme.peach,
+                        title: "诊断与测试工具",
+                        subtitle: "维护、路径、示例与验收内容"
+                    )
+                }
+                .buttonStyle(TapePlainPressStyle())
+                .accessibilityIdentifier("settingsDiagnosticsLink")
+            }
+            .tapeRowInsets(6)
+        } header: {
+            settingsHeader("诊断", kicker: "DIAGNOSTICS")
+        }
+    }
+
+    private func settingsLinkRow(
+        icon: String,
+        fill: Color,
+        title: String,
+        subtitle: String
+    ) -> some View {
+        HStack(spacing: TapeTheme.space3) {
+            iconTile(icon, fill: fill)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(TapeType.headline)
+                    .foregroundStyle(TapeTheme.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(subtitle)
+                    .font(TapeType.captionSmall)
+                    .foregroundStyle(TapeTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: TapeTheme.space2)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(TapeTheme.ink)
+                .frame(width: 28, height: 28)
+                .background(TapeTheme.cream, in: Circle())
+                .overlay {
+                    Circle().strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
+                }
+        }
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
     }
 
     private func speedPresetsRow(_ settings: AppSettingsStore) -> some View {
@@ -1162,35 +1274,4 @@ struct SettingsView: View {
         }
     }
 
-    private func deleteSamples() {
-        let sampleIDs = sampleItems.map(\.id)
-        do {
-            let result = try LibraryService().deleteSamples(in: modelContext)
-            // The persisted queue was cleaned by LibraryService; keep the
-            // in-memory session consistent too, especially if a sample is the
-            // currently loaded item.
-            for id in sampleIDs {
-                session.handleDeletedItem(id)
-            }
-            let freed = ByteCountFormatter.string(
-                fromByteCount: result.freedBytes,
-                countStyle: .file
-            )
-            sampleDeleteSummary = L10n.format(
-                "settings.samples.deleted",
-                result.deletedCount,
-                freed,
-                result.removedPlaybackStates,
-                result.removedQueueEntries,
-                result.removedPlaylistEntries,
-                result.removedMediaFiles,
-                result.removedArtworkFiles
-            )
-        } catch {
-            sampleDeleteSummary = L10n.format(
-                "settings.samples.deleteFailed",
-                error.localizedDescription
-            )
-        }
-    }
 }

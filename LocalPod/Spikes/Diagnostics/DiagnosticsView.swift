@@ -5,8 +5,14 @@ import UIKit
 import LocalPodKit
 
 struct DiagnosticsView: View {
+    /// Pushed inside Settings (its NavigationStack) instead of owning one.
+    var embedded = false
+
     @Environment(\.modelContext) private var modelContext
     @Environment(ImportCoordinator.self) private var coordinator
+    @Environment(PlaybackSession.self) private var session
+
+    @Query private var allItems: [MediaItem]
 
     @State private var importedCount = 0
     @State private var benchmarkCount = 0
@@ -20,6 +26,12 @@ struct DiagnosticsView: View {
     @State private var supportPath = ""
     @State private var copied = false
     @State private var showBenchmark = false
+    @State private var showDeleteSamplesConfirmation = false
+    @State private var sampleDeleteSummary: String?
+
+    private var sampleItems: [MediaItem] {
+        allItems.filter { $0.source == .sample }
+    }
 
     private var bundleIdentifier: String {
         Bundle.main.bundleIdentifier ?? "—"
@@ -40,12 +52,39 @@ struct DiagnosticsView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        Group {
+            if embedded {
+                content
+            } else {
+                NavigationStack {
+                    content
+                }
+            }
+        }
+    }
+
+    private var content: some View {
             List {
                 if let info = signingInfo, let days = info.daysRemaining {
                     Section {
                         signingCard(info: info, days: days)
                             .tapeRowInsets(6)
+                    }
+                }
+
+                // A run started from this page reports at the top: the test
+                // material card sits below the maintenance card, where its
+                // progress/summary would otherwise be out of view on first
+                // paint.
+                if coordinator.summary != nil
+                    || coordinator.phase != .idle
+                    || coordinator.isRunning
+                    || coordinator.lastErrorMessage != nil {
+                    Section {
+                        ImportStatusView()
+                            .tapeRowInsets(6)
+                    } header: {
+                        sectionHeader("导入状态", kicker: "IMPORT")
                     }
                 }
 
@@ -61,6 +100,101 @@ struct DiagnosticsView: View {
                     sectionHeader("维护", kicker: "MAINTENANCE")
                 } footer: {
                     sectionFooter("启动、回前台或手动触发：缺失文件标记、孤儿媒体/封面清理、残留 staging 清理。导入进行中不执行。")
+                }
+
+                // Developer/acceptance material lives here, not in the
+                // production library flow: sample tapes and the generated demo
+                // folders are created only on an explicit tap from Diagnostics.
+                Section {
+                    TapeCard {
+                        VStack(alignment: .leading, spacing: TapeTheme.space3) {
+                            HStack(alignment: .firstTextBaseline, spacing: TapeTheme.space2) {
+                                Text("示例条目")
+                                    .font(TapeType.body)
+                                    .foregroundStyle(TapeTheme.ink)
+                                Spacer(minLength: TapeTheme.space2)
+                                Text("\(sampleItems.count) 条")
+                                    .font(TapeType.monoMeta)
+                                    .foregroundStyle(TapeTheme.faint)
+                                    .accessibilityIdentifier("sampleCountText")
+                            }
+
+                            Button {
+                                coordinator.importSampleContent(modelContext: modelContext)
+                            } label: {
+                                Label(
+                                    L10n.string("import.sample.title"),
+                                    systemImage: "sparkles"
+                                )
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(TapePrimaryButtonStyle())
+                            .disabled(
+                                coordinator.isRunning
+                                    || !coordinator.isSampleImportAvailable
+                            )
+                            .opacity(
+                                coordinator.isRunning
+                                    || !coordinator.isSampleImportAvailable ? 0.5 : 1
+                            )
+                            .accessibilityIdentifier("sampleAddButton")
+
+                            Button(role: .destructive) {
+                                showDeleteSamplesConfirmation = true
+                            } label: {
+                                Label("删除示例内容", systemImage: "trash")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(TapeDestructiveButtonStyle())
+                            .disabled(sampleItems.isEmpty)
+                            .opacity(sampleItems.isEmpty ? 0.5 : 1)
+                            .accessibilityIdentifier("sampleDeleteButton")
+
+                            if let sampleDeleteSummary {
+                                Text(sampleDeleteSummary)
+                                    .font(TapeType.monoMicro)
+                                    .foregroundStyle(TapeTheme.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .accessibilityIdentifier("sampleDeleteSummary")
+                            }
+
+                            TapeHairline()
+
+                            Button {
+                                coordinator.importDemoFolder(modelContext: modelContext)
+                            } label: {
+                                Label(
+                                    L10n.string("import.demo.title"),
+                                    systemImage: "testtube.2"
+                                )
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(TapeSecondaryButtonStyle())
+                            .disabled(coordinator.isRunning)
+                            .opacity(coordinator.isRunning ? 0.5 : 1)
+                            .accessibilityIdentifier("importDemoFolderButton")
+
+                            Button {
+                                coordinator.importAcceptanceFolder(modelContext: modelContext)
+                            } label: {
+                                Label(
+                                    L10n.string("import.acceptance.title"),
+                                    systemImage: "checklist"
+                                )
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(TapeSecondaryButtonStyle())
+                            .disabled(coordinator.isRunning)
+                            .opacity(coordinator.isRunning ? 0.5 : 1)
+                            .accessibilityIdentifier("importAcceptanceFolderButton")
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .tapeRowInsets(6)
+                } header: {
+                    sectionHeader("测试与示例内容", kicker: "TEST MATERIAL")
+                } footer: {
+                    sectionFooter("仅用于测试与验收：示例条目为自生成的系统语音，演示/验收文件夹会生成测试音频。正常使用无需生成。")
                 }
 
                 Section {
@@ -154,11 +288,48 @@ struct DiagnosticsView: View {
             .navigationTitle("诊断")
             .tapeNavigationChrome()
             .navigationDestination(isPresented: $showBenchmark) {
-                BenchmarkView()
+                BenchmarkView(embedded: true)
             }
             .task {
                 refresh()
             }
+            .alert("删除示例内容？", isPresented: $showDeleteSamplesConfirmation) {
+                Button("删除", role: .destructive) {
+                    deleteSamples()
+                }
+                .accessibilityIdentifier("sampleDeleteConfirmButton")
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("将删除 \(sampleItems.count) 条示例及其进度、队列和播放列表引用。你导入的内容不会受影响。")
+            }
+    }
+
+    private func deleteSamples() {
+        let sampleIDs = sampleItems.map(\.id)
+        do {
+            let result = try LibraryService().deleteSamples(in: modelContext)
+            for id in sampleIDs {
+                session.handleDeletedItem(id)
+            }
+            let freed = ByteCountFormatter.string(
+                fromByteCount: result.freedBytes,
+                countStyle: .file
+            )
+            sampleDeleteSummary = L10n.format(
+                "settings.samples.deleted",
+                result.deletedCount,
+                freed,
+                result.removedPlaybackStates,
+                result.removedQueueEntries,
+                result.removedPlaylistEntries,
+                result.removedMediaFiles,
+                result.removedArtworkFiles
+            )
+        } catch {
+            sampleDeleteSummary = L10n.format(
+                "settings.samples.deleteFailed",
+                error.localizedDescription
+            )
         }
     }
 

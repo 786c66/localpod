@@ -4,9 +4,10 @@ import SwiftUI
 import UIKit
 #endif
 
-/// The signature tape-deck tab bar. It mirrors the labels of the five root
-/// screens one-for-one so UI tests that tap `app.buttons["资料库"]` keep working
-/// while the system bar is hidden.
+/// The signature tape-deck tab bar. Import, Inbox and Diagnostics moved into
+/// Settings, so only the two core destinations remain; the labels still mirror
+/// the root screens so `app.buttons["资料库"]` keeps working while the system
+/// bar is hidden.
 struct TapeTabBar: View {
     @Binding var selection: Int
 
@@ -21,10 +22,7 @@ struct TapeTabBar: View {
     private var items: [Item] {
         [
             Item(tag: 0, title: L10n.string("资料库"), icon: "books.vertical", activeIcon: "books.vertical.fill"),
-            Item(tag: 1, title: L10n.string("导入"), icon: "tray.and.arrow.down", activeIcon: "tray.and.arrow.down.fill"),
-            Item(tag: 2, title: L10n.string("tab.playback"), icon: "play.circle", activeIcon: "play.circle.fill"),
-            Item(tag: 3, title: L10n.string("收件箱"), icon: "envelope", activeIcon: "envelope.fill"),
-            Item(tag: 4, title: L10n.string("诊断"), icon: "stethoscope", activeIcon: "stethoscope")
+            Item(tag: 1, title: L10n.string("tab.playback"), icon: "play.circle", activeIcon: "play.circle.fill")
         ]
     }
 
