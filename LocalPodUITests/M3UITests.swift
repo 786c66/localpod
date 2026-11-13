@@ -653,4 +653,22 @@ final class M3UITests: XCTestCase {
         )
         attachScreenshot(relaunched, name: "M3-library-scope-restored")
     }
+
+    /// The owner's requirement: the library page must expose no search UI at
+    /// all. A bare `.searchable` still renders a system search entry on
+    /// iOS 26+, so this asserts neither a search field nor any search button
+    /// exists on a plain launch.
+    func testLibraryShowsNoSearchUI() throws {
+        let app = makeApp(["--m0-reset-data", "--m3-seed-playable-library"])
+        XCTAssertTrue(
+            element(app, "libraryStatsText").waitForExistence(timeout: 20),
+            "library did not load"
+        )
+        XCTAssertEqual(app.searchFields.count, 0, "no search field may be visible")
+        let searchish = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS '搜索' OR label CONTAINS 'Search'")
+        )
+        XCTAssertEqual(searchish.count, 0, "no search button may be visible")
+        attachScreenshot(app, name: "M3-library-no-search-ui")
+    }
 }

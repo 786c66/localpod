@@ -138,7 +138,14 @@ struct LibraryView: View {
     }
 
     private var collectionRows: [CollectionRow] {
-        collections.map { collection in
+        // The same searchText filter applies to collections so a Siri
+        // "open collection" prefill narrows the grid instead of silently
+        // pointing at nothing (the search UI itself is gone).
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let visible = query.isEmpty
+            ? collections
+            : collections.filter { $0.name.localizedStandardContains(query) }
+        return visible.map { collection in
             let items = libraryItems.filter { $0.collectionID == collection.id }
             return CollectionRow(
                 collection: collection,
@@ -170,6 +177,13 @@ struct LibraryView: View {
                         .tapeRowInsets(4)
                 }
 
+                if !searchText.isEmpty {
+                    Section {
+                        activeFilterChip
+                            .tapeRowInsets(4)
+                    }
+                }
+
                 if scope == .items {
                     itemsSection
                 } else {
@@ -194,7 +208,12 @@ struct LibraryView: View {
                     EmptyView()
                 }
             }
-            .searchable(text: $searchText, prompt: "搜索标题或文件夹")
+            // No `.searchable` here on purpose: on iOS 26+ the system renders
+            // a search entry under the nav bar even when the field itself is
+            // collapsed, and the owner wants zero search UI on this page.
+            // `searchText` remains as the filter state driven by Siri/Shortcuts
+            // collection prefills; the active filter is surfaced as a
+            // removable chip inside the list (see activeFilterChip).
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -346,6 +365,50 @@ struct LibraryView: View {
         }
     }
 
+    // MARK: - Active filter
+
+    /// The only visible trace of `searchText`, which users can no longer type
+    /// into (the search UI is gone). Shortcuts/Siri prefills still land here,
+    /// so the active filter is surfaced as a removable chip: the filtered
+    /// results stay explainable, and one tap returns the full library.
+    private var activeFilterChip: some View {
+        HStack(spacing: TapeTheme.space2) {
+            Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(TapeTheme.ink)
+            Text("筛选：\(searchText)")
+                .font(TapeType.monoMeta)
+                .foregroundStyle(TapeTheme.ink)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                // The identifier sits on the text so tests can read the
+                // active filter name from its label.
+                .accessibilityIdentifier("librarySearchFilterChip")
+            Spacer(minLength: TapeTheme.space2)
+            Button {
+                searchText = ""
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 15))
+                    .foregroundStyle(TapeTheme.faint)
+            }
+            .buttonStyle(TapePlainPressStyle())
+            .accessibilityIdentifier("librarySearchFilterClearButton")
+            .accessibilityLabel("清除筛选")
+        }
+        .padding(.horizontal, TapeTheme.space3)
+        .frame(minHeight: 36)
+        .background {
+            RoundedRectangle(cornerRadius: TapeTheme.radiusThumb, style: .continuous)
+                .fill(TapeTheme.card)
+                .shadow(color: TapeTheme.ink, radius: 0, x: 2, y: 2)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: TapeTheme.radiusThumb, style: .continuous)
+                .strokeBorder(TapeTheme.ink, lineWidth: TapeTheme.stroke)
+        }
+    }
+
     // MARK: - Scope
 
     private var scopeChips: some View {
@@ -376,7 +439,7 @@ struct LibraryView: View {
                     title: libraryItems.isEmpty ? "资料库为空" : "没有匹配的条目",
                     message: libraryItems.isEmpty
                         ? "去「导入」选择一个文件夹开始。"
-                        : "调整搜索或筛选条件。",
+                        : (searchText.isEmpty ? "调整筛选条件。" : "清除筛选查看全部条目。"),
                     identifier: "libraryEmptyState"
                 )
                 .tapeRowInsets(6)
@@ -435,8 +498,10 @@ struct LibraryView: View {
             if collectionRows.isEmpty {
                 emptyCard(
                     sticker: "NO TAPES",
-                    title: "还没有合集",
-                    message: "导入一个文件夹后会自动生成合集。",
+                    title: collections.isEmpty ? "还没有合集" : "没有匹配的合集",
+                    message: collections.isEmpty
+                        ? "导入一个文件夹后会自动生成合集。"
+                        : "清除筛选查看全部合集。",
                     identifier: "collectionEmptyState"
                 )
                 .tapeRowInsets(6)
@@ -558,7 +623,8 @@ struct LibraryView: View {
     }
 
     /// Pushes the requested collection when it exists; otherwise falls back to
-    /// the collections scope with the requested name pre-filled in search.
+    /// the collections scope with the requested name applied as the removable
+    /// filter chip (there is no search input to prefill any more).
     private func handlePendingCollectionRequestIfNeeded() {
         guard let request = intentRouter.collectionRequest else { return }
         let key = MediaCollection.normalizedKey(for: request.name)

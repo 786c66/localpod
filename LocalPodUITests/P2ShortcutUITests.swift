@@ -133,8 +133,10 @@ final class P2ShortcutUITests: XCTestCase {
                 "collection name is not visible in the detail"
             )
         } else {
-            // Fallback: the library must switch to the collections scope
-            // (proved by a collection row being visible) and prefill search.
+            // Fallback: the library must switch to the collections scope and
+            // show the requested name as an active filter. There is no search
+            // UI any more, so assert the filtered result + the removable
+            // filter chip instead of a search field.
             // Do not assert the segmented control's `isSelected`: SwiftUI does
             // not reliably expose selection on segmented-picker segments.
             let collectionRow = element(app, "collectionRow-智能合集 B")
@@ -142,14 +144,73 @@ final class P2ShortcutUITests: XCTestCase {
                 collectionRow.waitForExistence(timeout: 5),
                 "fallback did not switch the library to the collections scope"
             )
-            let search = app.searchFields.firstMatch
-            XCTAssertTrue(search.waitForExistence(timeout: 5))
-            XCTAssertEqual(
-                search.value as? String,
-                "智能合集 B",
-                "fallback did not prefill the collection name in search"
+            let filterChip = element(app, "librarySearchFilterChip")
+            XCTAssertTrue(
+                filterChip.waitForExistence(timeout: 5),
+                "fallback did not surface the requested name as a filter"
+            )
+            XCTAssertTrue(
+                filterChip.label.contains("智能合集 B"),
+                "filter chip does not name the requested collection: \(filterChip.label)"
+            )
+            XCTAssertTrue(
+                element(app, "librarySearchFilterClearButton").exists,
+                "active filter is not removable"
             )
         }
+        XCTAssertEqual(
+            app.searchFields.count,
+            0,
+            "the library must not expose any search field"
+        )
         attachScreenshot(app, name: "P2-shortcut-open-collection")
+    }
+
+    /// The search UI is gone, so a name that matches no collection must land
+    /// as a removable filter chip on the collections scope: the filtered
+    /// result is visible (no-match empty state), nothing crashes, and
+    /// clearing the chip restores the full grid.
+    func testOpenCollectionPrefillShowsRemovableFilter() throws {
+        let app = makeApp([
+            "--m0-reset-data",
+            "--m3-seed-playable-library",
+            "--p1-seed-smart-playlists",
+            "--p2-app-intent=open-collection:不存在的合集"
+        ])
+
+        let filterChip = element(app, "librarySearchFilterChip")
+        XCTAssertTrue(
+            filterChip.waitForExistence(timeout: 20),
+            "prefill did not surface as a filter chip"
+        )
+        XCTAssertTrue(
+            filterChip.label.contains("不存在的合集"),
+            "filter chip does not name the requested collection: \(filterChip.label)"
+        )
+        XCTAssertEqual(
+            app.searchFields.count,
+            0,
+            "the library must not expose any search field"
+        )
+
+        // The filter actually applies: no seeded collection matches.
+        XCTAssertTrue(
+            element(app, "collectionEmptyState").waitForExistence(timeout: 5),
+            "filtered collections grid did not show the no-match state"
+        )
+
+        // Clearing the chip restores the unfiltered library.
+        let clear = element(app, "librarySearchFilterClearButton")
+        XCTAssertTrue(clear.waitForExistence(timeout: 5), "filter is not removable")
+        clear.tap()
+        XCTAssertFalse(
+            filterChip.waitForExistence(timeout: 3),
+            "filter chip did not disappear after clearing"
+        )
+        XCTAssertTrue(
+            element(app, "collectionRow-智能合集 A").waitForExistence(timeout: 5),
+            "clearing the filter did not restore the collections grid"
+        )
+        attachScreenshot(app, name: "P2-shortcut-filter-cleared")
     }
 }
