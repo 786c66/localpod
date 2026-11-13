@@ -61,3 +61,7 @@ SwiftUI + SwiftData + AVFoundation，Swift 6，iOS 17+；核心逻辑抽成 `Loc
 ## 文档
 
 设计说明、安装/重签与备份等补充材料见 `docs/` 目录。
+
+## License
+
+本项目以 MIT 协议发布，详见 [LICENSE](LICENSE)。
