@@ -207,6 +207,79 @@ final class PlaybackSessionTests: XCTestCase {
         restored.playback.stop()
     }
 
+    func testRefreshAfterBackupRestoreLoadsRestoredItemAndProgress() async throws {
+        settings.resumeEnabled = true
+        session.applySettings()
+
+        // A backup from another install: queue [A, B] current A, with A
+        // stopped at 0:07. Source rows use the same item ids so the restore
+        // matches the target library instead of creating missing rows.
+        let source = try LocalPodStore.makeContainer(inMemory: true)
+        let sourceContext = source.mainContext
+        for (id, title) in [(idA, "A"), (idB, "B")] {
+            sourceContext.insert(MediaItem(
+                id: id,
+                title: title,
+                relativePath: "Media/\(id.uuidString).m4a",
+                kind: .audio,
+                fileExtension: "m4a",
+                byteSize: 100,
+                durationSeconds: 60
+            ))
+        }
+        sourceContext.insert(PlaybackState(
+            itemID: idA,
+            position: 7,
+            duration: 60,
+            playCount: 1,
+            updatedAt: fixedNow.addingTimeInterval(100)
+        ))
+        sourceContext.insert(QueueEntry(itemID: idA, position: 0))
+        sourceContext.insert(QueueEntry(itemID: idB, position: 1))
+        sourceContext.insert(QueueState(
+            currentItemID: idA,
+            shuffleEnabled: true,
+            repeatMode: .all,
+            shuffleOrder: [idB, idA]
+        ))
+        try sourceContext.save()
+        let document = try BackupService().snapshot(in: sourceContext)
+
+        // Current session is on B with its own saved position.
+        session.play(items: [mediaItem(idB)])
+        try await waitUntil { self.session.playback.isPlaying }
+        session.playback.seek(to: 9)
+        XCTAssertEqual(session.queue.currentItemID, idB)
+
+        // Restore replaces the queue rows; without prepare the player's old
+        // position could overwrite the restored progress on the way out.
+        session.prepareForBackupRestore()
+        XCTAssertNil(session.playback.currentItem)
+        let result = try BackupService().restore(document, into: context)
+        XCTAssertEqual(result.queueEntriesRestored, 2)
+        session.refreshAfterBackupRestore()
+
+        try await waitUntil(message: "restored current item did not load") {
+            self.session.playback.currentItem?.title == "A"
+                && self.session.playback.phase == .ready
+        }
+        XCTAssertEqual(session.queue.itemIDs, [idA, idB])
+        XCTAssertEqual(session.queue.currentItemID, idA)
+        XCTAssertEqual(session.queue.shuffleEnabled, true)
+        XCTAssertEqual(session.queue.repeatMode, .all)
+        XCTAssertFalse(session.playback.isPlaying, "restore must not auto-play")
+        XCTAssertEqual(session.playback.currentTime, 7, accuracy: 0.5)
+
+        let states = try context.fetch(FetchDescriptor<PlaybackState>())
+        let stateB = states.first { $0.itemID == idB }
+        XCTAssertEqual(
+            stateB?.position ?? 0,
+            9,
+            accuracy: 0.001,
+            "prepareForBackupRestore must not save a stale pre-restore position"
+        )
+    }
+
     func testSleepTimerFirePausesPlaybackAndRestoresVolume() async throws {
         session.play(items: [mediaItem(idA)])
         try await waitUntil { self.session.playback.isPlaying }

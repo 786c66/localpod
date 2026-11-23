@@ -333,7 +333,10 @@ enum P2DebugSeed {
                     result.itemsMissingMedia,
                     result.playlistsCreated,
                     result.playlistsMerged,
-                    result.progressUpdated
+                    result.progressUpdated,
+                    result.queueEntriesRestored,
+                    result.queueEntriesDeferred,
+                    result.queueCurrentProgressText ?? "—"
                 ),
                 forKey: restoreSummaryDefaultsKey
             )
@@ -342,7 +345,10 @@ enum P2DebugSeed {
                 "matched=\(result.itemsMatched) missing=\(result.itemsMissingMedia) " +
                 "playlistsCreated=\(result.playlistsCreated) " +
                 "playlistsMerged=\(result.playlistsMerged) " +
-                "progress=\(result.progressUpdated)"
+                "progress=\(result.progressUpdated) " +
+                "queue=\(result.queueEntriesRestored) " +
+                "queueDeferred=\(result.queueEntriesDeferred) " +
+                "queueProgress=\(result.queueCurrentProgressText ?? "—")"
             )
             return true
         } catch {

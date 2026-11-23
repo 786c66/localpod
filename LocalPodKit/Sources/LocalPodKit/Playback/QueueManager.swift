@@ -74,6 +74,14 @@ public final class QueueManager {
         reload()
     }
 
+    /// Re-reads the persisted queue and queue state. Call after something
+    /// outside this manager (a backup restore, pending-queue promotion) wrote
+    /// the queue rows; without it the next mutation would persist the stale
+    /// in-memory array over the new queue.
+    public func refreshFromStore() {
+        reload()
+    }
+
     public func detach() {
         context = nil
         entries = []

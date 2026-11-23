@@ -251,7 +251,21 @@ public final class PlaybackController {
     /// Clears the current item and returns to idle. Used when the current queue
     /// item is deleted and no replacement remains.
     public func stop() {
-        persistProgress(force: true)
+        stop(persistingProgress: true)
+    }
+
+    /// Stops and clears the player without saving the current position.
+    ///
+    /// A backup restore has just replaced the progress rows; saving the old
+    /// position on the way out would clobber the restored one.
+    public func stopDiscardingProgress() {
+        stop(persistingProgress: false)
+    }
+
+    private func stop(persistingProgress: Bool) {
+        if persistingProgress {
+            persistProgress(force: true)
+        }
         playIntent = false
         pendingAutoplay = false
         player.pause()

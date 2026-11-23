@@ -183,6 +183,10 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(result.playlistEntriesAdded, 2)
         XCTAssertEqual(result.progressUpdated, 1)
         XCTAssertEqual(result.skipped, 0)
+        XCTAssertEqual(result.queueEntriesRestored, 2)
+        XCTAssertEqual(result.queueEntriesDeferred, 0)
+        XCTAssertEqual(result.queueCurrentProgress ?? 0, 42.5, accuracy: 0.001)
+        XCTAssertEqual(result.queueCurrentProgressText, "0:43")
 
         let restoredItems = try target.context.fetch(FetchDescriptor<MediaItem>())
         XCTAssertEqual(Set(restoredItems.map(\.id)), [itemA.id, itemB.id])
@@ -581,6 +585,221 @@ final class BackupServiceTests: XCTestCase {
         XCTAssertEqual(try target.context.fetchCount(FetchDescriptor<MediaItem>()), 1)
         XCTAssertEqual(try target.context.fetchCount(FetchDescriptor<Playlist>()), 1)
         XCTAssertEqual(try target.context.fetchCount(FetchDescriptor<PlaylistEntry>()), 1)
+    }
+
+    // MARK: - Queue restore
+
+    /// Source library with two real files, a queue [B, A] current B, and
+    /// progress on B. The returned document is what an export produces.
+    private func makeQueueBackupDocument() throws -> (
+        source: Environment,
+        document: BackupDocument,
+        itemA: MediaItem,
+        itemB: MediaItem
+    ) {
+        let source = try makeEnvironment()
+        let fileA = "Media/\(UUID().uuidString).m4a"
+        let fileB = "Media/\(UUID().uuidString).m4a"
+        try stageMediaFile(fileA, content: "queue-a", in: source)
+        try stageMediaFile(fileB, content: "queue-b", in: source)
+
+        let itemA = MediaItem(
+            id: UUID(uuidString: "A1100000-0000-0000-0000-000000000001")!,
+            title: "队列甲",
+            relativePath: fileA,
+            kind: .audio,
+            fileExtension: "m4a",
+            byteSize: 10,
+            durationSeconds: 60,
+            fingerprint: fingerprint("queue-a")
+        )
+        let itemB = MediaItem(
+            id: UUID(uuidString: "B1100000-0000-0000-0000-000000000002")!,
+            title: "队列乙",
+            relativePath: fileB,
+            kind: .audio,
+            fileExtension: "m4a",
+            byteSize: 20,
+            durationSeconds: 120,
+            fingerprint: fingerprint("queue-b")
+        )
+        source.context.insert(itemA)
+        source.context.insert(itemB)
+        source.context.insert(PlaybackState(
+            itemID: itemB.id,
+            position: 42.5,
+            duration: 120,
+            playCount: 1,
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_100)
+        ))
+        source.context.insert(QueueEntry(itemID: itemB.id, position: 0))
+        source.context.insert(QueueEntry(itemID: itemA.id, position: 1))
+        source.context.insert(QueueState(
+            currentItemID: itemB.id,
+            shuffleEnabled: true,
+            repeatMode: .all,
+            shuffleOrder: [itemB.id, itemA.id]
+        ))
+        try source.context.save()
+
+        let document = try BackupService(storage: source.storage)
+            .snapshot(in: source.context)
+        return (source, document, itemA, itemB)
+    }
+
+    func testRestoreWithNoMediaDefersQueueAndPromotesItAfterRelink() throws {
+        let fixture = try makeQueueBackupDocument()
+        let target = try makeEnvironment()
+
+        // Fresh install: no media files exist, so every restored item is
+        // missing and the queue must not be installed (nor wipe anything).
+        let result = try BackupService(storage: target.storage)
+            .restore(fixture.document, into: target.context)
+
+        XCTAssertEqual(result.itemsRestored, 2)
+        XCTAssertEqual(result.itemsMissingMedia, 2)
+        XCTAssertEqual(result.queueEntriesRestored, 0)
+        XCTAssertEqual(result.queueEntriesDeferred, 2)
+        XCTAssertEqual(result.queueCurrentProgress ?? 0, 42.5, accuracy: 0.001)
+        XCTAssertEqual(result.skipped, 0, "deferred entries are not dropped")
+        XCTAssertEqual(
+            try target.context.fetchCount(FetchDescriptor<QueueEntry>()),
+            0,
+            "an unplayable restored queue must not be written live"
+        )
+
+        let pending = PendingQueueStore.pending(in: target.context)
+        XCTAssertEqual(pending?.entries.map(\.itemID), [fixture.itemB.id, fixture.itemA.id])
+        XCTAssertEqual(pending?.currentItemID, fixture.itemB.id)
+        XCTAssertEqual(pending?.shuffleEnabled, true)
+        XCTAssertEqual(pending?.repeatModeRaw, QueueRepeatMode.all.rawValue)
+        XCTAssertEqual(pending?.shuffleOrder, [fixture.itemB.id, fixture.itemA.id])
+
+        // Re-import the original files; maintenance relinks them and the
+        // pending queue is promoted without a relaunch.
+        try stageMediaFile(
+            fixture.itemA.relativePath,
+            content: "queue-a",
+            in: target
+        )
+        try stageMediaFile(
+            fixture.itemB.relativePath,
+            content: "queue-b",
+            in: target
+        )
+        let summary = try LibraryService(storage: target.storage)
+            .reconcile(in: target.context)
+        XCTAssertEqual(summary.restored, 2)
+        XCTAssertFalse(PendingQueueStore.hasPending(in: target.context))
+
+        let queueRows = try target.context.fetch(FetchDescriptor<QueueEntry>(
+            sortBy: [SortDescriptor(\.position)]
+        ))
+        XCTAssertEqual(queueRows.map(\.itemID), [fixture.itemB.id, fixture.itemA.id])
+        let queueStateKey = QueueManager.stateKey
+        var descriptor = FetchDescriptor<QueueState>(
+            predicate: #Predicate { $0.key == queueStateKey }
+        )
+        descriptor.fetchLimit = 1
+        let state = try target.context.fetch(descriptor).first
+        XCTAssertEqual(state?.currentItemID, fixture.itemB.id)
+        XCTAssertEqual(state?.shuffleEnabled, true)
+        XCTAssertEqual(state?.repeatModeRaw, QueueRepeatMode.all.rawValue)
+
+        // The in-memory queue agrees with the promoted rows.
+        let manager = QueueManager()
+        manager.attach(context: target.context)
+        XCTAssertEqual(manager.itemIDs, [fixture.itemB.id, fixture.itemA.id])
+        XCTAssertEqual(manager.currentItemID, fixture.itemB.id)
+        XCTAssertEqual(manager.shuffleEnabled, true)
+        XCTAssertEqual(manager.repeatMode, .all)
+    }
+
+    func testDeferredRestoreReplacesExistingQueueInsteadOfStrandingPending() throws {
+        let fixture = try makeQueueBackupDocument()
+        let target = try makeEnvironment()
+        let oldItem = MediaItem(
+            id: UUID(uuidString: "C1100000-0000-0000-0000-000000000003")!,
+            title: "旧队列",
+            relativePath: "Media/old-queue.m4a",
+            kind: .audio,
+            fileExtension: "m4a",
+            byteSize: 1
+        )
+        target.context.insert(oldItem)
+        target.context.insert(QueueEntry(itemID: oldItem.id, position: 0))
+        target.context.insert(QueueState(currentItemID: oldItem.id))
+        try target.context.save()
+
+        // Both sides have queue content, so the backup queue claims the
+        // queue. Its media is absent, so it is parked; the old rows must not
+        // stay in front and block promotion later.
+        let result = try BackupService(storage: target.storage)
+            .restore(fixture.document, into: target.context)
+        XCTAssertEqual(result.queueEntriesRestored, 0)
+        XCTAssertEqual(result.queueEntriesDeferred, 2)
+        XCTAssertEqual(try target.context.fetchCount(FetchDescriptor<QueueEntry>()), 0)
+        XCTAssertTrue(PendingQueueStore.hasPending(in: target.context))
+
+        try stageMediaFile(fixture.itemA.relativePath, content: "queue-a", in: target)
+        try stageMediaFile(fixture.itemB.relativePath, content: "queue-b", in: target)
+        _ = try LibraryService(storage: target.storage).reconcile(in: target.context)
+
+        let queueRows = try target.context.fetch(FetchDescriptor<QueueEntry>(
+            sortBy: [SortDescriptor(\.position)]
+        ))
+        XCTAssertEqual(queueRows.map(\.itemID), [fixture.itemB.id, fixture.itemA.id])
+        XCTAssertFalse(PendingQueueStore.hasPending(in: target.context))
+    }
+
+    func testRestoreReplacesExistingQueueAndQueueManagerRefreshDropsStaleMemory() throws {
+        let fixture = try makeQueueBackupDocument()
+        let target = try makeEnvironment()
+        try stageMediaFile(
+            fixture.itemA.relativePath,
+            content: "queue-a",
+            in: target
+        )
+        try stageMediaFile(
+            fixture.itemB.relativePath,
+            content: "queue-b",
+            in: target
+        )
+        // The target already has its own queue [A] and a matching item row.
+        let existingA = MediaItem(
+            id: fixture.itemA.id,
+            title: fixture.itemA.title,
+            relativePath: fixture.itemA.relativePath,
+            kind: .audio,
+            fileExtension: "m4a",
+            byteSize: 10,
+            durationSeconds: 60,
+            fingerprint: fixture.itemA.fingerprint
+        )
+        target.context.insert(existingA)
+        target.context.insert(QueueEntry(itemID: fixture.itemA.id, position: 0))
+        target.context.insert(QueueState(currentItemID: fixture.itemA.id))
+        try target.context.save()
+
+        let manager = QueueManager()
+        manager.attach(context: target.context)
+        XCTAssertEqual(manager.itemIDs, [fixture.itemA.id])
+
+        let result = try BackupService(storage: target.storage)
+            .restore(fixture.document, into: target.context)
+
+        XCTAssertEqual(result.queueEntriesRestored, 2)
+        XCTAssertEqual(result.queueEntriesDeferred, 0)
+        XCTAssertEqual(result.itemsMatched, 1)
+        XCTAssertEqual(result.itemsRestored, 1)
+
+        // Until the session refreshes, the manager still holds the old queue.
+        XCTAssertEqual(manager.itemIDs, [fixture.itemA.id])
+        manager.refreshFromStore()
+        XCTAssertEqual(manager.itemIDs, [fixture.itemB.id, fixture.itemA.id])
+        XCTAssertEqual(manager.currentItemID, fixture.itemB.id)
+        XCTAssertEqual(manager.shuffleEnabled, true)
+        XCTAssertEqual(manager.repeatMode, .all)
     }
 
     // MARK: - Validation

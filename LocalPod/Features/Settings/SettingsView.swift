@@ -913,7 +913,8 @@ struct SettingsView: View {
                 "backup.exportSummary",
                 document.items.count,
                 document.playlists.count,
-                document.playbackStates.count
+                document.playbackStates.count,
+                document.queue?.entries.count ?? 0
             )
         } catch {
             backupExportSummary = L10n.format(
@@ -959,11 +960,15 @@ struct SettingsView: View {
         guard let document = pendingRestoreDocument else { return }
         pendingRestoreDocument = nil
         do {
+            // Stop without saving the pre-restore position, then re-read the
+            // restored queue/current item once the rows are in place.
+            session.prepareForBackupRestore()
             let result = try BackupService().restore(
                 document,
                 into: modelContext,
                 settings: session.settings
             )
+            session.refreshAfterBackupRestore()
             backupRestoreSummary = L10n.format(
                 "backup.restoreSummary",
                 result.itemsRestored,
@@ -971,7 +976,10 @@ struct SettingsView: View {
                 result.itemsMissingMedia,
                 result.playlistsCreated,
                 result.playlistsMerged,
-                result.progressUpdated
+                result.progressUpdated,
+                result.queueEntriesRestored,
+                result.queueEntriesDeferred,
+                result.queueCurrentProgressText ?? "—"
             )
         } catch {
             backupRestoreSummary = L10n.format(

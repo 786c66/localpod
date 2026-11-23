@@ -245,6 +245,10 @@ public final class LibraryService {
             try context.save()
         }
 
+        // Media that was missing at restore time may just have arrived with
+        // this import. Promote a deferred backup queue once it fully resolves.
+        PendingQueueStore.applyIfPossible(in: context)
+
         return LibraryCommitResult(
             insertedCount: inserted,
             relinkedCount: relinked,
@@ -553,6 +557,10 @@ public final class LibraryService {
         if needsSave {
             try context.save()
         }
+
+        // A maintenance pass is also a relink path (files reappear when the
+        // linked folder is reachable again); promote a deferred queue then.
+        PendingQueueStore.applyIfPossible(in: context)
 
         let fileManager = FileManager.default
 

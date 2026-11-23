@@ -21,6 +21,7 @@ public final class PlaybackSession {
     /// long as that item is loaded (including background audio) and released
     /// when another item loads or playback stops.
     @ObservationIgnored private var activeLinkedAccess: LinkedFolderStore.ResolvedAccess?
+    @ObservationIgnored private var pendingQueueObserver: Task<Void, Never>?
 
     public init(
         playback: PlaybackController = PlaybackController(),
@@ -64,8 +65,48 @@ public final class PlaybackSession {
         }
         queue.attach(context: context)
         playlists.attach(context: context)
+        startObservingPendingQueue()
         applySettings()
         restoreQueue()
+    }
+
+    /// Stops the player before a backup restore replaces the progress rows.
+    /// The current position is deliberately not saved; saving it here would
+    /// overwrite the restored progress with the pre-restore position.
+    public func prepareForBackupRestore() {
+        playback.stopDiscardingProgress()
+        releaseLinkedAccess()
+        lastError = nil
+    }
+
+    /// Re-reads everything a restore may have replaced and loads the restored
+    /// current item at its restored position (paused, subject to
+    /// `resumeEnabled`). Without this the in-memory queue stays stale and the
+    /// next queue mutation persists the old queue over the restored one.
+    public func refreshAfterBackupRestore() {
+        queue.refreshFromStore()
+        applySettings()
+        restoreQueue(preservingUnplayableEntries: true)
+    }
+
+    /// Called when `PendingQueueStore` promotes a deferred queue after media
+    /// relinks. The queue rows changed behind our back, so reload them and
+    /// resume the parked current item.
+    public func refreshAfterExternalQueueChange() {
+        queue.refreshFromStore()
+        restoreQueue(preservingUnplayableEntries: true)
+    }
+
+    private func startObservingPendingQueue() {
+        guard pendingQueueObserver == nil else { return }
+        pendingQueueObserver = Task { @MainActor [weak self] in
+            for await _ in NotificationCenter.default.notifications(
+                named: PendingQueueStore.didApplyNotification
+            ) {
+                guard !Task.isCancelled else { break }
+                self?.refreshAfterExternalQueueChange()
+            }
+        }
     }
 
     public func applySettings() {
@@ -261,9 +302,16 @@ public final class PlaybackSession {
 
     // MARK: - Internal behavior
 
-    private func restoreQueue() {
+    private func restoreQueue(preservingUnplayableEntries: Bool = false) {
         guard let currentItemID = queue.currentItemID else { return }
         if loadItem(id: currentItemID, autoplay: false) {
+            return
+        }
+        if preservingUnplayableEntries {
+            // A restored queue can reference media that is not present yet.
+            // Keep every entry (and its position) instead of falling forward
+            // and deleting exactly the data the restore was meant to keep.
+            playback.stopDiscardingProgress()
             return
         }
         // The current item is gone (for example the media was removed outside

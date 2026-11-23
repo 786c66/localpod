@@ -395,7 +395,9 @@ struct RootView: View {
     private func seedP2BackupRoundTripIfNeeded() {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--p2-import-backup") {
+            session.prepareForBackupRestore()
             P2DebugSeed.importBackupIfRequested(in: modelContext)
+            session.refreshAfterBackupRestore()
         }
         P2DebugSeed.exportBackupIfRequested(in: modelContext)
         #endif

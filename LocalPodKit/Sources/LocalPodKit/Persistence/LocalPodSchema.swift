@@ -707,6 +707,65 @@ public enum LocalPodSchemaV7: VersionedSchema {
     }
 }
 
+/// V8 adds a single row holding a restored queue whose media is not present
+/// yet. The queue is kept aside until every entry can resolve to a playable
+/// library item; the library relink paths then promote it back into the real
+/// `QueueEntry` / `QueueState` rows.
+///
+/// Everything from V1–V7 is reused unchanged.
+public enum LocalPodSchemaV8: VersionedSchema {
+    public static var versionIdentifier: Schema.Version { Schema.Version(8, 0, 0) }
+
+    public static var models: [any PersistentModel.Type] {
+        [
+            LocalPodSchemaV7.MediaItem.self,
+            LocalPodSchemaV7.MediaCollection.self,
+            LocalPodSchemaV2.ImportSession.self,
+            LocalPodSchemaV3.PlaybackState.self,
+            LocalPodSchemaV4.QueueEntry.self,
+            LocalPodSchemaV4.QueueState.self,
+            LocalPodSchemaV4.Playlist.self,
+            LocalPodSchemaV4.PlaylistEntry.self,
+            LocalPodSchemaV5.LinkedFolder.self,
+            LocalPodSchemaV6.TrashItem.self,
+            PendingQueueSnapshot.self
+        ]
+    }
+
+    @Model
+    public final class PendingQueueSnapshot {
+        /// Singleton row; the queue is playback state and only one restore can
+        /// be pending at a time.
+        @Attribute(.unique) public var key: String = "restore"
+        /// JSON-encoded `[PendingQueueEntry]`, kept as data so the schema stays
+        /// lightweight and forward-compatible.
+        public var entriesData: Data = Data()
+        public var currentItemID: UUID?
+        public var shuffleEnabled: Bool = false
+        public var repeatModeRaw: String = QueueRepeatMode.off.rawValue
+        public var shuffleOrderRaw: String = ""
+        public var updatedAt: Date = Date()
+
+        public init(
+            key: String = "restore",
+            entriesData: Data = Data(),
+            currentItemID: UUID? = nil,
+            shuffleEnabled: Bool = false,
+            repeatModeRaw: String = QueueRepeatMode.off.rawValue,
+            shuffleOrderRaw: String = "",
+            updatedAt: Date = Date()
+        ) {
+            self.key = key
+            self.entriesData = entriesData
+            self.currentItemID = currentItemID
+            self.shuffleEnabled = shuffleEnabled
+            self.repeatModeRaw = repeatModeRaw
+            self.shuffleOrderRaw = shuffleOrderRaw
+            self.updatedAt = updatedAt
+        }
+    }
+}
+
 public enum LocalPodMigrationPlan: SchemaMigrationPlan {
     public static var schemas: [any VersionedSchema.Type] {
         [
@@ -716,7 +775,8 @@ public enum LocalPodMigrationPlan: SchemaMigrationPlan {
             LocalPodSchemaV4.self,
             LocalPodSchemaV5.self,
             LocalPodSchemaV6.self,
-            LocalPodSchemaV7.self
+            LocalPodSchemaV7.self,
+            LocalPodSchemaV8.self
         ]
     }
 
@@ -727,7 +787,8 @@ public enum LocalPodMigrationPlan: SchemaMigrationPlan {
             migrateV3toV4,
             migrateV4toV5,
             migrateV5toV6,
-            migrateV6toV7
+            migrateV6toV7,
+            migrateV7toV8
         ]
     }
 
@@ -760,6 +821,11 @@ public enum LocalPodMigrationPlan: SchemaMigrationPlan {
         fromVersion: LocalPodSchemaV6.self,
         toVersion: LocalPodSchemaV7.self
     )
+
+    public static let migrateV7toV8 = MigrationStage.lightweight(
+        fromVersion: LocalPodSchemaV7.self,
+        toVersion: LocalPodSchemaV8.self
+    )
 }
 
 public enum LocalPodStore {
@@ -777,7 +843,7 @@ public enum LocalPodStore {
     }
 
     public static func makeContainer(inMemory: Bool = false) throws -> ModelContainer {
-        let schema = Schema(versionedSchema: LocalPodSchemaV7.self)
+        let schema = Schema(versionedSchema: LocalPodSchemaV8.self)
         let configuration = ModelConfiguration(
             schema: schema,
             isStoredInMemoryOnly: inMemory

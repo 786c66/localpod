@@ -336,6 +336,29 @@ public struct BackupRestoreResult: Sendable, Equatable {
     /// Playback-state rows written: brand-new states plus existing states
     /// overwritten because the backup's `updatedAt` was newer.
     public var progressUpdated: Int = 0
+    /// Queue entries installed as the live queue.
+    public var queueEntriesRestored: Int = 0
+    /// Queue entries parked until their media is imported/relinked. The whole
+    /// restored queue is deferred when none of its media is present yet.
+    public var queueEntriesDeferred: Int = 0
+    /// Position of the restored current queue item, in seconds.
+    public var queueCurrentProgress: Double?
+    /// `queueCurrentProgress` formatted for the restore summary.
+    public var queueCurrentProgressText: String? {
+        guard let queueCurrentProgress,
+              queueCurrentProgress.isFinite,
+              queueCurrentProgress > 0 else {
+            return nil
+        }
+        let total = Int(queueCurrentProgress.rounded())
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let seconds = total % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%d:%02d", minutes, seconds)
+    }
     /// Dependent rows (playlist entries, playback states, queue entries)
     /// dropped because their item id resolved to nothing in the backup items
     /// or the current library.
@@ -597,6 +620,10 @@ public final class BackupService {
         // its dependent rows must reference (identity for id matches and
         // restores, the existing row's id for fingerprint matches).
         var itemIDMap: [UUID: UUID] = [:]
+        var backupItemsByID: [UUID: BackupItem] = [:]
+        for backup in document.items {
+            backupItemsByID[backup.id] = backup
+        }
         for backup in document.items {
             if itemByID[backup.id] != nil {
                 itemIDMap[backup.id] = backup.id
@@ -739,13 +766,18 @@ public final class BackupService {
 
         // Queue state (replace, see doc comment). Skipped when the backup has
         // no usable queue section so partial backups cannot wipe the current
-        // queue.
+        // queue. When none of the backup's media is present yet (a restore on
+        // a fresh install), the queue is parked instead of installed: writing
+        // it live would let the destructive launch path drop every
+        // unplayable entry.
         if let backupQueue = document.queue, !backupQueue.entries.isEmpty {
+            let sortedEntries = backupQueue.entries.sorted { $0.position < $1.position }
             var orderedIDs: [UUID] = []
             var seen = Set<UUID>()
-            for entry in backupQueue.entries.sorted(by: { $0.position < $1.position }) {
+            var unresolvedCount = 0
+            for entry in sortedEntries {
                 guard let itemID = itemIDMap[entry.itemID] else {
-                    result.skipped += 1
+                    unresolvedCount += 1
                     continue
                 }
                 if seen.insert(itemID).inserted {
@@ -753,37 +785,95 @@ public final class BackupService {
                 }
             }
 
-            for row in try context.fetch(FetchDescriptor<QueueEntry>()) {
-                context.delete(row)
+            var itemByLibraryID: [UUID: MediaItem] = [:]
+            for item in itemByID.values {
+                itemByLibraryID[item.id] = item
             }
-            for (index, itemID) in orderedIDs.enumerated() {
-                context.insert(QueueEntry(itemID: itemID, position: index))
+            let hasPlayableEntry = orderedIDs.contains {
+                itemByLibraryID[$0]?.isMissing == false
             }
 
-            let queueStateKey = QueueManager.stateKey
-            var descriptor = FetchDescriptor<QueueState>(
-                predicate: #Predicate { $0.key == queueStateKey }
-            )
-            descriptor.fetchLimit = 1
-            let state: QueueState
-            if let existing = try context.fetch(descriptor).first {
-                state = existing
+            if orderedIDs.isEmpty || !hasPlayableEntry {
+                var pendingEntries: [PendingQueueEntry] = []
+                var pendingSeen = Set<UUID>()
+                for entry in sortedEntries where pendingSeen.insert(entry.itemID).inserted {
+                    pendingEntries.append(PendingQueueEntry(
+                        itemID: entry.itemID,
+                        fingerprint: backupItemsByID[entry.itemID]?.fingerprint
+                    ))
+                }
+                PendingQueueStore.save(PendingQueueStore.Snapshot(
+                    entries: pendingEntries,
+                    currentItemID: backupQueue.currentItemID,
+                    shuffleEnabled: backupQueue.shuffleEnabled,
+                    repeatModeRaw: QueueRepeatMode(rawValue: backupQueue.repeatModeRaw)?
+                        .rawValue ?? QueueRepeatMode.off.rawValue,
+                    shuffleOrder: backupQueue.shuffleOrder
+                ), in: context)
+                result.queueEntriesDeferred = pendingEntries.count
+                // The backup queue still replaces the current one; it just
+                // cannot be installed as playable rows yet. Clearing here
+                // prevents the old queue from blocking the parked snapshot
+                // when it is promoted after the media relinks.
+                for row in try context.fetch(FetchDescriptor<QueueEntry>()) {
+                    context.delete(row)
+                }
+                let backupCurrentID = backupQueue.currentItemID
+                    ?? pendingEntries.first?.itemID
+                if let backupCurrentID,
+                   let state = document.playbackStates.first(
+                       where: { $0.itemID == backupCurrentID }
+                   ) {
+                    result.queueCurrentProgress = state.position
+                }
+                // Deliberately do not touch the live queue rows: the parked
+                // snapshot is promoted once the media relinks.
             } else {
-                state = QueueState()
-                context.insert(state)
+                result.skipped += unresolvedCount
+                for row in try context.fetch(FetchDescriptor<QueueEntry>()) {
+                    context.delete(row)
+                }
+                for (index, itemID) in orderedIDs.enumerated() {
+                    context.insert(QueueEntry(itemID: itemID, position: index))
+                }
+
+                let queueStateKey = QueueManager.stateKey
+                var descriptor = FetchDescriptor<QueueState>(
+                    predicate: #Predicate { $0.key == queueStateKey }
+                )
+                descriptor.fetchLimit = 1
+                let state: QueueState
+                if let existing = try context.fetch(descriptor).first {
+                    state = existing
+                } else {
+                    state = QueueState()
+                    context.insert(state)
+                }
+                state.currentItemID = backupQueue.currentItemID
+                    .flatMap { itemIDMap[$0] }
+                    .flatMap { orderedIDs.contains($0) ? $0 : nil } ?? orderedIDs.first
+                state.shuffleEnabled = backupQueue.shuffleEnabled
+                state.repeatModeRaw = QueueRepeatMode(rawValue: backupQueue.repeatModeRaw)?
+                    .rawValue ?? QueueRepeatMode.off.rawValue
+                state.shuffleOrderRaw = backupQueue.shuffleOrder
+                    .compactMap { itemIDMap[$0] }
+                    .filter { orderedIDs.contains($0) }
+                    .map(\.uuidString)
+                    .joined(separator: ",")
+                state.updatedAt = Date()
+
+                PendingQueueStore.clear(in: context)
+                result.queueEntriesRestored = orderedIDs.count
+                if let currentID = state.currentItemID {
+                    var progressDescriptor = FetchDescriptor<PlaybackState>(
+                        predicate: #Predicate { $0.itemID == currentID }
+                    )
+                    progressDescriptor.fetchLimit = 1
+                    if let progress = try context.fetch(progressDescriptor).first {
+                        result.queueCurrentProgress = progress.position
+                    }
+                }
             }
-            state.currentItemID = backupQueue.currentItemID
-                .flatMap { itemIDMap[$0] }
-                .flatMap { orderedIDs.contains($0) ? $0 : nil } ?? orderedIDs.first
-            state.shuffleEnabled = backupQueue.shuffleEnabled
-            state.repeatModeRaw = QueueRepeatMode(rawValue: backupQueue.repeatModeRaw)?
-                .rawValue ?? QueueRepeatMode.off.rawValue
-            state.shuffleOrderRaw = backupQueue.shuffleOrder
-                .compactMap { itemIDMap[$0] }
-                .filter { orderedIDs.contains($0) }
-                .map(\.uuidString)
-                .joined(separator: ",")
-            state.updatedAt = Date()
         }
 
         if let settings, let backupSettings = document.settings {
